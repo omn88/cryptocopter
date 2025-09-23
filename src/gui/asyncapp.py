@@ -4,7 +4,7 @@ This module contains the `AsyncApp` class, which is responsible for creating and
             if strategy.get("name") == "HPManager":
                 logger.info("Found instance of HPManager, restoring last known state.")
                 self.setup_hp_manager(
-                    strategy_id=strategy.get("strategy_id"), symbols_info=self.price_resolver.symbols_info
+                    strategy_id=strategy.get("strategy_id"), symbols=self.price_resolver.symbols
                 )`StrategyTab` for each trading strategy. It also sets up a logging handler
 for each strategy.
 """
@@ -12,7 +12,7 @@ for each strategy.
 import asyncio
 import logging
 import queue
-from typing import Dict, List, Optional
+from typing import Optional
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.lang import Builder

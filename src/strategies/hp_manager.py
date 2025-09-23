@@ -12,7 +12,7 @@ from binance.enums import (
     ORDER_TYPE_LIMIT,
     ORDER_TYPE_MARKET,
 )
-from src.common.symbol_info import SymbolInfo
+from src.common.symbol import Symbol
 from src.database import TradingDatabase
 from src.identifiers import (
     AccountPosition,
@@ -373,7 +373,7 @@ class HpStrategy:
 
     def build_hp_update_from_orders(
         self,
-        symbol_info: SymbolInfo,
+        symbol: Symbol,
         current_price: Optional[float] = None,
     ) -> HPUpdate:
         """Build HP update data from current orders and positions."""
@@ -400,9 +400,9 @@ class HpStrategy:
 
         logger.info("HP update buy price: %s", buy_price)
 
-        quantity = symbol_info.adjust_quantity(self.calculate_remaining_quantity())
+        quantity = symbol.adjust_quantity(self.calculate_remaining_quantity())
 
-        quantity_usd = symbol_info.adjust_price(
+        quantity_usd = symbol.adjust_price(
             float(quantity) * float(buy_price) if buy_price else 0.0
         )
 
@@ -412,7 +412,7 @@ class HpStrategy:
         net_percent = None
         if current_price and buy_price and quantity:
             # Calculate net profit/loss in USD
-            net = symbol_info.adjust_price((current_price - buy_price) * quantity)
+            net = symbol.adjust_price((current_price - buy_price) * quantity)
             # Calculate percentage change
             net_percent = round(((current_price / buy_price) - 1) * 100, 2)
 
@@ -472,7 +472,7 @@ class HpStrategy:
 
         expected_return = None
         if buy_price and self.sell.current_position.config.sell_price:
-            expected_return = symbol_info.adjust_price(
+            expected_return = symbol.adjust_price(
                 (self.sell.current_position.config.sell_price - buy_price)
                 * total_quantity
             )
@@ -523,15 +523,13 @@ class HpStrategy:
             if self.buy.data.config.mode == "DCA":
                 # DCA calculation: sum of quantities across all price levels
                 num_orders = 3
-                min_budget_for_max_orders = num_orders * symbol_info.min_notional
+                min_budget_for_max_orders = num_orders * symbol.min_notional
 
                 if self.buy.data.config.budget >= min_budget_for_max_orders:
                     order_quantity_stable = self.buy.data.config.budget / num_orders
                 else:
-                    order_quantity_stable = symbol_info.min_notional
-                    num_orders = int(
-                        self.buy.data.config.budget / symbol_info.min_notional
-                    )
+                    order_quantity_stable = symbol.min_notional
+                    num_orders = int(self.buy.data.config.budget / symbol.min_notional)
                     num_orders = num_orders if num_orders % 2 == 1 else num_orders - 1
 
                 if num_orders == 1:
@@ -552,8 +550,8 @@ class HpStrategy:
                             expected_qty += order_quantity_stable / order_price
 
                     # Round to symbol precision for consistent formatting
-                    if hasattr(symbol_info, "precision"):
-                        expected_qty = round(expected_qty, symbol_info.precision)
+                    if hasattr(symbol, "precision"):
+                        expected_qty = round(expected_qty, symbol.precision)
             else:
                 # SINGLE mode: budget / price_high
                 expected_qty = (
@@ -566,7 +564,7 @@ class HpStrategy:
         hp_update = HPUpdate(
             hp_id=hp_id,
             coin=coin,
-            symbol_info=symbol_info,
+            symbol=symbol,
             quantity=quantity,
             quantity_usd=quantity_usd,
             realized_quantity=sell_realized_quantity,  # Add sell order realized quantity
@@ -588,9 +586,7 @@ class HpStrategy:
 
     def send_buy_position_to_ui(self):
         """Send buy position update to UI."""
-        hp_update = self.build_hp_update_from_orders(
-            symbol_info=self.buy.data.config.symbol_info
-        )
+        hp_update = self.build_hp_update_from_orders(symbol=self.buy.data.config.symbol)
         # Set specific child ID for buy operations
         parent_id = str(self.buy.data.config.hp_id)
         hp_update.hp_id = f"{parent_id}_BUY"
@@ -612,7 +608,7 @@ class HpStrategy:
     def send_sell_position_to_ui(self):
         """Send sell position update to UI."""
         hp_update = self.build_hp_update_from_orders(
-            symbol_info=self.sell.current_position.config.symbol_info
+            symbol=self.sell.current_position.config.symbol
         )
 
         # Set specific child ID for sell operations
@@ -651,7 +647,7 @@ class HpStrategy:
         # logger.info(self.buy.orders)
 
         price = (
-            self.buy.data.config.symbol_info.adjust_price(
+            self.buy.data.config.symbol.adjust_price(
                 max(
                     order.price
                     for order in self.buy.orders
@@ -690,7 +686,7 @@ class HpStrategy:
             logger.info(
                 "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s "
                 "price trigger: %s last price: %s",
-                self.buy.data.config.symbol_info.symbol,
+                self.buy.data.config.symbol.name,
                 self.buy.data.state_info.side,
                 self.state,
                 self.buy.data.config.budget,
@@ -704,7 +700,7 @@ class HpStrategy:
         #     "[Send buy orders]: %s, %s, side: %s, state: %s, budget: %s, balance: %s "
         #     "price trigger: %s last price: %s",
         #     condition,
-        #     self.buy.data.config.symbol_info.symbol,
+        #     self.buy.data.config.symbol.name,
         #     self.buy.data.state_info.side,
         #     self.state,
         #     self.buy.data.config.budget,
@@ -716,7 +712,7 @@ class HpStrategy:
         return condition
 
     async def send_buy_orders(self, *args, **kwargs) -> None:
-        logger.info("Sending %s BUY", self.buy.data.config.symbol_info.symbol)
+        logger.info("Sending %s BUY", self.buy.data.config.symbol.name)
         budget_amount = self.get_remaining_quantity_buy()
         self.balance -= budget_amount
 
@@ -770,7 +766,7 @@ class HpStrategy:
         if condition:
             logger.info(
                 "[Cancel Unfilled BUY] %s, last price: %s, trig price: %s, state: %s, buy state: %s",
-                self.buy.data.config.symbol_info.symbol,
+                self.buy.data.config.symbol.name,
                 self.ticker_update.last_price,
                 self.buy.orders_cancel_price,
                 self.state,
@@ -814,7 +810,7 @@ class HpStrategy:
         if condition:
             logger.info(
                 "[Cancel Part Filled BUY] %s, last price: %s, trig price: %s",
-                self.buy.data.config.symbol_info.symbol,
+                self.buy.data.config.symbol.name,
                 self.ticker_update.last_price,
                 self.buy.orders_cancel_price,
             )
@@ -848,7 +844,7 @@ class HpStrategy:
             logger.info(
                 "[Resend buy orders] %s, side: %s, state: %s, budget: %s, balance: %s"
                 "price trigger: %s last price: %s",
-                self.buy.data.config.symbol_info.symbol,
+                self.buy.data.config.symbol.name,
                 self.buy.data.state_info.side,
                 self.state,
                 self.buy.data.config.budget,
@@ -860,7 +856,7 @@ class HpStrategy:
         return condition
 
     async def resend_buy_orders(self, *args, **kwargs) -> None:
-        logger.info("Resending %s BUY", self.buy.data.config.symbol_info.symbol)
+        logger.info("Resending %s BUY", self.buy.data.config.symbol.name)
         self.balance -= self.get_remaining_quantity_buy()
 
         await self.buy.open_position()
@@ -889,11 +885,9 @@ class HpStrategy:
             return 0.0  # or raise an error depending on your logic
 
         adjusted = (
-            self.sell.original_position.config.symbol_info.adjust_price(
-                0.96 * sell_price
-            )
+            self.sell.original_position.config.symbol.adjust_price(0.96 * sell_price)
             if self.sell.current_position.sell_type == SellType.DIRECT
-            else self.sell.original_position.config.symbol_info.adjust_price(sell_price)
+            else self.sell.original_position.config.symbol.adjust_price(sell_price)
         )
         return float(adjusted)
 
@@ -906,13 +900,13 @@ class HpStrategy:
             and self.ticker_update.last_price
             >= self.calculate_trigger_send_orders_price_sell()
             and self.ticker_update.symbol
-            == self.sell.current_position.config.symbol_info.symbol
+            == self.sell.current_position.config.symbol.name
         )
         if condition:
             logger.info(
                 "[Send sell orders] hp id: %s, %s, side: %s, state: %s",
                 self.sell.current_position.config.hp_id,
-                self.sell.current_position.config.symbol_info.symbol,
+                self.sell.current_position.config.symbol.name,
                 self.sell.current_position.state_info.side,
                 self.sell.current_position.state_info.state,
             )
@@ -920,7 +914,7 @@ class HpStrategy:
         return condition
 
     async def send_sell_order(self, *args, **kwargs) -> None:
-        if self.sell.current_position.config.symbol_info.is_convert_only:
+        if self.sell.current_position.config.symbol.is_convert_only:
             await self.convert_position()
             self.send_sell_position_to_ui()
             return
@@ -933,9 +927,7 @@ class HpStrategy:
             )
             await self.sell.recalculate_multihop_prices()
 
-        logger.info(
-            "Sending %s SELL", self.sell.current_position.config.symbol_info.symbol
-        )
+        logger.info("Sending %s SELL", self.sell.current_position.config.symbol.name)
 
         await self.sell.open_position()
 
@@ -972,16 +964,14 @@ class HpStrategy:
             )
 
     async def convert_position(self, max_spread: float = 0.01) -> None:
-        symbol_info = self.sell.current_position.config.symbol_info
-        if not symbol_info.is_convert_only:
-            logger.warning("Conversion not required for symbol: %s", symbol_info.symbol)
+        symbol = self.sell.current_position.config.symbol
+        if not symbol.is_convert_only:
+            logger.warning("Conversion not required for symbol: %s", symbol.name)
             return
 
-        from_asset = symbol_info.extract_coin_from_symbol(symbol_info.symbol)
+        from_asset = symbol.extract_coin_from_symbol(symbol.name)
         to_asset = self.sell.current_position.config.end_currency or "USDC"
-        quantity = symbol_info.format_quantity(
-            self.sell.current_position.config.quantity
-        )
+        quantity = symbol.format_quantity(self.sell.current_position.config.quantity)
 
         try:
             logger.info(
@@ -1095,7 +1085,7 @@ class HpStrategy:
         if condition:
             logger.info(
                 "[All orders filled] %s %s",
-                self.buy.data.config.symbol_info.symbol,
+                self.buy.data.config.symbol.name,
                 self.buy.data.state_info.side,
             )
         return condition
@@ -1124,7 +1114,7 @@ class HpStrategy:
         hp_buy_filled = HPBuyPositionFilled(
             hp_id=self.buy.data.config.hp_id,
             coin=self.buy.data.config.coin,
-            symbol=self.buy.data.config.symbol_info.symbol,
+            symbol=self.buy.data.config.symbol.name,
             quantity_bought=total_quantity_bought,
             buy_price=average_buy_price,
             total_cost=total_cost,
@@ -1147,13 +1137,13 @@ class HpStrategy:
             and self.ticker_update.last_price
             <= self.calculate_trigger_cancel_orders_price_sell()
             and self.ticker_update.symbol
-            == self.sell.current_position.config.symbol_info.symbol
+            == self.sell.current_position.config.symbol.name
             and self.sell.current_position.sell_order.status == ORDER_STATUS_NEW
         )
         if condition:
             logger.info(
                 "[Cancel Unfilled SELL] %s, last price: %s, trig price: %s",
-                self.sell.current_position.config.symbol_info.symbol,
+                self.sell.current_position.config.symbol.name,
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_sell(),
             )
@@ -1196,32 +1186,32 @@ class HpStrategy:
             and price > 0
             and self.ticker_update.last_price >= trig_ord_price
             and self.ticker_update.symbol
-            == self.sell.original_position.config.symbol_info.symbol
+            == self.sell.original_position.config.symbol.name
         )
         if condition:
             logger.info(
                 "[Send sell orders]: %s hp id: %s, %s, side: %s, state: %s",
                 condition,
                 self.sell.current_position.config.hp_id,
-                self.sell.current_position.config.symbol_info.symbol,
+                self.sell.current_position.config.symbol.name,
                 self.sell.current_position.state_info.side,
                 self.sell.current_position.state_info.state,
             )
         # if (
         #     self.ticker_update.symbol
-        #     == self.sell.original_position.config.symbol_info.symbol
+        #     == self.sell.original_position.config.symbol.name
         # ):
         #     logger.info(
         #         "[Send sell orders]: %s hp id: %s, %s, side: %s, state: %s, trigger price: %s, ticker price: %s, ticker symbol: %s, orig sell data symbol: %s",
         #         condition,
         #         self.sell.current_position.config.hp_id,
-        #         self.sell.current_position.config.symbol_info.symbol,
+        #         self.sell.current_position.config.symbol.name,
         #         self.sell.current_position.state_info.side,
         #         self.sell.current_position.state_info.state,
         #         trig_ord_price,
         #         self.ticker_update.last_price,
         #         self.ticker_update.symbol,
-        #         self.sell.original_position.config.symbol_info.symbol,
+        #         self.sell.original_position.config.symbol.name,
         #     )
         return condition
 
@@ -1235,13 +1225,13 @@ class HpStrategy:
             and (self.ticker_update.last_price <= sell_cancel_order_price)
             and (
                 self.ticker_update.symbol
-                == self.sell.current_position.config.symbol_info.symbol
+                == self.sell.current_position.config.symbol.name
             )
         )
         if condition:
             logger.info(
                 "[Cancel Unfilled SELL] %s, last price: %s, trig price: %s",
-                self.sell.current_position.config.symbol_info.symbol,
+                self.sell.current_position.config.symbol.name,
                 self.ticker_update.last_price,
                 sell_cancel_order_price,
             )
@@ -1255,7 +1245,7 @@ class HpStrategy:
             and self.buy.data.state_info.state == State.BOUGHT
             and self.ticker_update.last_price >= trigger_send_orders_price
             and self.ticker_update.symbol
-            == self.sell.current_position.config.symbol_info.symbol
+            == self.sell.current_position.config.symbol.name
         )
         assert (
             self.sell.current_position.state_info.state == State.PARTIALLY_SOLD
@@ -1268,7 +1258,7 @@ class HpStrategy:
         if condition:
             logger.info(
                 "[Resend sell] %s, sell state: %s, state: %s, balance: %s, price trig: %s last price: %s",
-                self.sell.current_position.config.symbol_info.symbol,
+                self.sell.current_position.config.symbol.name,
                 self.sell.current_position.state_info.state.value,
                 self.state.value,
                 self.balance,
@@ -1307,14 +1297,14 @@ class HpStrategy:
             self.ticker_update.last_price
             <= self.calculate_trigger_cancel_orders_price_sell()
             and self.ticker_update.symbol
-            == self.sell.current_position.config.symbol_info.symbol
+            == self.sell.current_position.config.symbol.name
             and self.sell.current_position.sell_order.status != ORDER_STATUS_NEW
             and self.buy.data.state_info.state == State.BOUGHT
         )
         if condition:
             logger.info(
                 "[Cancel Part Filled SELL] %s, last price: %s, trig price: %s",
-                self.sell.current_position.config.symbol_info.symbol,
+                self.sell.current_position.config.symbol.name,
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_sell(),
             )
@@ -1337,7 +1327,7 @@ class HpStrategy:
         )
         logger.info(
             "[All orders filled] %s %s",
-            self.sell.current_position.config.symbol_info.symbol,
+            self.sell.current_position.config.symbol.name,
             self.sell.current_position.state_info.side,
         )
         return condition
@@ -1373,7 +1363,7 @@ class HpStrategy:
         if len(self.sell.sell_positions) == 1:
             # Check if this is a convert operation - if so, completion event was already sent
             is_convert_operation = (
-                self.sell.current_position.config.symbol_info.is_convert_only
+                self.sell.current_position.config.symbol.is_convert_only
             )
             if is_convert_operation:
                 logger.info(
@@ -1416,7 +1406,7 @@ class HpStrategy:
                     state_info=self.sell.original_position.state_info,
                 ),
                 hp_update=self.build_hp_update_from_orders(
-                    symbol_info=self.sell.original_position.config.symbol_info
+                    symbol=self.sell.original_position.config.symbol
                 ),
             )
             self.ui_queue.put_nowait(data)
@@ -1480,12 +1470,12 @@ class HpStrategy:
             and self.ticker_update.last_price
             <= self.calculate_trigger_cancel_orders_price_sell()
             and self.ticker_update.symbol
-            == self.sell.current_position.config.symbol_info.symbol
+            == self.sell.current_position.config.symbol.name
         )
         if condition:
             logger.info(
                 "[Cancel Part Filled SELL] %s, last price: %s, trigger price: %s",
-                self.sell.current_position.config.symbol_info.symbol,
+                self.sell.current_position.config.symbol.name,
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_sell(),
             )
@@ -1513,13 +1503,13 @@ class HpStrategy:
             and self.ticker_update.last_price
             >= self.calculate_trigger_send_orders_price_sell()
             and self.ticker_update.symbol
-            == self.sell.current_position.config.symbol_info.symbol
+            == self.sell.current_position.config.symbol.name
         )
         if condition:
             logger.info(
                 "[Resend sell orders] hp id: %s, %s, side: %s, state: %s",
                 self.sell.current_position.config.hp_id,
-                self.sell.current_position.config.symbol_info.symbol,
+                self.sell.current_position.config.symbol.name,
                 self.sell.current_position.state_info.side,
                 self.sell.current_position.state_info.state,
             )
@@ -1539,7 +1529,7 @@ class HpStrategy:
             logger.info(
                 "[Resend buy orders] hp id: %s, %s, side: %s, state: %s",
                 self.sell.current_position.config.hp_id,
-                self.sell.current_position.config.symbol_info.symbol,
+                self.sell.current_position.config.symbol.name,
                 self.sell.current_position.state_info.side,
                 self.sell.current_position.state_info.state,
             )
@@ -1557,7 +1547,7 @@ class HpStrategy:
         if condition:
             logger.info(
                 "[Cancel Part Filled BUY] %s, last price: %s, trigger price: %s",
-                self.sell.current_position.config.symbol_info.symbol,
+                self.sell.current_position.config.symbol.name,
                 self.ticker_update.last_price,
                 self.buy.orders_cancel_price,
             )
@@ -1577,7 +1567,7 @@ class HpStrategy:
         if condition:
             logger.info(
                 "[All orders filled] %s %s",
-                self.buy.data.config.symbol_info.symbol,
+                self.buy.data.config.symbol.name,
                 self.buy.data.state_info.side,
             )
         return condition
@@ -1595,7 +1585,7 @@ class HpStrategy:
         if condition:
             logger.info(
                 "[All orders filled] %s %s",
-                self.buy.data.config.symbol_info.symbol,
+                self.buy.data.config.symbol.name,
                 self.buy.data.state_info.side,
             )
         return condition
@@ -1649,7 +1639,7 @@ class HpStrategy:
             logger.info(
                 "[Resend buy orders] hp id: %s, %s, side: %s, state: %s",
                 self.sell.current_position.config.hp_id,
-                self.sell.current_position.config.symbol_info.symbol,
+                self.sell.current_position.config.symbol.name,
                 self.sell.current_position.state_info.side,
                 self.sell.current_position.state_info.state,
             )
@@ -1667,7 +1657,7 @@ class HpStrategy:
         if condition:
             logger.info(
                 "[Cancel Part Filled BUY] %s, last price: %s, trigger price: %s",
-                self.sell.current_position.config.symbol_info.symbol,
+                self.sell.current_position.config.symbol.name,
                 self.ticker_update.last_price,
                 self.buy.orders_cancel_price,
             )
@@ -1879,7 +1869,7 @@ class HpStrategy:
                 ORDER_TYPE_MARKET,
             ]
             and self.execution_report.current_order_status == ORDER_STATUS_NEW
-            and self.execution_report.symbol == self.buy.data.config.symbol_info.symbol
+            and self.execution_report.symbol == self.buy.data.config.symbol.name
         )
         if condition:
             logger.info(
@@ -1910,7 +1900,7 @@ class HpStrategy:
         condition = (
             self.execution_report.order_type == ORDER_TYPE_LIMIT
             and self.execution_report.current_order_status == ORDER_STATUS_CANCELED
-            and self.execution_report.symbol == self.buy.data.config.symbol_info.symbol
+            and self.execution_report.symbol == self.buy.data.config.symbol.name
         )
         if condition:
             logger.info(
@@ -1975,7 +1965,7 @@ class HpStrategy:
                 )
 
     def calculate_trigger_cancel_orders_price_sell(self):
-        return self.sell.original_position.config.symbol_info.adjust_price(
+        return self.sell.original_position.config.symbol.adjust_price(
             0.92 * self.sell.original_position.config.sell_price
         )
 

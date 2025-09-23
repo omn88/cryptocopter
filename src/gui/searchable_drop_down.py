@@ -7,17 +7,17 @@ from kivy.uix.dropdown import DropDown
 from kivy.uix.button import Button
 from kivy.properties import ListProperty, StringProperty
 
-from src.common.symbol_info import SymbolInfo
+from src.common.symbol import Symbol
 
 
 class SearchableDropDown(BoxLayout):
     options = ListProperty()
     selected_value = StringProperty()
 
-    def __init__(self, client, symbols_info: Dict[str, SymbolInfo], **kwargs):
+    def __init__(self, client, symbols: Dict[str, Symbol], **kwargs):
         super().__init__(**kwargs)
         self.client = client
-        self.symbols_info = symbols_info
+        self.symbols = symbols
         self.orientation = "vertical"
         self.dropdown = DropDown()
 
@@ -66,8 +66,8 @@ class SearchableDropDown(BoxLayout):
 
     async def _update_prices_async(self, symbol: str):
         bid, ask = await self.fetch_bid_ask_price(symbol)
-        self.price_low_input.text = self.symbols_info[symbol].format_price(bid)
-        self.price_high_input.text = self.symbols_info[symbol].format_price(ask)
+        self.price_low_input.text = self.symbols[symbol].format_price(bid)
+        self.price_high_input.text = self.symbols[symbol].format_price(ask)
 
     def update_dropdown(self, instance, value):
         self.dropdown.clear_widgets()

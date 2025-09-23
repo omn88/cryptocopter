@@ -91,9 +91,7 @@ class HpFront(BoxLayout):
         self.price_resolver = price_resolver
         self.portfolio_queue = portfolio_queue
         self.bind(hp_list_data=self._update_hp_list_view)
-        self.symbols = [
-            symbol for symbol, _ in self.price_resolver.symbols_info.items()
-        ]
+        self.symbols = [symbol for symbol, _ in self.price_resolver.symbols.items()]
         self.test_mode = test_mode
         self.stop_event: asyncio.Event = asyncio.Event()
         self.ui_queue_closed = False
@@ -259,8 +257,8 @@ Side: {side}"""
             self.hp_manager.cancel_hp_callback = self.cancel_hp
             self.hp_manager.remove_hp_callback = self.remove_hp
 
-            # Set symbols_info and client for HP manager integration
-            self.hp_manager.symbols_info = self.price_resolver.symbols_info
+            # Set symbols and client for HP manager integration
+            self.hp_manager.symbols = self.price_resolver.symbols
             self.hp_manager.client = self.client
 
             # Update with current data
@@ -282,14 +280,14 @@ Side: {side}"""
 
     def _create_buy_hp_from_config(self, config: HPConfiguration):
         """Create Buy HP from unified configuration."""
-        if not self.price_resolver.symbols_info.get(config.symbol):
+        if not self.price_resolver.symbols.get(config.symbol):
             logger.error(f"Symbol info not found for {config.symbol}")
             return
 
         new_hp = HPBuyData(
             config=HPBuyConfig(
                 coin=config.coin,
-                symbol_info=self.price_resolver.symbols_info[config.symbol],
+                symbol=self.price_resolver.symbols[config.symbol],
                 price_low=config.price_low or 0.0,
                 price_high=config.price_high or 0.0,
                 budget=config.budget or 1000.0,
@@ -630,13 +628,12 @@ Side: {side}"""
         hp_map = {item["hp_id"]: item for item in hp_list}
 
         quantity_usd = (
-            update.symbol_info.format_price(
+            update.symbol.format_price(
                 update.quantity_usd * self.price_resolver.latest_prices["BTCUSDC"]
             )
-            if update.quantity_usd is not None
-            and update.symbol_info.symbol.endswith("BTC")
+            if update.quantity_usd is not None and update.symbol.name.endswith("BTC")
             else (
-                update.symbol_info.format_price(update.quantity_usd)
+                update.symbol.format_price(update.quantity_usd)
                 if update.quantity_usd is not None
                 else "0.0"
             )
@@ -685,8 +682,8 @@ Side: {side}"""
 
                 if total_invested_amount > 0:
                     parent["quantity_usd"] = (
-                        str(update.symbol_info.format_price(total_invested_amount))
-                        if hasattr(update.symbol_info, "format_price")
+                        str(update.symbol.format_price(total_invested_amount))
+                        if hasattr(update.symbol, "format_price")
                         else f"{total_invested_amount:.2f}"
                     )
 
@@ -802,20 +799,20 @@ Side: {side}"""
         # Update core price data from the update
         if update.buy_price is not None:
             parent["buy_price"] = (
-                str(update.symbol_info.format_price(update.buy_price))
-                if update.symbol_info
+                str(update.symbol.format_price(update.buy_price))
+                if update.symbol
                 else str(update.buy_price)
             )
         if update.sell_price is not None:
             parent["sell_price"] = (
-                str(update.symbol_info.format_price(update.sell_price))
-                if update.symbol_info
+                str(update.symbol.format_price(update.sell_price))
+                if update.symbol
                 else str(update.sell_price)
             )
         if update.expected_return is not None:
             parent["expected_return"] = (
-                str(update.symbol_info.format_price(update.expected_return))
-                if update.symbol_info
+                str(update.symbol.format_price(update.expected_return))
+                if update.symbol
                 else str(update.expected_return)
             )
 
@@ -828,8 +825,8 @@ Side: {side}"""
                 else update.quantity
             )
             formatted_quantity = (
-                str(update.symbol_info.format_quantity(float(quantity_to_use)))
-                if update.symbol_info
+                str(update.symbol.format_quantity(float(quantity_to_use)))
+                if update.symbol
                 else str(quantity_to_use)
             )
             parent["quantity"] = formatted_quantity
@@ -945,20 +942,20 @@ Side: {side}"""
         # Update core price data from the update
         if update.buy_price is not None:
             parent["buy_price"] = (
-                str(update.symbol_info.format_price(update.buy_price))
-                if update.symbol_info
+                str(update.symbol.format_price(update.buy_price))
+                if update.symbol
                 else str(update.buy_price)
             )
         if update.sell_price is not None:
             parent["sell_price"] = (
-                str(update.symbol_info.format_price(update.sell_price))
-                if update.symbol_info
+                str(update.symbol.format_price(update.sell_price))
+                if update.symbol
                 else str(update.sell_price)
             )
         if update.expected_return is not None:
             parent["expected_return"] = (
-                str(update.symbol_info.format_price(update.expected_return))
-                if update.symbol_info
+                str(update.symbol.format_price(update.expected_return))
+                if update.symbol
                 else str(update.expected_return)
             )
 
@@ -1017,8 +1014,8 @@ Side: {side}"""
             initial_quantity = "0.0"
             if hasattr(update, "quantity") and update.quantity is not None:
                 initial_quantity = (
-                    str(update.symbol_info.format_quantity(float(update.quantity)))
-                    if update.symbol_info
+                    str(update.symbol.format_quantity(float(update.quantity)))
+                    if update.symbol
                     else str(update.quantity)
                 )
 
@@ -1065,7 +1062,7 @@ Side: {side}"""
                 f"HP Manager Frontend: Using current quantity={total_bought} for parent position"
             )
 
-        parent["quantity"] = str(update.symbol_info.format_quantity(total_bought))
+        parent["quantity"] = str(update.symbol.format_quantity(total_bought))
         print(
             f"HP Manager Frontend: [_update_parent_buy_quantities] Set parent quantity to {parent['quantity']} (total_bought={total_bought}) for HP {update.hp_id}"
         )
@@ -1078,9 +1075,9 @@ Side: {side}"""
         """Update parent quantities for sell operations."""
         # For convert-only positions, use the quantity from the update since there's no actual buying
         if (
-            update.symbol_info
-            and hasattr(update.symbol_info, "is_convert_only")
-            and update.symbol_info.is_convert_only
+            update.symbol
+            and hasattr(update.symbol, "is_convert_only")
+            and update.symbol.is_convert_only
         ):
             total_bought_qty = float(update.quantity) if update.quantity else 0.0
         else:
@@ -1097,13 +1094,13 @@ Side: {side}"""
         sold_qty = max(0.0, total_bought_qty - remaining_qty)
 
         # Update parent quantities
-        parent["quantity"] = str(update.symbol_info.format_quantity(total_bought_qty))
+        parent["quantity"] = str(update.symbol.format_quantity(total_bought_qty))
 
         # Parent realized_quantity should use the update's realized_quantity when available
         if update.realized_quantity is not None:
             # Use the realized_quantity from the update (this is what was actually sold)
             parent["realized_quantity"] = str(
-                update.symbol_info.format_quantity(float(update.realized_quantity))
+                update.symbol.format_quantity(float(update.realized_quantity))
             )
         else:
             # Fallback: try to get from sell child data
@@ -1111,7 +1108,7 @@ Side: {side}"""
                 update.hp_id
             )
             parent["realized_quantity"] = str(
-                update.symbol_info.format_quantity(sell_child_realized_qty)
+                update.symbol.format_quantity(sell_child_realized_qty)
             )
 
     def _create_multihop_sell_child(
@@ -1142,15 +1139,13 @@ Side: {side}"""
             # This is likely the first multihop child, use the original quantity
             total_bought_qty = float(update.quantity)
             # Update parent with the correct quantity and quantity_usd
-            parent["quantity"] = str(
-                update.symbol_info.format_quantity(total_bought_qty)
-            )
+            parent["quantity"] = str(update.symbol.format_quantity(total_bought_qty))
             # Calculate quantity_usd for parent using parent's buy price (not multihop child's)
             parent_buy_price = float(parent.get("buy_price", "0.0"))
             parent_quantity_usd = total_bought_qty * parent_buy_price
             parent["quantity_usd"] = (
-                str(update.symbol_info.format_price(parent_quantity_usd))
-                if update.symbol_info
+                str(update.symbol.format_price(parent_quantity_usd))
+                if update.symbol
                 else f"{parent_quantity_usd:.2f}"
             )
         else:
@@ -1194,43 +1189,39 @@ Side: {side}"""
             update.buy_price if update.buy_price else 0.0
         )
         sell_child_quantity_usd_str = (
-            str(update.symbol_info.format_price(sell_child_quantity_usd))
-            if update.symbol_info
+            str(update.symbol.format_price(sell_child_quantity_usd))
+            if update.symbol
             else f"{sell_child_quantity_usd:.2f}"
         )
 
         sell_child = {
             "hp_id": hp_id,
-            "coin": update.symbol_info.symbol,
+            "coin": update.symbol.name,
             "buy_price": (
-                str(update.symbol_info.format_price(update.buy_price))
+                str(update.symbol.format_price(update.buy_price))
                 if update.buy_price
                 else "0.0"
             ),
-            "quantity": str(update.symbol_info.format_quantity(child_qty)),
-            "realized_quantity": str(
-                update.symbol_info.format_quantity(actually_sold_qty)
-            ),
+            "quantity": str(update.symbol.format_quantity(child_qty)),
+            "realized_quantity": str(update.symbol.format_quantity(actually_sold_qty)),
             "quantity_usd": sell_child_quantity_usd_str,
             "sell_price": (
-                str(update.symbol_info.format_price(update.sell_price))
+                str(update.symbol.format_price(update.sell_price))
                 if update.sell_price
                 else "0.0"
             ),
             "expected_return": (
-                str(update.symbol_info.format_price(update.expected_return))
+                str(update.symbol.format_price(update.expected_return))
                 if update.expected_return
                 else "0.0"
             ),
             "current_price": (
-                str(update.symbol_info.format_price(update.current_price))
+                str(update.symbol.format_price(update.current_price))
                 if update.current_price
                 else "0.0"
             ),
             "net": (
-                str(update.symbol_info.format_price(update.net))
-                if update.net
-                else "0.0"
+                str(update.symbol.format_price(update.net)) if update.net else "0.0"
             ),
             "net_percent": str(update.net_percent) if update.net_percent else "0.0",
             "state": self._get_sell_child_state_from_update(update),
@@ -1282,37 +1273,33 @@ Side: {side}"""
         # Calculate quantity_usd
         buy_child_quantity_usd = total_bought_qty * (update.buy_price or 0.0)
         buy_child_quantity_usd_str = (
-            str(update.symbol_info.format_price(buy_child_quantity_usd))
-            if update.symbol_info
+            str(update.symbol.format_price(buy_child_quantity_usd))
+            if update.symbol
             else f"{buy_child_quantity_usd:.2f}"
         )
 
         buy_child = {
             "hp_id": hp_id,
-            "coin": update.symbol_info.symbol,
+            "coin": update.symbol.name,
             "buy_price": (
-                str(update.symbol_info.format_price(update.buy_price))
+                str(update.symbol.format_price(update.buy_price))
                 if update.buy_price
                 else "0.0"
             ),
             "quantity": str(
-                update.symbol_info.format_quantity(orders_total_qty)
+                update.symbol.format_quantity(orders_total_qty)
             ),  # Use sum of all buy order quantities (total to be bought)
             "realized_quantity": str(
-                update.symbol_info.format_quantity(
-                    total_bought_qty
-                )  # Use actual progress
+                update.symbol.format_quantity(total_bought_qty)  # Use actual progress
             ),
             "quantity_usd": buy_child_quantity_usd_str,
             "current_price": (
-                str(update.symbol_info.format_price(update.current_price))
+                str(update.symbol.format_price(update.current_price))
                 if update.current_price
                 else "0.0"
             ),
             "net": (
-                str(update.symbol_info.format_price(update.net))
-                if update.net
-                else "0.0"
+                str(update.symbol.format_price(update.net)) if update.net else "0.0"
             ),
             "net_percent": str(update.net_percent) if update.net_percent else "0.0",
             "state": self._get_buy_child_state(update),
@@ -1336,8 +1323,8 @@ Side: {side}"""
         # Update parent expected_return if available in the update
         if update.expected_return is not None:
             parent["expected_return"] = (
-                str(update.symbol_info.format_price(update.expected_return))
-                if update.symbol_info
+                str(update.symbol.format_price(update.expected_return))
+                if update.symbol
                 else str(update.expected_return)
             )
 
@@ -1382,34 +1369,32 @@ Side: {side}"""
 
         convert_sell_child = {
             "hp_id": hp_id,
-            "coin": update.symbol_info.symbol,
+            "coin": update.symbol.name,
             "buy_price": (
-                str(update.symbol_info.format_price(update.buy_price))
+                str(update.symbol.format_price(update.buy_price))
                 if update.buy_price
                 else "0.0"
             ),
-            "quantity": str(update.symbol_info.format_quantity(quantity)),
-            "realized_quantity": str(update.symbol_info.format_quantity(quantity)),
+            "quantity": str(update.symbol.format_quantity(quantity)),
+            "realized_quantity": str(update.symbol.format_quantity(quantity)),
             "quantity_usd": quantity_usd,
             "sell_price": (
-                str(update.symbol_info.format_price(update.sell_price))
+                str(update.symbol.format_price(update.sell_price))
                 if update.sell_price
                 else "0.0"
             ),
             "expected_return": (
-                str(update.symbol_info.format_price(update.expected_return))
+                str(update.symbol.format_price(update.expected_return))
                 if update.expected_return
                 else "0.0"
             ),
             "current_price": (
-                str(update.symbol_info.format_price(update.current_price))
+                str(update.symbol.format_price(update.current_price))
                 if update.current_price
                 else "0.0"
             ),
             "net": (
-                str(update.symbol_info.format_price(update.net))
-                if update.net
-                else "0.0"
+                str(update.symbol.format_price(update.net)) if update.net else "0.0"
             ),
             "net_percent": str(update.net_percent) if update.net_percent else "0.0",
             "state": update.state.value,
@@ -1450,7 +1435,7 @@ Side: {side}"""
                         strategy["coin"].endswith("USD")
                         and symbol == f"{strategy['coin'][:-3]}USDT"
                     ):
-                        current_price = self.symbols_info[symbol].format_price(
+                        current_price = self.symbols[symbol].format_price(
                             price=float(ticker["c"])
                         )
                         strategy["current_price"] = current_price
@@ -1470,13 +1455,11 @@ Side: {side}"""
                                 * float(strategy["quantity"]),
                                 2,
                             )
-                            strategy["net"] = self.symbols_info[symbol].format_price(
-                                net_usd
-                            )
+                            strategy["net"] = self.symbols[symbol].format_price(net_usd)
                             strategy["net_percent"] = str(net_percent)
                     # Handle direct symbol matches (e.g., BTCUSDT)
                     elif symbol == strategy["coin"]:
-                        current_price = self.symbols_info[symbol].format_price(
+                        current_price = self.symbols[symbol].format_price(
                             price=float(ticker["c"])
                         )
                         strategy["current_price"] = current_price
@@ -1496,9 +1479,7 @@ Side: {side}"""
                                 * float(strategy["quantity"]),
                                 2,
                             )
-                            strategy["net"] = self.symbols_info[symbol].format_price(
-                                net_usd
-                            )
+                            strategy["net"] = self.symbols[symbol].format_price(net_usd)
                             strategy["net_percent"] = str(net_percent)
         # Only trigger visual refresh if significant changes occurred
         # Use throttling to ensure 1-second refresh interval for prices
@@ -1633,9 +1614,9 @@ Enter sell price to create sell order:"""
                 f"Creating sell order for HP {hp_id}: {quantity} {coin_symbol} at {sell_price}"
             )
 
-            if symbol not in self.symbols_info:
+            if symbol not in self.symbols:
                 fallback_symbol = f"{coin_symbol}USDT"
-                if fallback_symbol in self.symbols_info:
+                if fallback_symbol in self.symbols:
                     logger.info(
                         f"Using fallback symbol {fallback_symbol} instead of {symbol}"
                     )
@@ -1654,7 +1635,7 @@ Enter sell price to create sell order:"""
                     sell_price=sell_price,
                     quantity=float(quantity),
                     end_currency="USDC",
-                    symbol_info=self.symbols_info[symbol],
+                    symbol=self.symbols[symbol],
                 ),
                 state_info=StateInfo(side=PositionSide.SHORT),
             )
@@ -1673,7 +1654,7 @@ Enter sell price to create sell order:"""
 
     def cancel_sell(self, hp_id: str, coin: str):
         coin = coin[:-3] if coin.endswith("USD") else coin
-        config = HPSellConfig(hp_id=hp_id, symbol_info=self.symbols_info[f"{coin}USDT"])
+        config = HPSellConfig(hp_id=hp_id, symbol=self.symbols[f"{coin}USDT"])
         state_info = StateInfo(
             side=PositionSide.SHORT, ui_state=UiState.CLOSED, state=State.CLOSED
         )

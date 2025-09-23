@@ -60,7 +60,7 @@ class PositionManager:
                 hp_id=buy_data.config.hp_id,
                 position_type=PositionType.BUY,
                 status=self._convert_state_to_status(buy_data.state_info.state),
-                symbol=buy_data.config.symbol_info.symbol,
+                symbol=buy_data.config.symbol.name,
                 coin=buy_data.config.coin,
                 budget=buy_data.config.budget,
                 price_low=buy_data.config.price_low,
@@ -105,7 +105,7 @@ class PositionManager:
                 hp_id=sell_data.config.hp_id,
                 position_type=PositionType.SELL,
                 status=self._convert_state_to_status(sell_data.state_info.state),
-                symbol=sell_data.config.symbol_info.symbol,
+                symbol=sell_data.config.symbol.name,
                 coin=sell_data.config.coin,
                 quantity=sell_data.config.quantity,
                 buy_price=sell_data.config.buy_price,
@@ -165,14 +165,14 @@ class PositionManager:
                 trade_type = (
                     TradeType.TWOHOP if len(sell_positions) > 1 else TradeType.DIRECT
                 )
-                if sell_pos.config.symbol_info.is_convert_only:
+                if sell_pos.config.symbol.is_convert_only:
                     trade_type = TradeType.CONVERT
 
                 position = Position(
                     hp_id=sell_pos.config.hp_id,
                     position_type=PositionType.SELL,
                     status=self._convert_state_to_status(sell_pos.state_info.state),
-                    symbol=sell_pos.config.symbol_info.symbol,
+                    symbol=sell_pos.config.symbol.name,
                     coin=sell_pos.config.coin,
                     quantity=sell_pos.config.quantity,
                     buy_price=sell_pos.config.buy_price,

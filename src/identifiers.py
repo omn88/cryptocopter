@@ -8,7 +8,7 @@ import time
 from typing import Dict, List, NamedTuple, Optional, Union, Any
 from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC, ORDER_STATUS_NEW
 from binance import AsyncClient
-from src.common.symbol_info import SymbolInfo
+from src.common.symbol import Symbol
 
 
 @dataclass
@@ -384,7 +384,7 @@ class StateInfo:
 
 @dataclass
 class HPBuyConfig:
-    symbol_info: SymbolInfo
+    symbol: Symbol
     coin: str
     hp_id: str = "0"
     price_low: float = 0
@@ -401,7 +401,7 @@ class HPBuyConfig:
 
     def __str__(self):
         return (
-            f"HPBuyConfig(hp_id={self.hp_id}, symbol_info={self.symbol_info}"
+            f"HPBuyConfig(hp_id={self.hp_id}, symbol={self.symbol}"
             f"price_low={self.price_low}, price_high={self.price_high}, "
             f"order_trigger={self.order_trigger}, budget={self.budget}, mode={self.mode})"
         )
@@ -418,7 +418,7 @@ class HPBuyData:
 
 @dataclass
 class HPSellConfig:
-    symbol_info: SymbolInfo
+    symbol: Symbol
     hp_id: str = ""
     coin: str = ""
     quantity: float = 0.0
@@ -432,7 +432,7 @@ class HPSellConfig:
         return (
             f"HPSellConfig(hp_id={self.hp_id}, coin={self.coin}, "
             f"quantity={self.quantity}, buy_price={self.buy_price}, "
-            f"sell_price={self.sell_price}, end_currency={self.end_currency}, symbol_info={self.symbol_info})"
+            f"sell_price={self.sell_price}, end_currency={self.end_currency}, symbol={self.symbol})"
         )
 
 

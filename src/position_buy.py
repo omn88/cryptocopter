@@ -55,7 +55,7 @@ class HPPositionBuy:
         logger.info(
             "Orders cancel price set to: %s for position: %s",
             self.orders_cancel_price,
-            self.data.config.symbol_info.symbol,
+            self.data.config.symbol.name,
         )
         logger.info("Orders: %s", self.orders)
         for order in self.orders:
@@ -76,7 +76,7 @@ class HPPositionBuy:
             logger.info(
                 "New %s order send for %s at price: %s and quantity: %s [id: %s]",
                 self.data.state_info.side.value,
-                self.data.config.symbol_info.symbol,
+                self.data.config.symbol.name,
                 order.price,
                 order.quantity_stable,
                 order.order_id,
@@ -87,13 +87,13 @@ class HPPositionBuy:
     async def cancel_position(self) -> None:
         logger.info(
             "Start canceling position: %s %s, hp id: %s",
-            self.data.config.symbol_info.symbol,
+            self.data.config.symbol.name,
             self.data.state_info.side,
             self.data.config.hp_id,
         )
 
         self.orders = await self.cancel_remaining_limit_orders(
-            symbol=self.data.config.symbol_info.symbol,
+            symbol=self.data.config.symbol.name,
             orders=self.orders,
         )
         for order in self.orders:
@@ -196,13 +196,13 @@ class HPPositionBuy:
         def prepare_single_buy_order():
             orders.append(
                 Order(
-                    quantity=config.symbol_info.adjust_quantity(
+                    quantity=config.symbol.adjust_quantity(
                         config.budget / config.price_high
                     ),
-                    price=config.symbol_info.adjust_price(config.price_high),
+                    price=config.symbol.adjust_price(config.price_high),
                     quantity_stable=config.budget,
-                    precision=config.symbol_info.precision,
-                    price_precision=config.symbol_info.price_precision,
+                    precision=config.symbol.precision,
+                    price_precision=config.symbol.price_precision,
                 )
             )
 
@@ -214,13 +214,13 @@ class HPPositionBuy:
         if config.mode == Mode.DCA:
             num_orders = 3
 
-            min_budget_for_max_orders = num_orders * config.symbol_info.min_notional
+            min_budget_for_max_orders = num_orders * config.symbol.min_notional
 
             if config.budget >= min_budget_for_max_orders:
                 order_quantity_stable = config.budget / num_orders
             else:
-                order_quantity_stable = config.symbol_info.min_notional
-                num_orders = int(config.budget / config.symbol_info.min_notional)
+                order_quantity_stable = config.symbol.min_notional
+                num_orders = int(config.budget / config.symbol.min_notional)
                 num_orders = num_orders if num_orders % 2 == 1 else num_orders - 1
 
             if num_orders == 1:
@@ -235,24 +235,24 @@ class HPPositionBuy:
 
                     orders.append(
                         Order(
-                            quantity=config.symbol_info.adjust_quantity(
+                            quantity=config.symbol.adjust_quantity(
                                 order_quantity_stable / order_price
                             ),
-                            price=config.symbol_info.adjust_price(order_price),
+                            price=config.symbol.adjust_price(order_price),
                             quantity_stable=round(order_quantity_stable, 2),
-                            precision=config.symbol_info.precision,
-                            price_precision=config.symbol_info.price_precision,
+                            precision=config.symbol.precision,
+                            price_precision=config.symbol.price_precision,
                         )
                     )
         logger.info(
             "Buy orders prepared:\n%s\n for position: %s",
             pprint.pformat(list(orders)),
-            config.symbol_info.symbol,
+            config.symbol.name,
         )
         self.orders = orders
 
     def calculate_trigger_cancel_orders_price(self):
-        return self.data.config.symbol_info.adjust_price(
+        return self.data.config.symbol.adjust_price(
             max(
                 order.price
                 for order in self.orders
@@ -300,7 +300,7 @@ class HPPositionBuy:
         if total_realized_quantity == 0:
             return 0.0  # Avoid division by zero
 
-        return self.data.config.symbol_info.adjust_price(
+        return self.data.config.symbol.adjust_price(
             total_cost / total_realized_quantity
         )
 
@@ -322,21 +322,21 @@ class HPPositionBuy:
         if total_realized_quantity == 0:
             return 0.0  # Avoid division by zero
 
-        return self.data.config.symbol_info.adjust_quantity(total_realized_quantity)
+        return self.data.config.symbol.adjust_quantity(total_realized_quantity)
 
     async def _create_order(self, order: Order) -> Order:
         max_retries = 10
         last_exception = None
         for _ in range(max_retries):
             try:
-                symbol_info = self.data.config.symbol_info
-                price = symbol_info.format_price(order.price)
-                quantity = symbol_info.adjust_quantity(
+                symbol = self.data.config.symbol
+                price = symbol.format_price(order.price)
+                quantity = symbol.adjust_quantity(
                     order.quantity - order.realized_quantity
                 )
-                symbol_info.validate_order(price=float(price), quantity=quantity)
+                symbol.validate_order(price=float(price), quantity=quantity)
                 resp = await self.client.create_order(
-                    symbol=symbol_info.symbol,
+                    symbol=symbol.name,
                     price=price,
                     quantity=quantity,
                     side=self.data.state_info.side.value,

@@ -1,16 +1,16 @@
 # src/utils/usd_price_resolver.py
 from typing import Dict
 import logging
-from src.common.symbol_info import SymbolInfo
+from src.common.symbol import Symbol
 from src.identifiers import BinanceClient
 
 logger = logging.getLogger("price_resolver")
 
 
 class UsdPriceResolver:
-    def __init__(self, client: BinanceClient, symbols_info: Dict[str, SymbolInfo]):
+    def __init__(self, client: BinanceClient, symbols: Dict[str, Symbol]):
         self.client = client
-        self.symbols_info = symbols_info
+        self.symbols = symbols
         self.latest_prices: Dict[str, float] = {}
 
     def update_price(self, symbol: str, price: float):
@@ -23,7 +23,7 @@ class UsdPriceResolver:
         self.latest_prices = {
             item["symbol"]: float(item["price"])
             for item in prices
-            if item["symbol"] in self.symbols_info
+            if item["symbol"] in self.symbols
         }
         # logger.debug("Latest prices: %s", self.latest_prices)
 
@@ -100,8 +100,8 @@ class UsdPriceResolver:
 
         # Apply adjustment using symbol info if available
         try:
-            symbol_info = self.symbols_info[f"{coin}USDT"]
-            price = symbol_info.adjust_price(raw_price)
+            symbol = self.symbols[f"{coin}USDT"]
+            price = symbol.adjust_price(raw_price)
             # logger.info("Adjusted price for coin %s using symbol info: %s", coin, price)
             return price
         except KeyError:

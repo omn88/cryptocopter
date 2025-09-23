@@ -9,11 +9,8 @@ This simulator provides methods to test the complete inventory sell flow:
 5. Validating final states
 """
 
-import asyncio
 import logging
 from typing import List, Optional
-
-from src.common.symbol_info import SymbolInfo
 from src.gui.hp_manager.hpfront import HpFront
 from src.strategy_executor import StrategyExecutor
 from src.portfolio.portfolio_gui import PortfolioUI
@@ -184,9 +181,7 @@ class InventorySellSimulator:
             sell_price=sell_price,
             quantity=sell_quantity,
             end_currency=end_currency,
-            symbol_info=self.strategy_executor.price_resolver.symbols_info[
-                f"{coin}USDT"
-            ],
+            symbol=self.strategy_executor.price_resolver.symbols[f"{coin}USDT"],
         )
 
         sell_data = HPSellData(
@@ -241,7 +236,7 @@ class InventorySellSimulator:
         sell_price = strategy.sell.current_position.config.sell_price
         strategy.ticker_update = TickerUpdate(
             last_price=sell_price,
-            symbol=strategy.sell.current_position.config.symbol_info.symbol,
+            symbol=strategy.sell.current_position.config.symbol.name,
         )
 
         # Process ticker to move from BOUGHT to SELLING

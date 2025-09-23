@@ -40,7 +40,7 @@ class HPManager(BoxLayout):  # type: ignore[misc]
         # Available data for modals
         self.available_symbols: List[str] = []
         self.inventory_coins: Dict[str, List[Any]] = {}
-        self.symbols_info: Dict[str, Any] = {}
+        self.symbols: Dict[str, Any] = {}
         self.client: Optional[Any] = None
 
         # Modal instances
@@ -55,8 +55,8 @@ class HPManager(BoxLayout):  # type: ignore[misc]
             return
 
         modal = BuyHPModal(
-            symbols=self.available_symbols,
-            symbols_info=self.symbols_info,
+            available_symbols=self.available_symbols,
+            symbols=self.symbols,
             client=self.client,
             callback=self.on_buy_hp_configured,
         )

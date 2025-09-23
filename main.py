@@ -19,7 +19,7 @@ import logging_config  # noinspection PyUnresolvedReferences
 import logging
 from decouple import Config, RepositoryEnv
 from src.identifiers import BinanceClient
-from src.common.symbol_info import fetch_symbol_info
+from src.common.symbol import fetch_symbols
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 
 os.environ["KIVY_NO_CONSOLELOG"] = "1"
@@ -61,7 +61,7 @@ async def main() -> None:
     )
 
     price_resolver = UsdPriceResolver(
-        client=client, symbols_info=await fetch_symbol_info(client=client)
+        client=client, symbols=await fetch_symbols(client=client)
     )
     await price_resolver.fetch_all_prices()
 

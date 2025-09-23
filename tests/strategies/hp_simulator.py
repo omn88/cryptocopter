@@ -7,7 +7,7 @@ from binance.enums import (
     ORDER_STATUS_PARTIALLY_FILLED,
     ORDER_STATUS_FILLED,
 )
-from src.common.symbol_info import SymbolInfo
+from src.common.symbol import Symbol
 from src.gui.hp_manager.hpfront import HpFront
 from src.identifiers import (
     Event,
@@ -58,7 +58,7 @@ class HPSimulator:
         - Mocks the convert quote/accept and market price.
         - Waits for the frontend to reflect the expected state.
         """
-        symbol = f"{coin}{end_currency}"
+        name = f"{coin}{end_currency}"
 
         # Simulate sending config for convert-only position
         hp_sell_data = HPSellData(
@@ -68,7 +68,7 @@ class HPSimulator:
                 sell_price=sell_price,
                 quantity=quantity,
                 end_currency=end_currency,
-                symbol_info=SymbolInfo(symbol=symbol, precision=5, price_precision=2),
+                symbol=Symbol(name=name, precision=5, price_precision=2),
             ),
             state_info=StateInfo(side=PositionSide.SHORT),
         )
@@ -105,7 +105,7 @@ class HPSimulator:
         hp = HPBuyData(
             HPBuyConfig(
                 hp_id=hp_id,
-                symbol_info=SymbolInfo(symbol=symbol, precision=5, price_precision=2),
+                symbol=Symbol(name=symbol, precision=5, price_precision=2),
                 price_low=price_low,
                 price_high=price_high,
                 order_trigger=order_trigger,
@@ -829,7 +829,7 @@ class HPSimulator:
                 sell_price=sell_price,
                 quantity=quantity,
                 end_currency=end_currency,
-                symbol_info=SymbolInfo(symbol=symbol, precision=5, price_precision=2),
+                symbol=Symbol(name=symbol, precision=5, price_precision=2),
             ),
             state_info=StateInfo(side=PositionSide.SHORT),
         )
@@ -1256,7 +1256,7 @@ class HPSimulator:
                 sell_price=sell_price,
                 quantity=quantity,
                 end_currency=end_currency,
-                symbol_info=SymbolInfo(symbol=symbol, precision=5, price_precision=2),
+                symbol=Symbol(name=symbol, precision=5, price_precision=2),
             ),
             state_info=StateInfo(side=PositionSide.SHORT),
         )
@@ -1888,7 +1888,7 @@ class HPSimulator:
                 sell_price=1.14,
                 quantity=quantity,
                 end_currency="PLN",
-                symbol_info=self.back.price_resolver.symbols_info[f"{coin}USDT"],
+                symbol=self.back.price_resolver.symbols[f"{coin}USDT"],
             ),
             state_info=StateInfo(side=PositionSide.SHORT),
         )
@@ -1909,9 +1909,9 @@ class HPSimulator:
         assert isinstance(strategy, HpStrategy)
 
         assert len(strategy.sell.sell_strategy) == 2
-        assert strategy.sell.sell_strategy[0].symbol == f"{coin}BTC"
+        assert strategy.sell.sell_strategy[0].name == f"{coin}BTC"
         assert (
-            strategy.sell.sell_strategy[1].symbol
+            strategy.sell.sell_strategy[1].name
             == f"BTC{sell_config.config.end_currency}"
         )
 
@@ -2098,7 +2098,7 @@ class HPSimulator:
         )
         logger.info("currente sell position: %s", strategy.sell.current_position)
         await wait_for_condition(
-            condition_func=lambda: strategy.sell.current_position.config.symbol_info.symbol
+            condition_func=lambda: strategy.sell.current_position.config.symbol.name
             == "BTCPLN"
         )
 

@@ -734,7 +734,7 @@ class TradingDatabase:
                         )
                     )
                 ),
-                symbol=data.config.symbol_info.symbol,
+                symbol=data.config.symbol.name,
                 coin=data.config.coin,
                 budget=data.config.budget,
                 price_low=data.config.price_low,
@@ -790,7 +790,7 @@ class TradingDatabase:
                         )
                     )
                 ),
-                symbol=config.symbol_info.symbol,
+                symbol=config.symbol.name,
                 coin=config.coin,
                 quantity=config.quantity,
                 buy_price=config.buy_price,

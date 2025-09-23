@@ -12,7 +12,7 @@ from binance.enums import (
     ORDER_STATUS_CANCELED,
 )
 from src.gui.identifiers.spot import HPGuiDataBuy, HPGuiDataSell
-from src.common.symbol_info import SymbolInfo
+from src.common.symbol import Symbol
 from src.position_sell import HPPositionSell
 from src.strategies.hp_manager import HpStrategy
 from src.gui.hp_manager.hpfront import HpFront
@@ -395,7 +395,7 @@ def assert_gui_position_data_content_buy(
 
         msg_config = gui_msg.data.config
         msg_state_info = gui_msg.data.state_info
-        assert msg_config.symbol_info.symbol == config.symbol_info.symbol
+        assert msg_config.symbol.name == config.symbol.name
         assert msg_state_info.side == state_info.side
         assert msg_state_info.state == state_info.state
         assert msg_config.price_low == config.price_low
@@ -448,7 +448,7 @@ def get_default_buy_position(trading_system_factory) -> HpStrategy:
         HPBuyConfig(
             hp_id="0",
             coin="BTC",
-            symbol_info=SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
+            symbol=Symbol(name="BTCUSDC", precision=5, price_precision=2),
             price_low=1000.0,
             price_high=1400.0,
             order_trigger=1.0,
@@ -472,7 +472,7 @@ def get_default_buy_position(trading_system_factory) -> HpStrategy:
     assert buy_cfg.order_trigger == 1
     assert buy_cfg.budget == 1000
     assert buy_cfg.mode == Mode.DCA
-    assert buy_cfg.symbol_info.symbol == "BTCUSDC"
+    assert buy_cfg.symbol.name == "BTCUSDC"
 
     assert strategy.buy.data.state_info.side == PositionSide.LONG
     assert strategy.buy.data.state_info.state == State.NEW
@@ -491,8 +491,8 @@ def get_default_buy_position(trading_system_factory) -> HpStrategy:
     ), f"Wynik to: {strategy.sell.current_position.config.hp_id}"
     assert strategy.sell.current_position.config.sell_price == 0
     assert (
-        strategy.sell.current_position.config.symbol_info.symbol == ""
-    ), f"Wynik to: {strategy.sell.current_position.config.symbol_info.symbol}"
+        strategy.sell.current_position.config.symbol.name == ""
+    ), f"Wynik to: {strategy.sell.current_position.config.symbol.name}"
     assert strategy.sell.current_position.state_info.side == PositionSide.SHORT
     assert strategy.sell.current_position.state_info.state == State.NEW
     assert strategy.state == State.NEW
@@ -519,9 +519,9 @@ def assert_default_buy_position_data(
     assert config.order_trigger == 1.0
     assert config.order_cancel == 2.0
     assert config.mode == Mode.DCA
-    assert config.symbol_info.symbol == "BTCUSDC"
-    assert config.symbol_info.precision == 5
-    assert config.symbol_info.price_precision == 2
+    assert config.symbol.name == "BTCUSDC"
+    assert config.symbol.precision == 5
+    assert config.symbol.price_precision == 2
 
     state_info = content.data.state_info
     assert isinstance(state_info, StateInfo)
@@ -623,9 +623,9 @@ async def move_to_buy_position_active(
     assert config.order_trigger == 1.0
     assert config.order_cancel == 2.0
     assert config.mode == Mode.DCA
-    assert config.symbol_info.symbol == "BTCUSDC"
-    assert config.symbol_info.precision == 5
-    assert config.symbol_info.price_precision == 2
+    assert config.symbol.name == "BTCUSDC"
+    assert config.symbol.precision == 5
+    assert config.symbol.price_precision == 2
 
     state_info = content.data.state_info
     assert isinstance(state_info, StateInfo)
@@ -1890,7 +1890,7 @@ async def send_sell_order_for_partially_bought_position(
 
     config = HPSellConfig(
         hp_id=strategy.buy.data.config.hp_id,
-        symbol_info=strategy.buy.data.config.symbol_info,
+        symbol=strategy.buy.data.config.symbol,
         sell_price=4200.0,
         quantity=buy_realized_quantity,
     )
@@ -1902,7 +1902,7 @@ async def send_sell_order_for_partially_bought_position(
             sell_order=Order(quantity=0),
         ),
         db=strategy.db,
-        sell_strategy=[config.symbol_info],
+        sell_strategy=[config.symbol],
         price_resolver=strategy.sell.price_resolver,
         broker=strategy.sell.broker,
         worker_queue=strategy.worker_queue,
@@ -1914,7 +1914,7 @@ async def send_sell_order_for_partially_bought_position(
 
     assert strategy.sell.current_position.config.hp_id == "1000"
     assert strategy.sell.current_position.config.sell_price == 4200.0
-    assert strategy.sell.current_position.config.symbol_info.symbol == "BTCUSDC"
+    assert strategy.sell.current_position.config.symbol.name == "BTCUSDC"
 
     assert strategy.sell.current_position.state_info.side == PositionSide.SHORT
     assert strategy.sell.current_position.state_info.state == State.NEW
@@ -2298,7 +2298,7 @@ async def send_sell_order_for_bought_position(
     )
     config = HPSellConfig(
         hp_id=strategy.buy.data.config.hp_id,
-        symbol_info=strategy.buy.data.config.symbol_info,
+        symbol=strategy.buy.data.config.symbol,
         sell_price=4200.0,
         quantity=buy_realized_quantity,
     )
@@ -2310,7 +2310,7 @@ async def send_sell_order_for_bought_position(
             sell_order=Order(quantity=0),
         ),
         db=strategy.db,
-        sell_strategy=[config.symbol_info],
+        sell_strategy=[config.symbol],
         price_resolver=strategy.sell.price_resolver,
         broker=strategy.sell.broker,
         worker_queue=strategy.worker_queue,
@@ -2324,7 +2324,7 @@ async def send_sell_order_for_bought_position(
         strategy.sell.current_position.config.hp_id == "1000"
     ), f"To kurwa jaki: {strategy.sell.current_position.config.hp_id}"
     assert strategy.sell.current_position.config.sell_price == 4200.0
-    assert strategy.sell.current_position.config.symbol_info.symbol == "BTCUSDC"
+    assert strategy.sell.current_position.config.symbol.name == "BTCUSDC"
 
     assert strategy.sell.current_position.state_info.side == PositionSide.SHORT
     assert strategy.sell.current_position.state_info.state == State.NEW
@@ -2451,7 +2451,7 @@ async def simulate_move_to_sell_from_partially_bought_position(
 
     config = HPSellConfig(
         hp_id=strategy.buy.data.config.hp_id,
-        symbol_info=strategy.buy.data.config.symbol_info,
+        symbol=strategy.buy.data.config.symbol,
         sell_price=4200,
         quantity=buy_realized_quantity,
     )
@@ -2463,7 +2463,7 @@ async def simulate_move_to_sell_from_partially_bought_position(
             sell_order=Order(quantity=0),
         ),
         db=strategy.db,
-        sell_strategy=[config.symbol_info],
+        sell_strategy=[config.symbol],
         price_resolver=strategy.sell.price_resolver,
         broker=strategy.sell.broker,
         worker_queue=strategy.worker_queue,
@@ -2471,7 +2471,7 @@ async def simulate_move_to_sell_from_partially_bought_position(
 
     assert strategy.sell.current_position.config.hp_id == "1000"
     assert strategy.sell.current_position.config.sell_price == 4200
-    assert strategy.sell.current_position.config.symbol_info.symbol == "BTCUSDC"
+    assert strategy.sell.current_position.config.symbol.name == "BTCUSDC"
 
     assert strategy.sell.current_position.state_info.side == PositionSide.SHORT
     assert strategy.sell.current_position.state_info.state == State.NEW
@@ -2517,7 +2517,7 @@ async def simulate_move_to_sell_from_partially_bought_position(
 async def move_to_sell_position_active(strategy: HpStrategy) -> HpStrategy:
     config = HPSellConfig(
         hp_id=strategy.buy.data.config.hp_id,
-        symbol_info=strategy.buy.data.config.symbol_info,
+        symbol=strategy.buy.data.config.symbol,
         sell_price=4200.0,
     )
 
@@ -2529,7 +2529,7 @@ async def move_to_sell_position_active(strategy: HpStrategy) -> HpStrategy:
             sell_order=Order(quantity=0),
         ),
         db=strategy.db,
-        sell_strategy=[config.symbol_info],
+        sell_strategy=[config.symbol],
         price_resolver=strategy.sell.price_resolver,
         broker=strategy.sell.broker,
         worker_queue=strategy.worker_queue,
@@ -2541,7 +2541,7 @@ async def move_to_sell_position_active(strategy: HpStrategy) -> HpStrategy:
 
     assert strategy.sell.current_position.config.hp_id == "1000"
     assert strategy.sell.current_position.config.sell_price == 4200
-    assert strategy.sell.current_position.config.symbol_info.symbol == "BTCUSDC"
+    assert strategy.sell.current_position.config.symbol.name == "BTCUSDC"
 
     assert strategy.sell.current_position.state_info.side == PositionSide.SHORT
     assert strategy.sell.current_position.state_info.state == State.NEW

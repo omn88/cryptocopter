@@ -73,7 +73,7 @@ async def test_recovery_get_default_buy_position(crash_recovery_factory):
     # Store original configuration for comparison
     original_config = {
         "hp_id": strategy.buy.data.config.hp_id,
-        "symbol": strategy.buy.data.config.symbol_info.symbol,
+        "symbol": strategy.buy.data.config.symbol.name,
         "price_low": strategy.buy.data.config.price_low,
         "price_high": strategy.buy.data.config.price_high,
         "budget": strategy.buy.data.config.budget,
@@ -129,10 +129,7 @@ async def test_recovery_get_default_buy_position(crash_recovery_factory):
 
     # Verify configuration preserved exactly
     assert recovered_strategy.buy.data.config.hp_id == original_config["hp_id"]
-    assert (
-        recovered_strategy.buy.data.config.symbol_info.symbol
-        == original_config["symbol"]
-    )
+    assert recovered_strategy.buy.data.config.symbol.name == original_config["symbol"]
     assert recovered_strategy.buy.data.config.price_low == original_config["price_low"]
     assert (
         recovered_strategy.buy.data.config.price_high == original_config["price_high"]
@@ -271,7 +268,7 @@ async def test_recovery_default_buy_position_send_orders(crash_recovery_factory)
     # Store original configuration for comparison
     original_config = {
         "hp_id": strategy.buy.data.config.hp_id,
-        "symbol": strategy.buy.data.config.symbol_info.symbol,
+        "symbol": strategy.buy.data.config.symbol.name,
         "price_low": strategy.buy.data.config.price_low,
         "price_high": strategy.buy.data.config.price_high,
         "budget": strategy.buy.data.config.budget,
@@ -440,10 +437,7 @@ async def test_recovery_default_buy_position_send_orders(crash_recovery_factory)
 
     # Verify configuration preserved exactly
     assert recovered_strategy.buy.data.config.hp_id == original_config["hp_id"]
-    assert (
-        recovered_strategy.buy.data.config.symbol_info.symbol
-        == original_config["symbol"]
-    )
+    assert recovered_strategy.buy.data.config.symbol.name == original_config["symbol"]
     assert recovered_strategy.buy.data.config.price_low == original_config["price_low"]
     assert (
         recovered_strategy.buy.data.config.price_high == original_config["price_high"]
@@ -1455,7 +1449,7 @@ async def test_recovery_default_position_first_order_filled_partially_then_cance
     assert recovered_strategy.state == State.BUYING
     assert recovered_strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
     assert len(recovered_strategy.buy.orders) == 3
-    assert recovered_strategy.buy.data.config.symbol_info.symbol == "BTCUSDC"
+    assert recovered_strategy.buy.data.config.symbol.name == "BTCUSDC"
     assert recovered_strategy.buy.orders[0].realized_quantity == 0.24
     assert recovered_strategy.buy.orders[1].realized_quantity == 0.0
     assert recovered_strategy.buy.orders[2].realized_quantity == 0.0
@@ -3999,7 +3993,7 @@ async def test_recovery_convert_only_position_crash(crash_recovery_factory):
     assert recovered_strategy.sell.current_position.config.coin == "DYM"
     assert recovered_strategy.sell.current_position.config.sell_price == sell_price
     assert recovered_strategy.state == State.BOUGHT
-    assert recovered_strategy.sell.current_position.config.symbol_info.is_convert_only
+    assert recovered_strategy.sell.current_position.config.symbol.is_convert_only
 
     # Wait for frontend to reflect the convert-only position
     await wait_for_condition(condition_func=lambda: new_front.hp_list_data)

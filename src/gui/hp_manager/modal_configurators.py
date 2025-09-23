@@ -14,7 +14,7 @@ from typing import Dict, List, Callable, Any, Tuple
 import logging
 import uuid
 
-from src.common.symbol_info import SymbolInfo
+from src.common.symbol import Symbol
 from src.gui.searchable_drop_down import SearchableDropDown
 from .models import HPConfiguration
 
@@ -114,13 +114,13 @@ class BuyHPModal(BaseHPModal):
 
     def __init__(
         self,
-        symbols: List[str],
-        symbols_info: Dict[str, SymbolInfo],
+        available_symbols: List[str],
+        symbols: Dict[str, Symbol],
         client: Any = None,
         **kwargs: Any,
     ) -> None:
+        self.available_symbols = available_symbols
         self.symbols = symbols
-        self.symbols_info = symbols_info
         self.client = client
         self.selected_symbol = ""  # Initialize selected symbol
         super().__init__(title="Create Buy HP Position", **kwargs)
@@ -129,7 +129,7 @@ class BuyHPModal(BaseHPModal):
         """Setup Buy HP form fields."""
         # Symbol selection using SearchableDropDown
         self.symbol_input = SearchableDropDown(
-            client=self.client, options=self.symbols, symbols_info=self.symbols_info
+            client=self.client, options=self.available_symbols, symbols=self.symbols
         )
         self.form_layout.add_widget(self.create_form_row("Symbol:", self.symbol_input))
 

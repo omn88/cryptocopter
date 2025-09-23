@@ -31,7 +31,6 @@ from src.identifiers import (
     StateInfo,
     PositionSide,
 )
-from src.common.symbol_info import SymbolInfo
 from src.database import TradingDatabase
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 
@@ -324,7 +323,7 @@ class PortfolioUI(BoxLayout):
                     return
 
                 # Create sell order via config queue
-                if not self.strategy_config_queue or not self.symbols_info:
+                if not self.strategy_config_queue or not self.symbols:
                     logger.error(
                         "Strategy config queue or symbols info not available. Cannot create sell orders."
                     )
@@ -347,9 +346,9 @@ class PortfolioUI(BoxLayout):
                     coin_symbol = symbol[:-3] if symbol.endswith("USD") else symbol
                     symbol_key = f"{coin_symbol}USDC"
 
-                    if symbol_key not in self.symbols_info:
+                    if symbol_key not in self.symbols:
                         fallback_symbol = f"{coin_symbol}USDT"
-                        if fallback_symbol in self.symbols_info:
+                        if fallback_symbol in self.symbols:
                             logger.info(
                                 f"Using fallback symbol {fallback_symbol} instead of {symbol_key}"
                             )
@@ -372,7 +371,7 @@ class PortfolioUI(BoxLayout):
                     # Create HP sell configuration
                     sell_config = HPSellData(
                         config=HPSellConfig(
-                            symbol_info=self.symbols_info[symbol_key],
+                            symbol=self.symbols[symbol_key],
                             hp_id="",  # Empty HP ID for new position
                             coin=coin_symbol,
                             quantity=sell_quantity,
@@ -992,8 +991,8 @@ class PortfolioUI(BoxLayout):
         if avg_price > 0 and coin_symbol:
             try:
                 symbol_key = f"{coin_symbol}USDT"
-                if symbol_key in self.price_resolver.symbols_info:
-                    return self.price_resolver.symbols_info[symbol_key].adjust_price(
+                if symbol_key in self.price_resolver.symbols:
+                    return self.price_resolver.symbols[symbol_key].adjust_price(
                         avg_price
                     )
             except (KeyError, AttributeError):
@@ -1096,9 +1095,7 @@ class PortfolioUI(BoxLayout):
             if not coin.get("is_lot_row", False) and symbol in price_updates.msg:
                 price = price_updates.msg[symbol]
                 coin["price_usd"] = str(
-                    self.price_resolver.symbols_info[f"{symbol}USDT"].adjust_price(
-                        price
-                    )
+                    self.price_resolver.symbols[f"{symbol}USDT"].adjust_price(price)
                 )
                 total_in_usd = round(float(coin["quantity"]) * price, 2)
                 coin["total_usd"] = str(total_in_usd)

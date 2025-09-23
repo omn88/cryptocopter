@@ -20,7 +20,7 @@ from src.identifiers import (
     PositionSide,
     Mode,
 )
-from src.common.symbol_info import SymbolInfo
+from src.common.symbol import Symbol
 from .models import (
     Position,
     Order as DatabaseOrder,
@@ -47,13 +47,13 @@ class RecoveryService:
 
     def __init__(
         self,
-        symbols_info: Dict[str, SymbolInfo],
+        symbols: Dict[str, Symbol],
         database: TradingDatabase,
         client: BinanceClient,
     ):
         self.database = database
         self.client = client
-        self.symbols_info = symbols_info
+        self.symbols = symbols
 
     async def recover_all_positions(self) -> Tuple[List[HPBuyData], List[HPSellData]]:
         """
@@ -385,8 +385,8 @@ class RecoveryService:
     async def _convert_to_buy_data(self, position: Position) -> Optional[HPBuyData]:
         """Convert database Position to HPBuyData for the trading system."""
         try:
-            symbol_info = self.symbols_info.get(position.symbol)
-            if not symbol_info:
+            symbol = self.symbols.get(position.symbol)
+            if not symbol:
                 logger.error("Symbol info not found for %s", position.symbol)
                 return None
 
@@ -452,7 +452,7 @@ class RecoveryService:
                     )
 
             config = HPBuyConfig(
-                symbol_info=symbol_info,
+                symbol=symbol,
                 coin=position.coin,
                 hp_id=position.hp_id,
                 price_low=position.price_low,
@@ -490,13 +490,13 @@ class RecoveryService:
     async def _convert_to_sell_data(self, position: Position) -> Optional[HPSellData]:
         """Convert database Position to HPSellData for the trading system."""
         try:
-            symbol_info = self.symbols_info.get(position.symbol)
-            if not symbol_info:
+            symbol = self.symbols.get(position.symbol)
+            if not symbol:
                 logger.error("Symbol info not found for %s", position.symbol)
                 return None
 
             config = HPSellConfig(
-                symbol_info=symbol_info,
+                symbol=symbol,
                 hp_id=position.hp_id,
                 coin=position.coin,
                 quantity=position.quantity,
@@ -613,7 +613,7 @@ class RecoveryService:
 
             for position in positions:
                 # Check if symbol info exists
-                if position.symbol not in self.symbols_info:
+                if position.symbol not in self.symbols:
                     issues["missing_symbols"].append(position.symbol)
 
                 # Check for broken parent-child relationships

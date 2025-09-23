@@ -18,7 +18,7 @@ from binance.exceptions import (
 )
 
 from src.broker import BrokerSpot
-from src.common.symbol_info import SymbolInfo
+from src.common.symbol import Symbol
 
 from src.database import (
     TradingDatabase,
@@ -49,7 +49,7 @@ class HPPositionSell:
         self,
         client: BinanceClient,
         original_position: SellPosition,
-        sell_strategy: List[SymbolInfo],
+        sell_strategy: List[Symbol],
         db: TradingDatabase,
         price_resolver: UsdPriceResolver,
         broker: BrokerSpot,
@@ -68,7 +68,7 @@ class HPPositionSell:
         self.sell_positions: List[SellPosition] = []
         self.current_position: SellPosition = SellPosition(
             Order(quantity=0),
-            config=HPSellConfig(symbol_info=SymbolInfo()),
+            config=HPSellConfig(symbol=Symbol()),
             state_info=StateInfo(side=PositionSide.SHORT),
             sell_type=SellType.DIRECT,
         )
@@ -106,7 +106,7 @@ class HPPositionSell:
                     system_id=self.original_position.config.hp_id,
                     subscription_info=SubscriptionInfo(
                         data_type=SubscriptionType.PRICE,
-                        symbol=position.config.symbol_info.symbol,
+                        symbol=position.config.symbol.name,
                         target=SubscriptionTarget.BACKEND,
                         queue=self.worker_queue,
                     ),
@@ -115,7 +115,7 @@ class HPPositionSell:
                     system_id=self.original_position.config.hp_id,
                     subscription_info=SubscriptionInfo(
                         data_type=SubscriptionType.USER,
-                        symbol=position.config.symbol_info.symbol,
+                        symbol=position.config.symbol.name,
                         target=SubscriptionTarget.BACKEND,
                         queue=self.worker_queue,
                     ),
@@ -124,7 +124,7 @@ class HPPositionSell:
             system_id=self.original_position.config.hp_id,
             subscription_info=SubscriptionInfo(
                 data_type=SubscriptionType.PRICE,
-                symbol=self.original_position.config.symbol_info.symbol,
+                symbol=self.original_position.config.symbol.name,
                 target=SubscriptionTarget.BACKEND,
                 queue=self.worker_queue,
             ),
@@ -141,13 +141,13 @@ class HPPositionSell:
         if len(self.sell_strategy) == 2:
             self.sell_positions = self._build_2hop_positions(self.sell_strategy)
 
-    def _build_1hop_position(self, symbol_info: SymbolInfo) -> List[SellPosition]:
-        if not symbol_info.symbol.endswith("USDT"):
+    def _build_1hop_position(self, symbol: Symbol) -> List[SellPosition]:
+        if not symbol.name.endswith("USDT"):
             sell_position = SellPosition(
                 config=self.original_position.config,
                 state_info=self.original_position.state_info,
                 sell_order=self._generate_order(
-                    symbol_info,
+                    symbol,
                     quantity=self.original_position.config.quantity,
                     price=self.original_position.config.sell_price,
                 ),
@@ -161,7 +161,7 @@ class HPPositionSell:
             config=self.original_position.config,
             state_info=self.original_position.state_info,
             sell_order=self._generate_order(
-                symbol_info,
+                symbol,
                 quantity=self.original_position.config.quantity,
                 price=self.original_position.config.sell_price,
             ),
@@ -175,31 +175,29 @@ class HPPositionSell:
             sell_position.config.hp_id = original_hp_id
         return [sell_position]
 
-    def _build_2hop_positions(
-        self, sell_strategy: List[SymbolInfo]
-    ) -> List[SellPosition]:
+    def _build_2hop_positions(self, sell_strategy: List[Symbol]) -> List[SellPosition]:
         original = self.original_position
         sell_price = original.config.sell_price
         quantity = original.config.quantity
 
-        leg1_info = sell_strategy[0]
-        leg2_info = sell_strategy[1]
+        leg1 = sell_strategy[0]
+        leg2 = sell_strategy[1]
 
-        leg2_price = self.price_resolver.latest_prices.get(leg2_info.symbol)
+        leg2_price = self.price_resolver.latest_prices.get(leg2.name)
         if not leg2_price:
-            raise ValueError(f"{leg2_info.symbol} price is missing from feed")
+            raise ValueError(f"{leg2.name} price is missing from feed")
 
         # Convert target sell_price in USDC to quote token of leg1 (e.g. BTC)
-        price_in_quote = sell_price / leg2_info.adjust_price(leg2_price)
+        price_in_quote = sell_price / leg2.adjust_price(leg2_price)
 
-        leg1_price = leg1_info.adjust_price(price_in_quote)
-        leg1_quantity = leg1_info.adjust_quantity(quantity)
+        leg1_price = leg1.adjust_price(price_in_quote)
+        leg1_quantity = leg1.adjust_quantity(quantity)
         leg1_quantity_stable = round(leg1_quantity * leg1_price, 8)
 
-        leg2_price_adjusted = leg2_info.adjust_price(
-            self.price_resolver.latest_prices[leg2_info.symbol]
+        leg2_price_adjusted = leg2.adjust_price(
+            self.price_resolver.latest_prices[leg2.name]
         )
-        leg2_quantity = leg2_info.adjust_quantity(leg1_quantity_stable)
+        leg2_quantity = leg2.adjust_quantity(leg1_quantity_stable)
 
         logger.info("Original sell data: %s", original)
         logger.info("Sell price: %s", sell_price)
@@ -216,7 +214,7 @@ class HPPositionSell:
                     hp_id=f"{self.original_position.config.hp_id}a",
                     is_child=True,
                     parent_hp_id=self.original_position.config.hp_id,
-                    symbol_info=leg1_info,
+                    symbol=leg1,
                     quantity=leg1_quantity,
                     sell_price=leg1_price,
                     coin=self.original_position.config.coin,
@@ -225,7 +223,7 @@ class HPPositionSell:
                 ),
                 state_info=StateInfo(side=PositionSide.SHORT),
                 sell_order=self._generate_order(
-                    symbol_info=leg1_info,
+                    symbol=leg1,
                     quantity=leg1_quantity,
                     price=leg1_price,
                 ),
@@ -236,10 +234,10 @@ class HPPositionSell:
                     hp_id=f"{self.original_position.config.hp_id}b",
                     is_child=True,
                     parent_hp_id=self.original_position.config.hp_id,
-                    symbol_info=leg2_info,
+                    symbol=leg2,
                     quantity=leg2_quantity,
                     sell_price=leg2_price,
-                    coin=leg2_info.extract_coin_from_symbol(leg2_info.symbol),
+                    coin=leg2.extract_coin_from_symbol(leg2.name),
                     buy_price=leg2_price,
                     end_currency=self.original_position.config.end_currency,
                 ),
@@ -247,8 +245,8 @@ class HPPositionSell:
                     side=PositionSide.SHORT, state=State.WAITING_CHILD
                 ),
                 sell_order=self._generate_order(
-                    symbol_info=leg2_info,
-                    quantity=leg2_info.adjust_quantity(leg1_quantity_stable),
+                    symbol=leg2,
+                    quantity=leg2.adjust_quantity(leg1_quantity_stable),
                     price=leg2_price_adjusted,
                 ),
                 sell_type=SellType.TWOHOPS,
@@ -260,15 +258,13 @@ class HPPositionSell:
         )
         return sell_positions
 
-    def _generate_order(
-        self, symbol_info: SymbolInfo, price: float, quantity: float
-    ) -> Order:
+    def _generate_order(self, symbol: Symbol, price: float, quantity: float) -> Order:
         return Order(
-            quantity=symbol_info.adjust_quantity(quantity=quantity),
-            price=symbol_info.adjust_price(price=price),
-            precision=symbol_info.precision,
-            price_precision=symbol_info.price_precision,
-            quantity_stable=symbol_info.adjust_price(price * quantity),
+            quantity=symbol.adjust_quantity(quantity=quantity),
+            price=symbol.adjust_price(price=price),
+            precision=symbol.precision,
+            price_precision=symbol.price_precision,
+            quantity_stable=symbol.adjust_price(price * quantity),
         )
 
     async def open_position(self) -> None:
@@ -288,19 +284,19 @@ class HPPositionSell:
                     "Trying to send sell order: %s, side: %s, symbol info: %s",
                     self.current_position.sell_order,
                     self.current_position.state_info.side,
-                    self.current_position.config.symbol_info,
+                    self.current_position.config.symbol,
                 )
 
                 self.current_position.sell_order = await self._create_order(
                     side=self.current_position.state_info.side,
                     order=self.current_position.sell_order,
-                    symbol_info=self.current_position.config.symbol_info,
+                    symbol=self.current_position.config.symbol,
                 )
 
                 logger.info(
                     "New %s order send for %s at price: %s, quantity: %s and status: %s [id: %s]",
                     self.current_position.state_info.side.value,
-                    self.current_position.config.symbol_info.symbol,
+                    self.current_position.config.symbol.name,
                     self.current_position.sell_order.price,
                     self.current_position.sell_order.quantity_stable,
                     self.current_position.sell_order.status,
@@ -322,14 +318,14 @@ class HPPositionSell:
         # Get symbol info for both legs
         leg1_position = self.sell_positions[0]
         leg2_position = self.sell_positions[1]
-        leg1_info = leg1_position.config.symbol_info
-        leg2_info = leg2_position.config.symbol_info
+        leg1 = leg1_position.config.symbol
+        leg2 = leg2_position.config.symbol
 
         # Get current market price for leg2
-        current_leg2_price = self.price_resolver.latest_prices.get(leg2_info.symbol)
+        current_leg2_price = self.price_resolver.latest_prices.get(leg2.name)
         if not current_leg2_price:
             logger.warning(
-                f"Missing current price for {leg2_info.symbol}, skipping recalculation"
+                f"Missing current price for {leg2.name}, skipping recalculation"
             )
             return
 
@@ -339,18 +335,16 @@ class HPPositionSell:
 
         # Recalculate leg1 price based on current leg2 price
         sell_price = self.original_position.config.sell_price
-        current_price_in_quote = sell_price / leg2_info.adjust_price(current_leg2_price)
-        current_leg1_price = leg1_info.adjust_price(current_price_in_quote)
+        current_price_in_quote = sell_price / leg2.adjust_price(current_leg2_price)
+        current_leg1_price = leg1.adjust_price(current_price_in_quote)
 
         # Calculate leg1 quantity and stable amount
-        leg1_quantity = leg1_info.adjust_quantity(
-            self.original_position.config.quantity
-        )
+        leg1_quantity = leg1.adjust_quantity(self.original_position.config.quantity)
         leg1_quantity_stable = round(leg1_quantity * current_leg1_price, 8)
 
         # Recalculate leg2 price and quantity
-        current_leg2_price_adjusted = leg2_info.adjust_price(current_leg2_price)
-        leg2_quantity = leg2_info.adjust_quantity(leg1_quantity_stable)
+        current_leg2_price_adjusted = leg2.adjust_price(current_leg2_price)
+        leg2_quantity = leg2.adjust_quantity(leg1_quantity_stable)
 
         # Update leg1 position with fresh prices
         leg1_position.sell_order.price = current_leg1_price
@@ -371,10 +365,10 @@ class HPPositionSell:
             "Leg1: %s -> %s (symbol: %s), Leg2: %s -> %s (symbol: %s)",
             old_leg1_price,
             current_leg1_price,
-            leg1_info.symbol,
+            leg1.name,
             old_leg2_price,
             current_leg2_price_adjusted,
-            leg2_info.symbol,
+            leg2.name,
         )
         logger.info(
             "[MULTIHOP PRICE RECALC] Updated quantities - "
@@ -389,7 +383,7 @@ class HPPositionSell:
 
         logger.info(
             "Start canceling position: %s %s, hp id: %s",
-            self.current_position.config.symbol_info.symbol,
+            self.current_position.config.symbol.name,
             self.current_position.state_info.side,
             self.current_position.config.hp_id,
         )
@@ -479,7 +473,7 @@ class HPPositionSell:
         ):
             await self._cancel_order(
                 order_id=self.current_position.sell_order.order_id,
-                symbol=self.current_position.config.symbol_info.symbol,
+                symbol=self.current_position.config.symbol.name,
             )
             self.current_position.sell_order.status = ORDER_STATUS_CANCELED
 
@@ -493,7 +487,7 @@ class HPPositionSell:
         ):
             await self._cancel_order(
                 order_id=self.current_position.sell_order.order_id,
-                symbol=self.current_position.config.symbol_info.symbol,
+                symbol=self.current_position.config.symbol.name,
             )
             self.current_position.sell_order.status = ORDER_STATUS_CANCELED
             logger.info(
@@ -502,32 +496,30 @@ class HPPositionSell:
             )
 
     async def _create_order(
-        self, side: PositionSide, order: Order, symbol_info: SymbolInfo
+        self, side: PositionSide, order: Order, symbol: Symbol
     ) -> Order:
         max_retries = 10
         last_exception = None
         for _ in range(max_retries):
             try:
-                price = symbol_info.format_price(order.price)
+                price = symbol.format_price(order.price)
 
-                quantity = symbol_info.adjust_quantity(
+                quantity = symbol.adjust_quantity(
                     order.quantity - order.realized_quantity
                 )
-                symbol_info.validate_order(price=float(price), quantity=quantity)
+                symbol.validate_order(price=float(price), quantity=quantity)
 
-                logger.info(
-                    "Before actual order sending(%s): %s", symbol_info.symbol, order
-                )
+                logger.info("Before actual order sending(%s): %s", symbol.name, order)
 
                 resp = await self.client.create_order(
-                    symbol=symbol_info.symbol,
+                    symbol=symbol.name,
                     price=price,
                     quantity=quantity,
                     side=side.value,
                     type=ORDER_TYPE_LIMIT,
                     timeInForce=TIME_IN_FORCE_GTC,
                 )
-                logger.info("After sending(%s): %s", symbol_info.symbol, order)
+                logger.info("After sending(%s): %s", symbol.name, order)
                 logger.info("Response: %s", resp)
             except (
                 BinanceAPIException,
