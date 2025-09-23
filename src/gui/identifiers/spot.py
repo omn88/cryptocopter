@@ -1,13 +1,13 @@
-from dataclasses import asdict, dataclass, field
-from typing import Dict, List, NamedTuple, Optional
-from src.common.symbol_info import SymbolInfo
+from dataclasses import dataclass
+from typing import Optional
+from src.common.symbol import Symbol
 from src.identifiers import HPBuyData, HPSellConfig, HPSellData, State, StateInfo
 
 
 @dataclass
 class HPUpdate:
     hp_id: str
-    symbol_info: SymbolInfo
+    symbol: Symbol
     coin: str = ""
     buy_price: Optional[float] = None
     quantity: Optional[float] = None

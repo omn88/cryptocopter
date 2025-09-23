@@ -8,7 +8,6 @@ import kivy_config
 
 # Suppress aiosqlite debug logging in tests
 import logging
-from collections import defaultdict
 
 logging.getLogger("aiosqlite").setLevel(logging.WARNING)
 
@@ -19,25 +18,7 @@ from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
 from src.strategy_executor import StrategyExecutor
 from src.database.recovery_service import RecoveryService
-from tests.strategies.hp_manager_helpers import (
-    wait_for_condition,
-    get_hp_positions_by_type,
-    get_parent_hp_positions,
-    get_child_hp_positions,
-    get_buy_positions,
-    has_active_buy_positions,
-    has_idle_buy_positions,
-    has_active_sell_positions,
-    has_idle_sell_positions,
-    wait_for_active_buy_positions,
-    wait_for_no_idle_buy_positions,
-    wait_for_idle_buy_positions,
-    wait_for_no_active_buy_positions,
-    wait_for_active_sell_positions,
-    wait_for_no_idle_sell_positions,
-    wait_for_idle_sell_positions,
-    wait_for_no_active_sell_positions,
-)
+from tests.strategies.hp_manager_helpers import wait_for_condition
 
 import asyncio
 import logging
@@ -51,7 +32,7 @@ from unittest.mock import patch
 from pytest_mock import MockerFixture
 from decouple import Config, RepositoryEnv
 from src.common.common import generate_hp_id
-from src.common.symbol_info import SymbolInfo
+from src.common.symbol import Symbol
 from src.database.trading_database import TradingDatabase
 from src.identifiers import (
     HPBuyConfig,
@@ -63,12 +44,6 @@ from src.identifiers import (
     State,
     StateInfo,
     InventoryItem,
-    Event,
-    EventName,
-    HPSellPositionCreated,
-    HPSellPositionCompleted,
-    HPBuyPositionFilled,
-    HPPositionCancelled,
 )
 from src.strategies.hp_manager import HpStrategy
 from src.portfolio.portfolio_gui import PortfolioUI
@@ -133,19 +108,17 @@ def strategy_executor_fixture(
     # Mock dependencies
     mock_broker = MagicMock(spec=BrokerSpot)
     ui_queue: queue.Queue = queue.Queue()
-    symbols_info = {
-        "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
-        "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
-        "ETHUSDT": SymbolInfo(symbol="ETHUSDT", precision=5, price_precision=2),
-        "AXLUSDT": SymbolInfo(symbol="AXLUSDT", precision=5, price_precision=4),
-        "AXLBTC": SymbolInfo(symbol="AXLBTC", precision=5, price_precision=8),
-        "BTCPLN": SymbolInfo(symbol="BTCPLN", precision=5, price_precision=2),
-        "DYMUSDT": SymbolInfo(symbol="DYMUSDT", precision=5, price_precision=4),
+    symbols = {
+        "BTCUSDC": Symbol(name="BTCUSDC", precision=5, price_precision=2),
+        "BTCUSDT": Symbol(name="BTCUSDT", precision=5, price_precision=2),
+        "ETHUSDT": Symbol(name="ETHUSDT", precision=5, price_precision=2),
+        "AXLUSDT": Symbol(name="AXLUSDT", precision=5, price_precision=4),
+        "AXLBTC": Symbol(name="AXLBTC", precision=5, price_precision=8),
+        "BTCPLN": Symbol(name="BTCPLN", precision=5, price_precision=2),
+        "DYMUSDT": Symbol(name="DYMUSDT", precision=5, price_precision=4),
     }
     # Create the StrategyExecutor instance
-    price_resolver = UsdPriceResolver(
-        client=mock_async_client, symbols_info=symbols_info
-    )
+    price_resolver = UsdPriceResolver(client=mock_async_client, symbols=symbols)
     price_resolver.latest_prices["BTCPLN"] = 320000.0
     price_resolver.latest_prices["BTCUSDC"] = 100000.0
 
@@ -153,7 +126,6 @@ def strategy_executor_fixture(
         db=test_db,
         broker=mock_broker,
         ui_queue=ui_queue,
-        symbols_info=symbols_info,
         inventory=mock_inventory,
         test_mode=True,
         price_resolver=price_resolver,
@@ -196,23 +168,19 @@ async def hp_gui(mock_async_client) -> AsyncGenerator:
     with patch("kivy.base.EventLoop.ensure_window"):
         # Set up a mock HpManager instance
         mock_config_queue = MagicMock()
-        symbols_info = {
-            "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
-            "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
+        symbols = {
+            "BTCUSDT": Symbol(name="BTCUSDT", precision=5, price_precision=2),
+            "BTCUSDC": Symbol(name="BTCUSDC", precision=5, price_precision=2),
         }  # Create the StrategyExecutor instance
-        price_resolver = UsdPriceResolver(
-            client=mock_async_client, symbols_info=symbols_info
-        )
+        price_resolver = UsdPriceResolver(client=mock_async_client, symbols=symbols)
         price_resolver.latest_prices["BTCPLN"] = 320000.0
         price_resolver.latest_prices["BTCUSDC"] = 100000.0
 
         gui = HpFront(
             client=mock_async_client,
-            strategy_id="test_strategy",
             config_queue=mock_config_queue,
             db=AsyncMock(),
             ui_queue=queue.Queue(),
-            symbols_info=symbols_info,
             test_mode=True,
             price_resolver=price_resolver,
             portfolio_queue=queue.Queue(),  # Use a mock queue for portfolio updates
@@ -270,7 +238,7 @@ async def frontend_backend_setup(
     hp_gui.config_queue = strategy_executor_fixture.config_queue
     strategy_executor_fixture.ui_queue = hp_gui.ui_queue
     hp_gui.db = strategy_executor_fixture.db
-    hp_gui.symbols_info = strategy_executor_fixture.symbols_info
+    hp_gui.price_resolver.symbols = strategy_executor_fixture.price_resolver.symbols
 
     # Debug: Verify queue objects are the same
     logger.info(
@@ -313,9 +281,9 @@ async def crash_recovery_factory(
         ui_queue = queue.Queue()
         config_queue = queue.Queue()
 
-        symbols_info = {
-            "BTCUSDC": SymbolInfo(
-                symbol="BTCUSDC",
+        symbols = {
+            "BTCUSDC": Symbol(
+                name="BTCUSDC",
                 min_notional=10.0,
                 lot_size=0.00001,
                 min_qty=0.00001,
@@ -324,17 +292,15 @@ async def crash_recovery_factory(
                 precision=5,
                 price_precision=2,
             ),
-            "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
-            "ETHUSDT": SymbolInfo(symbol="ETHUSDT", precision=5, price_precision=2),
-            "AXLUSDT": SymbolInfo(symbol="AXLUSDT", precision=5, price_precision=4),
-            "AXLBTC": SymbolInfo(symbol="AXLBTC", precision=5, price_precision=8),
-            "BTCPLN": SymbolInfo(symbol="BTCPLN", precision=5, price_precision=2),
-            "DYMUSDT": SymbolInfo(symbol="DYMUSDT", precision=5, price_precision=4),
+            "BTCUSDT": Symbol(name="BTCUSDT", precision=5, price_precision=2),
+            "ETHUSDT": Symbol(name="ETHUSDT", precision=5, price_precision=2),
+            "AXLUSDT": Symbol(name="AXLUSDT", precision=5, price_precision=4),
+            "AXLBTC": Symbol(name="AXLBTC", precision=5, price_precision=8),
+            "BTCPLN": Symbol(name="BTCPLN", precision=5, price_precision=2),
+            "DYMUSDT": Symbol(name="DYMUSDT", precision=5, price_precision=4),
         }
 
-        price_resolver = UsdPriceResolver(
-            client=mock_async_client, symbols_info=symbols_info
-        )
+        price_resolver = UsdPriceResolver(client=mock_async_client, symbols=symbols)
         price_resolver.latest_prices["BTCPLN"] = 320000.0
         price_resolver.latest_prices["BTCUSDC"] = 100000.0
 
@@ -345,7 +311,6 @@ async def crash_recovery_factory(
             db=test_db,  # Always use the same database
             broker=mock_broker,
             ui_queue=ui_queue,
-            symbols_info=symbols_info,
             inventory=mock_inventory,
             price_resolver=price_resolver,
             test_mode=True,
@@ -358,11 +323,9 @@ async def crash_recovery_factory(
         with patch("kivy.base.EventLoop.ensure_window"):
             frontend = HpFront(
                 client=mock_async_client,
-                strategy_id=f"test_strategy{instance_name}",
                 config_queue=config_queue,
                 db=test_db,  # Always use the same database
                 ui_queue=ui_queue,
-                symbols_info=symbols_info,
                 test_mode=True,
                 price_resolver=price_resolver,
                 portfolio_queue=queue.Queue(),  # Use a mock queue for portfolio updates
@@ -373,7 +336,6 @@ async def crash_recovery_factory(
         frontend.config_queue = backend.config_queue
         backend.ui_queue = frontend.ui_queue
         frontend.db = backend.db
-        frontend.symbols_info = backend.symbols_info
 
         # Track for cleanup
         created_instances.extend([frontend, backend])
@@ -507,30 +469,30 @@ async def crash_recovery_factory(
 @pytest.fixture
 def recovery_service(test_db, mock_async_client):
     """Create recovery service using the test database."""
-    # Create mock symbols_info
-    symbols_info = {
-        "BTCUSDT": SymbolInfo(symbol="BTCUSDT"),
-        "ETHUSDT": SymbolInfo(symbol="ETHUSDT"),
-        "ADAUSDT": SymbolInfo(symbol="ADAUSDT"),
-        "DOTUSDT": SymbolInfo(symbol="DOTUSDT"),
-        "SOLUSDT": SymbolInfo(symbol="SOLUSDT"),
-        "AVAXUSDT": SymbolInfo(symbol="AVAXUSDT"),
-        "LINKUSDT": SymbolInfo(symbol="LINKUSDT"),
-        "UNIUSDT": SymbolInfo(symbol="UNIUSDT"),
-        "MATICUSDT": SymbolInfo(symbol="MATICUSDT"),
-        "ATOMUSDT": SymbolInfo(symbol="ATOMUSDT"),
-        "FTMUSDT": SymbolInfo(symbol="FTMUSDT"),
-        "NEARUSDT": SymbolInfo(symbol="NEARUSDT"),
-        "BTCETH": SymbolInfo(symbol="BTCETH"),
-        "ETHBNB": SymbolInfo(symbol="ETHBNB"),
-        "BNBUSDT": SymbolInfo(symbol="BNBUSDT"),
-        "SANDUSDT": SymbolInfo(symbol="SANDUSDT"),
-        "MANAUSDT": SymbolInfo(symbol="MANAUSDT"),
-        "APEUSDT": SymbolInfo(symbol="APEUSDT"),
-        "GMTUSDT": SymbolInfo(symbol="GMTUSDT"),
+    # Create mock symbols
+    symbols = {
+        "BTCUSDT": Symbol(name="BTCUSDT"),
+        "ETHUSDT": Symbol(name="ETHUSDT"),
+        "ADAUSDT": Symbol(name="ADAUSDT"),
+        "DOTUSDT": Symbol(name="DOTUSDT"),
+        "SOLUSDT": Symbol(name="SOLUSDT"),
+        "AVAXUSDT": Symbol(name="AVAXUSDT"),
+        "LINKUSDT": Symbol(name="LINKUSDT"),
+        "UNIUSDT": Symbol(name="UNIUSDT"),
+        "MATICUSDT": Symbol(name="MATICUSDT"),
+        "ATOMUSDT": Symbol(name="ATOMUSDT"),
+        "FTMUSDT": Symbol(name="FTMUSDT"),
+        "NEARUSDT": Symbol(name="NEARUSDT"),
+        "BTCETH": Symbol(name="BTCETH"),
+        "ETHBNB": Symbol(name="ETHBNB"),
+        "BNBUSDT": Symbol(name="BNBUSDT"),
+        "SANDUSDT": Symbol(name="SANDUSDT"),
+        "MANAUSDT": Symbol(name="MANAUSDT"),
+        "APEUSDT": Symbol(name="APEUSDT"),
+        "GMTUSDT": Symbol(name="GMTUSDT"),
     }
 
-    return RecoveryService(test_db, mock_async_client, symbols_info)
+    return RecoveryService(test_db, mock_async_client, symbols)
 
 
 @pytest.fixture
@@ -549,7 +511,7 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
         buy_data = HPBuyData(
             config=HPBuyConfig(
                 hp_id=hp_id,
-                symbol_info=hp_config.symbol_info,
+                symbol=hp_config.symbol,
                 coin=hp_config.coin,
                 price_low=hp_config.price_low,
                 price_high=hp_config.price_high,
@@ -576,7 +538,7 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
             original_position=SellPosition(
                 config=HPSellConfig(
                     hp_id=hp_id,
-                    symbol_info=hp_config.symbol_info,
+                    symbol=hp_config.symbol,
                     coin=hp_config.coin,
                 ),
                 state_info=StateInfo(side=PositionSide.SHORT),
@@ -813,27 +775,30 @@ def mock_inventory():
 
 
 @pytest.fixture
-def portfolio_ui(test_db, mock_inventory):
+def portfolio_ui(test_db: TradingDatabase, mock_async_client, mock_inventory):
     """Create portfolio UI for testing with test mode enabled."""
-    ui_queue = queue.Queue()
+    ui_queue: queue.Queue = queue.Queue()
 
-    # Use comprehensive symbols_info that includes USDC
-    symbols_info = {
-        "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
-        "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
-        "ETHUSDT": SymbolInfo(symbol="ETHUSDT", precision=5, price_precision=2),
-        "AXLUSDT": SymbolInfo(symbol="AXLUSDT", precision=5, price_precision=4),
-        "AXLBTC": SymbolInfo(symbol="AXLBTC", precision=5, price_precision=8),
-        "BTCPLN": SymbolInfo(symbol="BTCPLN", precision=5, price_precision=2),
-        "DYMUSDT": SymbolInfo(symbol="DYMUSDT", precision=5, price_precision=4),
-        "USDCUSDT": SymbolInfo(
-            symbol="USDCUSDT", precision=2, price_precision=4
+    # Use comprehensive symbols that includes USDC
+    symbols = {
+        "BTCUSDC": Symbol(name="BTCUSDC", precision=5, price_precision=2),
+        "BTCUSDT": Symbol(name="BTCUSDT", precision=5, price_precision=2),
+        "ETHUSDT": Symbol(name="ETHUSDT", precision=5, price_precision=2),
+        "AXLUSDT": Symbol(name="AXLUSDT", precision=5, price_precision=4),
+        "AXLBTC": Symbol(name="AXLBTC", precision=5, price_precision=8),
+        "BTCPLN": Symbol(name="BTCPLN", precision=5, price_precision=2),
+        "DYMUSDT": Symbol(name="DYMUSDT", precision=5, price_precision=4),
+        "USDCUSDT": Symbol(
+            name="USDCUSDT", precision=2, price_precision=4
         ),  # Add USDC symbol
     }
 
+    price_resolver = UsdPriceResolver(client=mock_async_client, symbols=symbols)
+
     portfolio = PortfolioUI(
         ui_queue=ui_queue,
-        symbols_info=symbols_info,
+        strategy_config_queue=queue.Queue(),
+        price_resolver=price_resolver,
         db=test_db,
         test_mode=True,  # Enable test mode to suppress UI refresh calls
     )
@@ -872,10 +837,9 @@ async def portfolio_hp_backend_setup(
     hp_gui.config_queue = strategy_executor_fixture.config_queue
     strategy_executor_fixture.ui_queue = hp_gui.ui_queue
     hp_gui.db = strategy_executor_fixture.db
-    hp_gui.symbols_info = strategy_executor_fixture.symbols_info
 
-    # Connect portfolio to HP manager (for sell button functionality)
-    portfolio_ui.hp_manager = hp_gui
+    # Connect portfolio to strategy executor config queue (for sell button functionality)
+    portfolio_ui.strategy_config_queue = strategy_executor_fixture.config_queue
 
     # CRITICAL: Connect strategy executor to real portfolio for HP event processing
     strategy_executor_fixture.portfolio_ui_queue = portfolio_ui.ui_queue
@@ -947,9 +911,9 @@ async def portfolio_crash_recovery_factory(
         portfolio_ui_queue = queue.Queue()
 
         # Define symbols info
-        symbols_info = {
-            "BTCUSDC": SymbolInfo(
-                symbol="BTCUSDC",
+        symbols = {
+            "BTCUSDC": Symbol(
+                name="BTCUSDC",
                 min_notional=10.0,
                 lot_size=0.00001,
                 min_qty=0.00001,
@@ -958,26 +922,25 @@ async def portfolio_crash_recovery_factory(
                 precision=5,
                 price_precision=2,
             ),
-            "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
-            "ETHUSDT": SymbolInfo(symbol="ETHUSDT", precision=5, price_precision=2),
-            "AXLUSDT": SymbolInfo(symbol="AXLUSDT", precision=5, price_precision=4),
-            "AXLBTC": SymbolInfo(symbol="AXLBTC", precision=5, price_precision=8),
-            "BTCPLN": SymbolInfo(symbol="BTCPLN", precision=5, price_precision=2),
-            "DYMUSDT": SymbolInfo(symbol="DYMUSDT", precision=5, price_precision=4),
-            "USDCUSDT": SymbolInfo(symbol="USDCUSDT", precision=2, price_precision=4),
+            "BTCUSDT": Symbol(name="BTCUSDT", precision=5, price_precision=2),
+            "ETHUSDT": Symbol(name="ETHUSDT", precision=5, price_precision=2),
+            "AXLUSDT": Symbol(name="AXLUSDT", precision=5, price_precision=4),
+            "AXLBTC": Symbol(name="AXLBTC", precision=5, price_precision=8),
+            "BTCPLN": Symbol(name="BTCPLN", precision=5, price_precision=2),
+            "DYMUSDT": Symbol(name="DYMUSDT", precision=5, price_precision=4),
+            "USDCUSDT": Symbol(name="USDCUSDT", precision=2, price_precision=4),
         }
 
         # Create price resolver
-        price_resolver = UsdPriceResolver(
-            client=mock_async_client, symbols_info=symbols_info
-        )
+        price_resolver = UsdPriceResolver(client=mock_async_client, symbols=symbols)
         price_resolver.latest_prices["BTCPLN"] = 320000.0
         price_resolver.latest_prices["BTCUSDC"] = 100000.0
 
         # Create Portfolio UI with real database persistence
         portfolio_ui = PortfolioUI(
             ui_queue=portfolio_ui_queue,
-            symbols_info=symbols_info,
+            strategy_config_queue=config_queue,
+            price_resolver=price_resolver,
             db=test_db,  # Always use same database for persistence across crashes
             test_mode=True,
         )
@@ -990,7 +953,6 @@ async def portfolio_crash_recovery_factory(
             db=test_db,  # Always use same database
             broker=mock_broker,
             ui_queue=ui_queue,
-            symbols_info=symbols_info,
             inventory=mock_inventory,
             price_resolver=price_resolver,
             test_mode=True,
@@ -1002,11 +964,9 @@ async def portfolio_crash_recovery_factory(
         with patch("kivy.base.EventLoop.ensure_window"):
             hp_frontend = HpFront(
                 client=mock_async_client,
-                strategy_id=f"test_strategy_{instance_name}",
                 config_queue=config_queue,
                 db=test_db,  # Always use same database
                 ui_queue=ui_queue,
-                symbols_info=symbols_info,
                 test_mode=True,
                 price_resolver=price_resolver,
                 portfolio_queue=portfolio_ui_queue,
@@ -1019,10 +979,10 @@ async def portfolio_crash_recovery_factory(
         hp_frontend.config_queue = strategy_executor.config_queue
         strategy_executor.ui_queue = hp_frontend.ui_queue
         hp_frontend.db = strategy_executor.db
-        hp_frontend.symbols_info = strategy_executor.symbols_info
 
-        # Portfolio <-> HP connection for sell operations
-        portfolio_ui.hp_manager = hp_frontend
+        # Portfolio <-> Strategy executor connection for sell operations
+        portfolio_ui.strategy_config_queue = strategy_executor.config_queue
+        portfolio_ui.symbols = strategy_executor.price_resolver.symbols
 
         # CRITICAL: Connect strategy executor to portfolio for HP event processing
         strategy_executor.portfolio_ui_queue = portfolio_ui.ui_queue

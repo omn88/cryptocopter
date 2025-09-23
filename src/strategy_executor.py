@@ -39,7 +39,7 @@ from src.identifiers import (
     HPSellPositionCompleted,
     HPPositionCancelled,
 )
-from src.common.symbol_info import SymbolInfo
+from src.common.symbol import Symbol
 from src.gui.identifiers.spot import (
     HPClose,
     HPGuiDataBuy,
@@ -76,7 +76,6 @@ class StrategyExecutor:
         self,
         db: TradingDatabase,
         broker: BrokerSpot,
-        symbols_info: Dict[str, SymbolInfo],
         ui_queue: queue.Queue,
         inventory: List[InventoryItem],
         price_resolver: UsdPriceResolver,
@@ -91,7 +90,6 @@ class StrategyExecutor:
         self.config_queue: queue.Queue = queue.Queue()
         self.strategies: Dict[str, HpStrategy] = {}
         self.recovery_service: Optional[RecoveryService] = None
-        self.symbols_info = symbols_info
         self.inventory = inventory
         self.inventory_manager = InventoryManager(inventory)  # Create inventory manager
         self.supported_quotes = ["USDC", "PLN", "BTC", "BNB", "USDT"]
@@ -169,11 +167,11 @@ class StrategyExecutor:
                         config=strategy_data.config
                     )
                     logger.info("Sell strategy determined: %s", sell_strategy)
-                    # Patch: Set symbol_info if convert-only or USDC
+                    # Patch: Set symbol if convert-only or USDC
                     if sell_strategy[0].is_convert_only or sell_strategy[
                         0
-                    ].symbol.endswith("USDC"):
-                        strategy_data.config.symbol_info = sell_strategy[0]
+                    ].name.endswith("USDC"):
+                        strategy_data.config.symbol = sell_strategy[0]
                     sell_position = SellPosition(
                         sell_order=Order(quantity=0),
                         config=strategy_data.config,
@@ -435,7 +433,7 @@ class StrategyExecutor:
                     system_id=str(strategy_id),
                     subscription_info=SubscriptionInfo(
                         data_type=SubscriptionType.USER,
-                        symbol=strategy.buy.data.config.symbol_info.symbol,
+                        symbol=strategy.buy.data.config.symbol.name,
                         target=SubscriptionTarget.BACKEND,
                         queue=worker_queue,
                     ),
@@ -446,7 +444,7 @@ class StrategyExecutor:
                     system_id=str(strategy_id),
                     subscription_info=SubscriptionInfo(
                         data_type=SubscriptionType.PRICE,
-                        symbol=strategy.buy.data.config.symbol_info.symbol,
+                        symbol=strategy.buy.data.config.symbol.name,
                         target=SubscriptionTarget.BACKEND,
                         queue=worker_queue,
                     ),
@@ -457,7 +455,7 @@ class StrategyExecutor:
 
         logger.info("Finished resubscribing all strategies")
 
-    def determine_sell_strategy(self, config: HPSellConfig) -> List[SymbolInfo]:
+    def determine_sell_strategy(self, config: HPSellConfig) -> List[Symbol]:
         delisted_coins = {
             "USDT",
             "FDUSD",
@@ -473,79 +471,80 @@ class StrategyExecutor:
         strategy = []
         coin = config.coin
         end_currency = config.end_currency
+        symbols = self.price_resolver.symbols
 
         if end_currency == "PLN":
             # Priority 1: Direct pair to PLN
-            if f"{coin}PLN" in self.symbols_info:
-                strategy.append(self.symbols_info[f"{coin}PLN"])
+            if f"{coin}PLN" in symbols:
+                strategy.append(symbols[f"{coin}PLN"])
                 return strategy
 
             # Priority 2: coinUSDC + USDCPLN
-            if f"{coin}USDC" in self.symbols_info and "USDCPLN" in self.symbols_info:
-                strategy.append(self.symbols_info[f"{coin}USDC"])
-                strategy.append(self.symbols_info["USDCPLN"])
+            if f"{coin}USDC" in symbols and "USDCPLN" in symbols:
+                strategy.append(symbols[f"{coin}USDC"])
+                strategy.append(symbols["USDCPLN"])
                 return strategy
 
             # Priority 3: coinBTC + BTCPLN
             if (
                 coin not in delisted_coins
-                and f"{coin}BTC" in self.symbols_info
-                and "BTCPLN" in self.symbols_info
+                and f"{coin}BTC" in symbols
+                and "BTCPLN" in symbols
             ):
-                strategy.append(self.symbols_info[f"{coin}BTC"])
-                strategy.append(self.symbols_info["BTCPLN"])
+                strategy.append(symbols[f"{coin}BTC"])
+                strategy.append(symbols["BTCPLN"])
                 return strategy
 
             # Priority 4: coinBNB + BNBPLN
             if (
                 coin not in delisted_coins
-                and f"{coin}BNB" in self.symbols_info
-                and "BNBPLN" in self.symbols_info
+                and f"{coin}BNB" in symbols
+                and "BNBPLN" in symbols
             ):
-                strategy.append(self.symbols_info[f"{coin}BNB"])
-                strategy.append(self.symbols_info["BNBPLN"])
+                strategy.append(symbols[f"{coin}BNB"])
+                strategy.append(symbols["BNBPLN"])
                 return strategy
 
             # Priority 5: Converting
             # Use USDT symbol for convert operations - ending with USDT indicates conversion
-            symbol_info = self.symbols_info[f"{coin}USDT"]
-            symbol_info.is_convert_only = True
-            strategy.append(symbol_info)
+            symbol = symbols[f"{coin}USDT"]
+            symbol.is_convert_only = True
+            strategy.append(symbol)
             return strategy
 
         if end_currency == "USDC":
             # Priority 1: coinUSDC
-            if f"{coin}USDC" in self.symbols_info:
-                strategy.append(self.symbols_info[f"{coin}USDC"])
+            if f"{coin}USDC" in symbols:
+                strategy.append(symbols[f"{coin}USDC"])
                 return strategy
 
             # Priority 2: coinBTC + BTCUSDC
             if (
                 coin not in delisted_coins
-                and f"{coin}BTC" in self.symbols_info
-                and "BTCUSDC" in self.symbols_info
+                and f"{coin}BTC" in symbols
+                and "BTCUSDC" in symbols
             ):
-                strategy.append(self.symbols_info[f"{coin}BTC"])
-                strategy.append(self.symbols_info["BTCUSDC"])
+                strategy.append(symbols[f"{coin}BTC"])
+                strategy.append(symbols["BTCUSDC"])
                 return strategy
 
             # Priority 3: Exotic coinXYZ + XYZUSDC
             if coin not in delisted_coins:
-                for pair in self.symbols_info:
+                for pair in symbols:
                     if pair.startswith(coin):
                         quote = pair.replace(coin, "")
                         if quote in delisted_coins:
                             continue
-                        if f"{quote}USDC" in self.symbols_info:
-                            strategy.append(self.symbols_info[pair])
-                            strategy.append(self.symbols_info[f"{quote}USDC"])
+                        if f"{quote}USDC" in symbols:
+                            strategy.append(symbols[pair])
+                            strategy.append(symbols[f"{quote}USDC"])
                             return strategy
 
             # Priority 4: Converting
             # Use USDT symbol for convert operations - ending with USDT indicates conversion
-            symbol_info = self.symbols_info[f"{coin}USDT"]
-            symbol_info.is_convert_only = True
-            strategy.append(symbol_info)
+            symbol = symbols[f"{coin}USDT"]
+            symbol.is_convert_only = True
+            strategy.append(symbol)
             return strategy
         return []
 
@@ -691,7 +690,7 @@ class StrategyExecutor:
                 original_position=SellPosition(
                     config=HPSellConfig(
                         hp_id=new_hp.config.hp_id,
-                        symbol_info=new_hp.config.symbol_info,
+                        symbol=new_hp.config.symbol,
                         coin=new_hp.config.coin,
                     ),
                     state_info=StateInfo(side=PositionSide.SHORT),
@@ -778,10 +777,10 @@ class StrategyExecutor:
                     "quantity"
                 ]
                 strategy.sell.current_position.sell_order.precision = (
-                    strategy.sell.current_position.config.symbol_info.precision
+                    strategy.sell.current_position.config.symbol.precision
                 )
                 strategy.sell.current_position.sell_order.price_precision = (
-                    strategy.sell.current_position.config.symbol_info.price_precision
+                    strategy.sell.current_position.config.symbol.price_precision
                 )
                 strategy.sell.current_position.sell_order.price = db_order["price"]
                 strategy.sell.current_position.sell_order.quantity_stable = db_order[
@@ -840,7 +839,7 @@ class StrategyExecutor:
             system_id=str(new_hp.config.hp_id),
             subscription_info=SubscriptionInfo(
                 data_type=SubscriptionType.USER,
-                symbol=new_hp.config.symbol_info.symbol,
+                symbol=new_hp.config.symbol.name,
                 target=SubscriptionTarget.BACKEND,
                 queue=worker_queue,
             ),
@@ -849,7 +848,7 @@ class StrategyExecutor:
             system_id=str(new_hp.config.hp_id),
             subscription_info=SubscriptionInfo(
                 data_type=SubscriptionType.PRICE,
-                symbol=new_hp.config.symbol_info.symbol,
+                symbol=new_hp.config.symbol.name,
                 target=SubscriptionTarget.BACKEND,
                 queue=worker_queue,
             ),
@@ -894,13 +893,13 @@ class StrategyExecutor:
             if config.mode.value == "DCA":
                 # DCA calculation: sum of quantities across all price levels
                 num_orders = 3
-                min_budget_for_max_orders = num_orders * config.symbol_info.min_notional
+                min_budget_for_max_orders = num_orders * config.symbol.min_notional
 
                 if config.budget >= min_budget_for_max_orders:
                     order_quantity_stable = config.budget / num_orders
                 else:
-                    order_quantity_stable = config.symbol_info.min_notional
-                    num_orders = int(config.budget / config.symbol_info.min_notional)
+                    order_quantity_stable = config.symbol.min_notional
+                    num_orders = int(config.budget / config.symbol.min_notional)
                     num_orders = num_orders if num_orders % 2 == 1 else num_orders - 1
 
                 if num_orders == 1:
@@ -921,8 +920,8 @@ class StrategyExecutor:
                             expected_qty += order_quantity_stable / order_price
 
                     # Round to symbol precision for consistent formatting
-                    if hasattr(config.symbol_info, "precision"):
-                        expected_qty = round(expected_qty, config.symbol_info.precision)
+                    if hasattr(config.symbol, "precision"):
+                        expected_qty = round(expected_qty, config.symbol.precision)
             else:
                 # SINGLE mode: budget / price_high
                 expected_qty = (
@@ -935,7 +934,7 @@ class StrategyExecutor:
                 hp_update=HPUpdate(
                     hp_id=config.hp_id,
                     coin=config.coin,
-                    symbol_info=config.symbol_info,
+                    symbol=config.symbol,
                     state=state,
                     buy_price=config.price_high,
                     quantity=float(total_quant) if total_quant else None,
@@ -969,10 +968,10 @@ class StrategyExecutor:
 
         expected_return = None
         if buy_price is not None and config.sell_price is not None:
-            expected_return = config.symbol_info.adjust_price(
+            expected_return = config.symbol.adjust_price(
                 (config.sell_price - buy_price) * config.quantity
             )
-        quantity_usd = config.symbol_info.adjust_price(config.quantity * buy_price)
+        quantity_usd = config.symbol.adjust_price(config.quantity * buy_price)
         self.ui_queue.put_nowait(
             HPGuiDataSell(
                 data=HPSellData(config=config, state_info=state_info),
@@ -981,7 +980,7 @@ class StrategyExecutor:
                     buy_price=buy_price,
                     sell_price=config.sell_price,
                     coin=config.coin,
-                    symbol_info=config.symbol_info,
+                    symbol=config.symbol,
                     state=state,
                     quantity=config.quantity,
                     quantity_usd=quantity_usd,
@@ -992,7 +991,7 @@ class StrategyExecutor:
         )
 
     async def setup_sell_position(
-        self, strategy_data: SellPosition, sell_strategy: List[SymbolInfo]
+        self, strategy_data: SellPosition, sell_strategy: List[Symbol]
     ) -> None:
         logger.info(
             "Setting up sell position for existing HP: %s", strategy_data.config.hp_id
@@ -1038,7 +1037,7 @@ class StrategyExecutor:
     async def setup_sell_position_with_new_hp(
         self,
         strategy_data: SellPosition,
-        sell_strategy: List[SymbolInfo],
+        sell_strategy: List[Symbol],
         is_restoration: bool = False,
     ) -> None:
         # For restoration, preserve existing HP ID; for new positions, generate new one
@@ -1069,7 +1068,7 @@ class StrategyExecutor:
                 data=HPBuyData(
                     config=HPBuyConfig(
                         hp_id=parent_hp_id,
-                        symbol_info=strategy_data.config.symbol_info,
+                        symbol=strategy_data.config.symbol,
                         coin=strategy_data.config.coin,
                     ),
                     state_info=StateInfo(ui_state=UiState.CLOSED, state=State.BOUGHT),
@@ -1168,7 +1167,7 @@ class StrategyExecutor:
 
         self.strategies[parent_hp_id] = strategy
 
-        assert config.symbol_info.symbol.endswith(
+        assert config.symbol.name.endswith(
             tuple(self.supported_quotes)
         ), f"Symbol must end with one of {self.supported_quotes}"
         self.send_sell_position_to_ui(
@@ -1188,17 +1187,17 @@ class StrategyExecutor:
             system_id=str(parent_hp_id),
             subscription_info=SubscriptionInfo(
                 data_type=SubscriptionType.USER,
-                symbol=config.symbol_info.symbol,
+                symbol=config.symbol.name,
                 target=SubscriptionTarget.BACKEND,
                 queue=worker_queue,
             ),
         )
-        for symbol_info in sell_strategy:
+        for symbol in sell_strategy:
             self.broker.subscribe(
                 system_id=str(parent_hp_id),
                 subscription_info=SubscriptionInfo(
                     data_type=SubscriptionType.PRICE,
-                    symbol=symbol_info.symbol,
+                    symbol=symbol.name,
                     target=SubscriptionTarget.BACKEND,
                     queue=worker_queue,
                 ),
@@ -1306,7 +1305,7 @@ class StrategyExecutor:
             buy.data.state_info.state = State.CLOSED
             if buy.orders:
                 buy.orders = await buy.cancel_remaining_limit_orders(
-                    symbol=buy.data.config.symbol_info.symbol,
+                    symbol=buy.data.config.symbol.name,
                     orders=buy.orders,
                 )
                 for order in buy.orders:
@@ -1355,7 +1354,7 @@ class StrategyExecutor:
                     )
 
                 buy.orders = await buy.cancel_remaining_limit_orders(
-                    symbol=buy.data.config.symbol_info.symbol,
+                    symbol=buy.data.config.symbol.name,
                     orders=buy.orders,
                 )
                 strategy.state = buy.data.state_info.state
@@ -1664,7 +1663,9 @@ class StrategyExecutor:
 
             # Create recovery service with the same database instance
             self.recovery_service = RecoveryService(
-                symbols_info=self.symbols_info, client=self.client, database=self.db
+                symbols=self.price_resolver.symbols,
+                client=self.client,
+                database=self.db,
             )
             logger.info("Recovery service created successfully")
 
@@ -1725,7 +1726,7 @@ class StrategyExecutor:
         logger.info("Restoring buy position: %s", buy_data.config.hp_id)
         logger.info(
             "Buy position details: symbol=%s, coin=%s, budget=%s",
-            buy_data.config.symbol_info.symbol,
+            buy_data.config.symbol.name,
             buy_data.config.coin,
             buy_data.config.budget,
         )
@@ -1811,8 +1812,8 @@ class StrategyExecutor:
             trading_order = Order(
                 order_id=latest_order["order_id"],
                 quantity=latest_order["quantity"],
-                precision=buy_config.symbol_info.precision,
-                price_precision=buy_config.symbol_info.price_precision,
+                precision=buy_config.symbol.precision,
+                price_precision=buy_config.symbol.price_precision,
                 price=latest_order["price"],
                 quantity_stable=latest_order["quantity_stable"],
                 realized_quantity=total_realized,
@@ -1827,7 +1828,7 @@ class StrategyExecutor:
             if order.status not in [ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED]:
                 # Retrieve the latest order information from the API
                 resp = await self.client.get_order(
-                    symbol=buy_config.symbol_info.symbol,
+                    symbol=buy_config.symbol.name,
                     orderId=order.order_id,
                 )
                 latest_status = resp["status"]
@@ -1839,7 +1840,7 @@ class StrategyExecutor:
 
                 if status_changed or quantity_changed:
                     ex_report = ExecutionReport(
-                        symbol=buy_config.symbol_info.symbol,
+                        symbol=buy_config.symbol.name,
                         quantity=order.quantity,
                         price=order.price,
                         current_order_status=latest_status,
@@ -1895,8 +1896,8 @@ class StrategyExecutor:
         trading_order = Order(
             order_id=current_order["order_id"],
             quantity=current_order["quantity"],
-            precision=sell_config.symbol_info.precision,
-            price_precision=sell_config.symbol_info.price_precision,
+            precision=sell_config.symbol.precision,
+            price_precision=sell_config.symbol.price_precision,
             price=current_order["price"],
             quantity_stable=current_order["quantity_stable"],
             realized_quantity=current_order["realized_quantity"],
@@ -1908,7 +1909,7 @@ class StrategyExecutor:
         if current_order["status"] not in [ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED]:
             # Retrieve the latest order information from the API
             resp = await self.client.get_order(
-                symbol=sell_config.symbol_info.symbol,
+                symbol=sell_config.symbol.name,
                 orderId=current_order["order_id"],
             )
             latest_status = resp["status"]
@@ -1924,7 +1925,7 @@ class StrategyExecutor:
                 # Send a message to the appropriate queue
 
                 ex_report = ExecutionReport(
-                    symbol=sell_config.symbol_info.symbol,
+                    symbol=sell_config.symbol.name,
                     quantity=current_order["quantity"],
                     price=current_order["price"],
                     current_order_status=latest_status,
@@ -2010,8 +2011,8 @@ class StrategyExecutor:
                 order_dict = orders[0]
                 pos.sell_order.order_id = order_dict["order_id"]
                 pos.sell_order.quantity = order_dict["quantity"]
-                pos.sell_order.precision = pos.config.symbol_info.precision
-                pos.sell_order.price_precision = pos.config.symbol_info.price_precision
+                pos.sell_order.precision = pos.config.symbol.precision
+                pos.sell_order.price_precision = pos.config.symbol.price_precision
                 pos.sell_order.price = order_dict["price"]
                 pos.sell_order.quantity_stable = order_dict["quantity_stable"]
                 pos.sell_order.realized_quantity = order_dict["realized_quantity"]

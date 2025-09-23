@@ -3,16 +3,8 @@
 import asyncio
 import pytest
 import logging
-from unittest.mock import AsyncMock, MagicMock
 
-from src.identifiers import (
-    HPSellPositionCreated,
-    EventName,
-    InventoryItem,
-    Order,
-    State,
-)
-from src.portfolio.portfolio_gui import PortfolioUI
+from src.identifiers import HPSellPositionCreated
 from tests.strategies.hp_manager_helpers import wait_for_condition
 from tests.strategies.hp_simulator import HPSimulator
 

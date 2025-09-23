@@ -35,8 +35,8 @@ class CrashRecoveryHelper:
         ), f"HP ID mismatch: DB={db_position.hp_id}, Memory={strategy.buy.data.config.hp_id}"
 
         assert (
-            db_position.symbol == strategy.buy.data.config.symbol_info.symbol
-        ), f"Symbol mismatch: DB={db_position.symbol}, Memory={strategy.buy.data.config.symbol_info.symbol}"
+            db_position.symbol == strategy.buy.data.config.symbol.name
+        ), f"Symbol mismatch: DB={db_position.symbol}, Memory={strategy.buy.data.config.symbol.name}"
 
         assert (
             db_position.coin == strategy.buy.data.config.coin

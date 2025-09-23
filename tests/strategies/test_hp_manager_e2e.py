@@ -8,7 +8,7 @@ from binance.enums import (
     ORDER_STATUS_FILLED,
     ORDER_STATUS_PARTIALLY_FILLED,
 )
-from src.common.symbol_info import SymbolInfo
+from src.common.symbol import Symbol
 from src.strategy_executor import StrategyExecutor
 from src.gui.hp_manager.hpfront import HpFront
 from src.identifiers import (
@@ -1554,7 +1554,7 @@ async def test_no_sell_orders_send_if_buy_position_not_realized(
             buy_price=0.0,
             sell_price=4200.0,
             quantity=0.0,
-            symbol_info=SymbolInfo(symbol="BTCUSDC", precision=2, price_precision=2),
+            symbol=Symbol(name="BTCUSDC", precision=2, price_precision=2),
         ),
         state_info=StateInfo(side=PositionSide.SHORT),
     )
@@ -1622,7 +1622,7 @@ async def test_sell_orders_send_if_buy_position_realized_partially(
             buy_price=0.0,
             sell_price=4200.0,
             quantity=0.0,
-            symbol_info=SymbolInfo(symbol="BTCUSDC", precision=2, price_precision=2),
+            symbol=Symbol(name="BTCUSDC", precision=2, price_precision=2),
         ),
         state_info=StateInfo(side=PositionSide.SHORT),
     )

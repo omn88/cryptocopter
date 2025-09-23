@@ -9,11 +9,8 @@ This simulator provides methods to test the complete inventory sell flow:
 5. Validating final states
 """
 
-import asyncio
 import logging
 from typing import List, Optional
-
-from src.common.symbol_info import SymbolInfo
 from src.gui.hp_manager.hpfront import HpFront
 from src.strategy_executor import StrategyExecutor
 from src.portfolio.portfolio_gui import PortfolioUI
@@ -184,7 +181,7 @@ class InventorySellSimulator:
             sell_price=sell_price,
             quantity=sell_quantity,
             end_currency=end_currency,
-            symbol_info=self.strategy_executor.symbols_info[f"{coin}USDT"],
+            symbol=self.strategy_executor.price_resolver.symbols[f"{coin}USDT"],
         )
 
         sell_data = HPSellData(
@@ -239,7 +236,7 @@ class InventorySellSimulator:
         sell_price = strategy.sell.current_position.config.sell_price
         strategy.ticker_update = TickerUpdate(
             last_price=sell_price,
-            symbol=strategy.sell.current_position.config.symbol_info.symbol,
+            symbol=strategy.sell.current_position.config.symbol.name,
         )
 
         # Process ticker to move from BOUGHT to SELLING
@@ -311,13 +308,13 @@ class InventorySellSimulator:
 
     def verify_connections(self):
         """Verify that portfolio, HP manager, and strategy executor are properly connected."""
-        # Verify portfolio has hp_manager reference
+        # Verify portfolio has strategy_config_queue reference
         assert hasattr(
-            self.portfolio, "hp_manager"
-        ), "Portfolio should have hp_manager reference"
+            self.portfolio, "strategy_config_queue"
+        ), "Portfolio should have strategy_config_queue reference"
         assert (
-            self.portfolio.hp_manager is self.hp_manager
-        ), "Portfolio should reference the correct HP manager"
+            self.portfolio.strategy_config_queue is self.strategy_executor.config_queue
+        ), "Portfolio should reference the correct strategy executor config queue"
 
         # Verify HP manager has portfolio_queue (not direct portfolio reference)
         assert hasattr(

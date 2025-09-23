@@ -1246,7 +1246,7 @@ async def test_axl_multihop_sell_cancellation_inventory_unlock(
 
     for i, pos in enumerate(strategy.sell.sell_positions):
         logger.info(
-            f"  Child {i+1}: HP ID {pos.config.hp_id}, Symbol {pos.config.symbol_info.symbol}"
+            f"  Child {i+1}: HP ID {pos.config.hp_id}, Symbol {pos.config.symbol.name}"
         )
 
     # Step 4: Verify inventory was properly locked after position creation

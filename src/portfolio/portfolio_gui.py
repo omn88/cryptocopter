@@ -13,7 +13,6 @@ from kivy.uix.popup import Popup
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.label import Label
-from src.gui.hp_manager.hpfront import HpFront
 from src.identifiers import (
     AccountPosition,
     Event,
@@ -27,9 +26,13 @@ from src.identifiers import (
     HPBuyPositionPartiallyFilled,
     HPBuyOrdersPlaced,
     HPPositionCancelled,
+    HPSellData,
+    HPSellConfig,
+    StateInfo,
+    PositionSide,
 )
-from src.common.symbol_info import SymbolInfo
 from src.database import TradingDatabase
+from src.portfolio.usd_price_resolver import UsdPriceResolver
 
 logger = logging.getLogger("portfolio_gui_handler")
 
@@ -47,7 +50,8 @@ class PortfolioUI(BoxLayout):
     def __init__(
         self,
         ui_queue: queue.Queue,
-        symbols_info: Dict[str, SymbolInfo],
+        strategy_config_queue: queue.Queue,
+        price_resolver: UsdPriceResolver,
         db: TradingDatabase,
         test_mode: bool = False,
         **kwargs,
@@ -60,7 +64,8 @@ class PortfolioUI(BoxLayout):
             object.__init__(self)
 
         self.ui_queue = ui_queue
-        self.symbols_info = symbols_info
+        self.strategy_config_queue: queue.Queue = strategy_config_queue
+        self.price_resolver = price_resolver
         self.coin_list_data = []
         self.inventory: List[InventoryItem] = []
         self.db = db
@@ -72,10 +77,6 @@ class PortfolioUI(BoxLayout):
         self._hp_locked_amounts: Dict[str, Dict[str, float]] = (
             {}
         )  # Track locked amounts by HP ID and currency
-        self.hp_manager: Optional[HpFront] = (
-            None  # Reference to HP manager for sell functionality
-        )
-        self.app = None
 
     def initialize(self):
         """Initialize the PortfolioUI and start UI queue processing."""
@@ -89,26 +90,8 @@ class PortfolioUI(BoxLayout):
                 "[PORTFOLIO PRODUCTION] Skipped UI queue task - running in test mode"
             )
 
-    def set_hp_manager_reference(self, hp_manager, app):
-        """Set reference to HP manager and main app for sell functionality."""
-        self.hp_manager = hp_manager
-        self.app = app
-
     def sell_lot_button(self, lot_symbol, available_quantity, buy_price):
         """Handle sell button for individual lot (child row)."""
-        # Check if HP Manager is available before proceeding
-        if not self.hp_manager:
-            logger.warning("HP Manager not available - sell functionality disabled")
-            error_popup = Popup(
-                title="HP Manager Required",
-                content=Label(
-                    text="HP Manager is not available.\nSell functionality requires HP Manager to be active."
-                ),
-                size_hint=(0.5, 0.3),
-                auto_dismiss=True,
-            )
-            error_popup.open()
-            return
 
         # Extract the parent symbol from the lot display
         # Find the parent coin this lot belongs to by matching buy price and available quantity
@@ -145,19 +128,6 @@ class PortfolioUI(BoxLayout):
 
     def sell_parent_button(self, symbol):
         """Handle sell button for parent coin (allows partial or full sell)."""
-        # Check if HP Manager is available before proceeding
-        if not self.hp_manager:
-            logger.warning("HP Manager not available - sell functionality disabled")
-            error_popup = Popup(
-                title="HP Manager Required",
-                content=Label(
-                    text="HP Manager is not available.\nSell functionality requires HP Manager to be active."
-                ),
-                size_hint=(0.5, 0.3),
-                auto_dismiss=True,
-            )
-            error_popup.open()
-            return
 
         # Find the parent coin data
         parent_coin = None
@@ -352,16 +322,16 @@ class PortfolioUI(BoxLayout):
                     logger.error("Sell price must be greater than 0")
                     return
 
-                # Create the sell order directly without switching tabs or opening another popup
-                if not self.hp_manager:
+                # Create sell order via config queue
+                if not self.strategy_config_queue or not self.symbols:
                     logger.error(
-                        "HP Manager is not available. Cannot create sell orders."
+                        "Strategy config queue or symbols info not available. Cannot create sell orders."
                     )
                     # Show user-friendly error popup
                     error_popup = Popup(
                         title="Error",
                         content=Label(
-                            text="HP Manager is not available.\nCannot create sell orders at this time."
+                            text="Trading strategy not ready.\nCannot create sell orders at this time."
                         ),
                         size_hint=(0.4, 0.3),
                         auto_dismiss=True,
@@ -371,28 +341,57 @@ class PortfolioUI(BoxLayout):
 
                 popup.dismiss()  # Close our popup first
 
-                # Call the HP manager's confirmation method directly
-                hp_id = ""  # Empty HP ID for new position
-
-                # Create a dummy popup object since _confirm_sell_hp expects one
-                class DummyPopup:
-                    def dismiss(self):
-                        pass  # Do nothing - our popup is already dismissed
-
-                dummy_popup = DummyPopup()
-
                 try:
-                    self.hp_manager._confirm_sell_hp(
-                        dummy_popup,
-                        hp_id,
-                        symbol,
-                        str(sell_quantity),
-                        str(avg_buy_price),
-                        str(sell_price),
+                    # Create sell configuration and send to strategy executor via config queue
+                    coin_symbol = symbol[:-3] if symbol.endswith("USD") else symbol
+                    symbol_key = f"{coin_symbol}USDC"
+
+                    if symbol_key not in self.symbols:
+                        fallback_symbol = f"{coin_symbol}USDT"
+                        if fallback_symbol in self.symbols:
+                            logger.info(
+                                f"Using fallback symbol {fallback_symbol} instead of {symbol_key}"
+                            )
+                            symbol_key = fallback_symbol
+                        else:
+                            logger.error(
+                                f"Symbol info not found for {symbol_key} or fallback {fallback_symbol}"
+                            )
+                            error_popup = Popup(
+                                title="Symbol Error",
+                                content=Label(
+                                    text=f"Symbol {symbol_key} not supported for trading"
+                                ),
+                                size_hint=(0.4, 0.3),
+                                auto_dismiss=True,
+                            )
+                            error_popup.open()
+                            return
+
+                    # Create HP sell configuration
+                    sell_config = HPSellData(
+                        config=HPSellConfig(
+                            symbol=self.symbols[symbol_key],
+                            hp_id="",  # Empty HP ID for new position
+                            coin=coin_symbol,
+                            quantity=sell_quantity,
+                            buy_price=avg_buy_price,
+                            sell_price=sell_price,
+                            end_currency="USDC",
+                        ),
+                        state_info=StateInfo(
+                            side=PositionSide.SHORT,
+                            open_time=time.strftime("%Y-%m-%d %H:%M:%S"),
+                        ),
                     )
+
+                    # Send to strategy executor via config queue
+                    self.strategy_config_queue.put_nowait(sell_config)
+
                     logger.info(
-                        f"Successfully created sell order for {symbol}: qty={sell_quantity} @ {sell_price}"
+                        f"Successfully queued sell order for {symbol}: qty={sell_quantity} @ {sell_price}"
                     )
+
                 except Exception as e:
                     logger.error(f"Failed to create sell order: {e}")
                     # Show user-friendly error popup
@@ -992,8 +991,10 @@ class PortfolioUI(BoxLayout):
         if avg_price > 0 and coin_symbol:
             try:
                 symbol_key = f"{coin_symbol}USDT"
-                if symbol_key in self.symbols_info:
-                    return self.symbols_info[symbol_key].adjust_price(avg_price)
+                if symbol_key in self.price_resolver.symbols:
+                    return self.price_resolver.symbols[symbol_key].adjust_price(
+                        avg_price
+                    )
             except (KeyError, AttributeError):
                 # Fallback to original precision if symbol info not available
                 pass
@@ -1094,7 +1095,7 @@ class PortfolioUI(BoxLayout):
             if not coin.get("is_lot_row", False) and symbol in price_updates.msg:
                 price = price_updates.msg[symbol]
                 coin["price_usd"] = str(
-                    self.symbols_info[f"{symbol}USDT"].adjust_price(price)
+                    self.price_resolver.symbols[f"{symbol}USDT"].adjust_price(price)
                 )
                 total_in_usd = round(float(coin["quantity"]) * price, 2)
                 coin["total_usd"] = str(total_in_usd)

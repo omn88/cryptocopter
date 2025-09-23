@@ -326,7 +326,7 @@ async def test_conditions_for_new_buy_order_confirmation(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_NEW,
-        symbol=strategy.buy.data.config.symbol_info.symbol,
+        symbol=strategy.buy.data.config.symbol.name,
     )
     assert strategy.conditions_for_new_order_confirmation()
 
@@ -355,7 +355,7 @@ async def test_conditions_for_buy_order_cancellation(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_CANCELED,
-        symbol=strategy.buy.data.config.symbol_info.symbol,
+        symbol=strategy.buy.data.config.symbol.name,
     )
     assert strategy.conditions_for_order_cancellation()
 
@@ -762,7 +762,7 @@ async def test_conditions_for_new_sell_order_confirmation(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_NEW,
-        symbol=strategy.buy.data.config.symbol_info.symbol,
+        symbol=strategy.buy.data.config.symbol.name,
     )
     assert strategy.conditions_for_new_order_confirmation()
 
@@ -783,7 +783,7 @@ async def test_conditions_for_sell_order_cancellation(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_CANCELED,
-        symbol=strategy.buy.data.config.symbol_info.symbol,
+        symbol=strategy.buy.data.config.symbol.name,
     )
     assert strategy.conditions_for_order_cancellation()
 

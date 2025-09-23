@@ -11,7 +11,6 @@ from .models import (
     Position,
     Trade,
     Order,
-    Strategy,
     PositionType,
     PositionStatus,
     TradeType,
