@@ -74,10 +74,6 @@ class HPManager(BoxLayout):  # type: ignore[misc]
         if self.create_hp_callback:
             self.create_hp_callback("BUY", config)
 
-    def update_symbols(self, symbols: List[str]) -> None:
-        """Update available symbols for Buy HP."""
-        self.available_symbols = symbols
-
     def update_inventory(self, inventory: Dict[str, List[Any]]) -> None:
         """Update available inventory for Sell HP."""
         self.inventory_coins = inventory
