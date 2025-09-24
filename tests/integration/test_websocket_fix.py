@@ -84,6 +84,20 @@ class MockBroker:
         else:
             logger.warning("No error handler set")
 
+    async def simulate_nested_websocket_error(self):
+        """Simulate nested TickerStreamError with BinanceWebsocketUnableToConnect - like real production error"""
+        if self._error_handler:
+            error_msg = {
+                "type": "TickerStreamError",
+                "m": "{'e': 'error', 'type': 'BinanceWebsocketUnableToConnect', 'm': ''}",
+            }
+            logger.info(
+                "Simulating nested TickerStreamError with BinanceWebsocketUnableToConnect..."
+            )
+            await self._error_handler(error_msg)
+        else:
+            logger.warning("No error handler set")
+
 
 async def test_websocket_error_handling(strategy_executor_fixture):
     """Test the WebSocket error handling functionality with circuit breaker pattern."""
@@ -197,8 +211,23 @@ async def test_websocket_error_handling(strategy_executor_fixture):
             strategy_executor._restart_count,
         )
 
+        # Test 7: Verify nested TickerStreamError with BinanceWebsocketUnableToConnect triggers circuit breaker
+        logger.info(
+            "Test 7: Testing nested TickerStreamError error triggers circuit breaker..."
+        )
+        restart_count_before = strategy_executor._restart_count
+
+        await mock_broker.simulate_nested_websocket_error()
+
+        # Verify restart count increased
+        assert strategy_executor._restart_count == restart_count_before + 1
+        logger.info(
+            "✓ Nested TickerStreamError error correctly triggered circuit breaker (restart count: %d)",
+            strategy_executor._restart_count,
+        )
+
         # Verify the circuit breaker resets after time gap
-        logger.info("Test 7: Verifying circuit breaker reset after time gap...")
+        logger.info("Test 8: Verifying circuit breaker reset after time gap...")
         original_last_restart = strategy_executor._last_restart_time
         strategy_executor._last_restart_time = (
             original_last_restart - 700
