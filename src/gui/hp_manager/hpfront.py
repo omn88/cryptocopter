@@ -68,7 +68,7 @@ class HpFront(BoxLayout):
 
     log_display = ObjectProperty(None)
     file_name_input = ObjectProperty(None)
-    symbols = ListProperty()
+    available_symbols = ListProperty()
 
     config_dir = os.path.join("src", "strategies", "spot")
 
@@ -91,7 +91,6 @@ class HpFront(BoxLayout):
         self.price_resolver = price_resolver
         self.portfolio_queue = portfolio_queue
         self.bind(hp_list_data=self._update_hp_list_view)
-        self.symbols = [symbol for symbol, _ in self.price_resolver.symbols.items()]
         self.test_mode = test_mode
         self.stop_event: asyncio.Event = asyncio.Event()
         self.ui_queue_closed = False
@@ -262,7 +261,9 @@ Side: {side}"""
             self.hp_manager.client = self.client
 
             # Update with current data
-            self.hp_manager.update_symbols(self.symbols)
+            self.hp_manager.available_symbols = [
+                symbol for symbol, _ in self.price_resolver.symbols.items()
+            ]
         else:
             logger.warning("HP manager not found in KV file")
 
@@ -556,7 +557,6 @@ Side: {side}"""
             try:
                 while True:
                     data = self.ui_queue.get_nowait()
-                    # Removed excessive debug logging here
 
                     # Throttle frequent ticker update logs to reduce spam
                     current_time = time.time()
@@ -573,6 +573,7 @@ Side: {side}"""
                         # Add actual buy operation state for proper child state determination
                         buy_state = data.data.state_info.state.value
                         data.hp_update.buy_operation_state = buy_state
+
                         # Update HP list data (KV binding will handle UI updates)
                         self.hp_list_data = self.update_hp_list(
                             update=data.hp_update, hp_list=self.hp_list_data
@@ -609,8 +610,14 @@ Side: {side}"""
                                 self.hp_list_data = self.update_hp_list(
                                     update=data.hp_update, hp_list=self.hp_list_data
                                 )
+                        else:
+                            logger.warning(
+                                "Unknown data type received in UI queue: %s", type(data)
+                            )
             except queue.Empty:
                 await asyncio.sleep(0.1)
+            except Exception as e:
+                logger.error("Exception in UI queue processing: %s", e, exc_info=True)
         self.ui_queue_closed = True
 
     def update_hp_list(self, update: HPUpdate, hp_list: List[Dict]) -> List[Dict]:
@@ -1435,9 +1442,9 @@ Side: {side}"""
                         strategy["coin"].endswith("USD")
                         and symbol == f"{strategy['coin'][:-3]}USDT"
                     ):
-                        current_price = self.symbols[symbol].format_price(
-                            price=float(ticker["c"])
-                        )
+                        current_price = self.price_resolver.symbols[
+                            symbol
+                        ].format_price(price=float(ticker["c"]))
                         strategy["current_price"] = current_price
 
                         if float(strategy["buy_price"]):
@@ -1455,13 +1462,15 @@ Side: {side}"""
                                 * float(strategy["quantity"]),
                                 2,
                             )
-                            strategy["net"] = self.symbols[symbol].format_price(net_usd)
+                            strategy["net"] = self.price_resolver.symbols[
+                                symbol
+                            ].format_price(net_usd)
                             strategy["net_percent"] = str(net_percent)
                     # Handle direct symbol matches (e.g., BTCUSDT)
                     elif symbol == strategy["coin"]:
-                        current_price = self.symbols[symbol].format_price(
-                            price=float(ticker["c"])
-                        )
+                        current_price = self.price_resolver.symbols[
+                            symbol
+                        ].format_price(price=float(ticker["c"]))
                         strategy["current_price"] = current_price
 
                         if float(strategy["buy_price"]):
@@ -1479,7 +1488,9 @@ Side: {side}"""
                                 * float(strategy["quantity"]),
                                 2,
                             )
-                            strategy["net"] = self.symbols[symbol].format_price(net_usd)
+                            strategy["net"] = self.price_resolver.symbols[
+                                symbol
+                            ].format_price(net_usd)
                             strategy["net_percent"] = str(net_percent)
         # Only trigger visual refresh if significant changes occurred
         # Use throttling to ensure 1-second refresh interval for prices
@@ -1614,9 +1625,9 @@ Enter sell price to create sell order:"""
                 f"Creating sell order for HP {hp_id}: {quantity} {coin_symbol} at {sell_price}"
             )
 
-            if symbol not in self.symbols:
+            if symbol not in self.price_resolver.symbols:
                 fallback_symbol = f"{coin_symbol}USDT"
-                if fallback_symbol in self.symbols:
+                if fallback_symbol in self.price_resolver.symbols:
                     logger.info(
                         f"Using fallback symbol {fallback_symbol} instead of {symbol}"
                     )
@@ -1635,7 +1646,7 @@ Enter sell price to create sell order:"""
                     sell_price=sell_price,
                     quantity=float(quantity),
                     end_currency="USDC",
-                    symbol=self.symbols[symbol],
+                    symbol=self.price_resolver.symbols[symbol],
                 ),
                 state_info=StateInfo(side=PositionSide.SHORT),
             )
@@ -1654,7 +1665,9 @@ Enter sell price to create sell order:"""
 
     def cancel_sell(self, hp_id: str, coin: str):
         coin = coin[:-3] if coin.endswith("USD") else coin
-        config = HPSellConfig(hp_id=hp_id, symbol=self.symbols[f"{coin}USDT"])
+        config = HPSellConfig(
+            hp_id=hp_id, symbol=self.price_resolver.symbols[f"{coin}USDT"]
+        )
         state_info = StateInfo(
             side=PositionSide.SHORT, ui_state=UiState.CLOSED, state=State.CLOSED
         )
