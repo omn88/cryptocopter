@@ -526,11 +526,6 @@ class HpStrategy:
 
     def send_buy_position_to_ui(self):
         """Send buy position update to UI."""
-        logger.info(
-            "BUYING DEBUG: send_buy_position_to_ui called - strategy.state=%s, buy.state=%s",
-            self.state,
-            self.buy.data.state_info.state,
-        )
 
         hp_update = self.build_hp_update_from_orders(symbol=self.buy.data.config.symbol)
         # Set specific child ID for buy operations
@@ -542,13 +537,6 @@ class HpStrategy:
         buy_state = self.buy.data.state_info.state.value
         hp_update.buy_operation_state = buy_state
 
-        logger.info(
-            "BUYING DEBUG: Sending UI update for %s - strategy_state=%s, buy_op_state=%s",
-            hp_update.hp_id,
-            self.state,
-            buy_state,
-        )
-
         buy_data = HPGuiDataBuy(
             data=HPBuyData(
                 config=self.buy.data.config, state_info=self.buy.data.state_info
@@ -556,17 +544,9 @@ class HpStrategy:
             hp_update=hp_update,
         )
         self.ui_queue.put_nowait(buy_data)
-        logger.info(
-            "BUYING DEBUG: HPGuiDataBuy queued successfully for %s", hp_update.hp_id
-        )
 
     def send_sell_position_to_ui(self):
         """Send sell position update to UI."""
-        logger.info(
-            "SELL DEBUG: send_sell_position_to_ui called - strategy.state=%s, sell.state=%s",
-            self.state,
-            self.sell.current_position.state_info.state,
-        )
 
         hp_update = self.build_hp_update_from_orders(
             symbol=self.sell.current_position.config.symbol
@@ -593,12 +573,6 @@ class HpStrategy:
         # Add sell state information for UI sell child state processing
         hp_update.sell_state = self.sell.current_position.state_info.state.value
 
-        logger.info(
-            "SELL DEBUG: Sending UI update for %s - sell_state=%s",
-            hp_update.hp_id,
-            hp_update.sell_state,
-        )
-
         sell_data = HPGuiDataSell(
             data=HPSellData(
                 config=self.sell.current_position.config,
@@ -607,9 +581,6 @@ class HpStrategy:
             hp_update=hp_update,
         )
         self.ui_queue.put_nowait(sell_data)
-        logger.info(
-            "SELL DEBUG: HPGuiDataSell queued successfully for %s", hp_update.hp_id
-        )
 
     def calculate_trigger_send_orders_price_buy(self):
 
