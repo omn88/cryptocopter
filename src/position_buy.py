@@ -81,7 +81,6 @@ class HPPositionBuy:
                 order.quantity_stable,
                 order.order_id,
             )
-        logger.info("Exited open position")
         return results
 
     async def cancel_position(self) -> None:
