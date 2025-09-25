@@ -675,7 +675,7 @@ async def move_to_buy_position_active(
     assert child_item["net_percent"] == "0.0"
     # Child should show actual buy operation state, not strategy state
     # When strategy transitions to BUYING but buy orders are still NEW, child shows NEW
-    assert child_item["state"] == "NEW"
+    assert child_item["state"] == "NEW", child_item["state"]
 
     return strategy, hp_list
 

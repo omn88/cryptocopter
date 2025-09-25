@@ -91,7 +91,6 @@ class HpFront(BoxLayout):
         self.price_resolver = price_resolver
         self.portfolio_queue = portfolio_queue
         self.bind(hp_list_data=self._update_hp_list_view)
-        self.symbols = [symbol for symbol, _ in self.price_resolver.symbols.items()]
         self.test_mode = test_mode
         self.stop_event: asyncio.Event = asyncio.Event()
         self.ui_queue_closed = False
@@ -262,7 +261,9 @@ Side: {side}"""
             self.hp_manager.client = self.client
 
             # Update with current data
-            self.hp_manager.update_symbols(self.symbols)
+            self.hp_manager.available_symbols = [
+                symbol for symbol, _ in self.price_resolver.symbols.items()
+            ]
         else:
             logger.warning("HP manager not found in KV file")
 
