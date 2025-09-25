@@ -323,7 +323,7 @@ class PortfolioUI(BoxLayout):
                     return
 
                 # Create sell order via config queue
-                if not self.strategy_config_queue or not self.symbols:
+                if not self.strategy_config_queue or not self.price_resolver.symbols:
                     logger.error(
                         "Strategy config queue or symbols info not available. Cannot create sell orders."
                     )
@@ -346,9 +346,9 @@ class PortfolioUI(BoxLayout):
                     coin_symbol = symbol[:-3] if symbol.endswith("USD") else symbol
                     symbol_key = f"{coin_symbol}USDC"
 
-                    if symbol_key not in self.symbols:
+                    if symbol_key not in self.price_resolver.symbols:
                         fallback_symbol = f"{coin_symbol}USDT"
-                        if fallback_symbol in self.symbols:
+                        if fallback_symbol in self.price_resolver.symbols:
                             logger.info(
                                 f"Using fallback symbol {fallback_symbol} instead of {symbol_key}"
                             )
@@ -371,7 +371,7 @@ class PortfolioUI(BoxLayout):
                     # Create HP sell configuration
                     sell_config = HPSellData(
                         config=HPSellConfig(
-                            symbol=self.symbols[symbol_key],
+                            symbol=self.price_resolver.symbols[symbol_key],
                             hp_id="",  # Empty HP ID for new position
                             coin=coin_symbol,
                             quantity=sell_quantity,
