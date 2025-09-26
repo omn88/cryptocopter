@@ -636,18 +636,18 @@ class HpStrategy:
             )
         if self.balance < self.buy.data.config.budget:
             logger.warning("Ni mo hajsu")
-        logger.info(
-            "[Send buy orders]: %s, %s, side: %s, state: %s, budget: %s, balance: %s "
-            "price trigger: %s last price: %s",
-            condition,
-            self.buy.data.config.symbol.name,
-            self.buy.data.state_info.side,
-            self.state,
-            self.buy.data.config.budget,
-            self.balance,
-            trigger_send_orders_price,
-            self.ticker_update.last_price,
-        )
+        # logger.info(
+        #     "[Send buy orders]: %s, %s, side: %s, state: %s, budget: %s, balance: %s "
+        #     "price trigger: %s last price: %s",
+        #     condition,
+        #     self.buy.data.config.symbol.name,
+        #     self.buy.data.state_info.side,
+        #     self.state,
+        #     self.buy.data.config.budget,
+        #     self.balance,
+        #     trigger_send_orders_price,
+        #     self.ticker_update.last_price,
+        # )
 
         return condition
 
