@@ -12,6 +12,7 @@ for each strategy.
 import asyncio
 import logging
 import queue
+import time
 from typing import Optional
 from kivy.app import App
 from kivy.core.window import Window
@@ -143,6 +144,34 @@ class AsyncApp(App):
             content=self.portfolio_ui,
         )  # Add the tab to the root tab panel
         self.root.add_widget(tab)
+
+        # Wait for portfolio initialization to complete before proceeding
+        logger.info("Waiting for portfolio initialization to complete...")
+        wait_time = 0.1  # Start with 100ms
+        max_wait_time = 8.0  # Cap at 8 seconds
+        total_wait_time = 0.0
+        timeout = 30.0
+
+        while (
+            not self.portfolio.initialization_complete.is_set()
+            and total_wait_time < timeout
+        ):
+            time.sleep(wait_time)
+            total_wait_time += wait_time
+            # Exponential backoff with cap
+            wait_time = min(wait_time * 1.5, max_wait_time)
+            logger.debug(
+                f"Portfolio initialization check: waited {total_wait_time:.1f}s, next wait: {wait_time:.1f}s"
+            )
+
+        if self.portfolio.initialization_complete.is_set():
+            logger.info(
+                f"Portfolio initialization completed after {total_wait_time:.1f}s - ready to setup HP manager"
+            )
+        else:
+            logger.error(
+                f"Portfolio initialization timed out after {timeout}s - proceeding with potentially empty inventory"
+            )
 
     def setup_hp_manager(self, strategy_id: Optional[str] = None) -> None:
         # Use existing strategy ID or generate new one
