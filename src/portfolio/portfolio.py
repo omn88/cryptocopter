@@ -58,6 +58,8 @@ class PortfolioManager:
         # Starting the async loop
         self.loop = asyncio.new_event_loop()
         self.stop_event = asyncio.Event()
+        # Threading event to signal when initialization is complete
+        self.initialization_complete = threading.Event()
         self.thread = threading.Thread(target=self.start_loop)
         self.thread.start()
 
@@ -212,6 +214,10 @@ class PortfolioManager:
         except Exception as e:
             logger.error(f"Failed to initialize portfolio source: {e}")
             self.inventory = []  # Fallback to empty inventory
+
+        # Signal that initialization is complete
+        self.initialization_complete.set()
+        logger.info("Portfolio initialization completed - signaling readiness")
 
     async def _try_load_inventory_csv(self) -> bool:
         """Try to load inventory from CSV file. Returns True if successful, False otherwise."""
