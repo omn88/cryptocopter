@@ -59,6 +59,10 @@ class BrokerSpot:
         self._last_message_time: Dict[str, float] = {}
         self._connection_timeout = ULTRA_ROBUST_CONFIG.message_timeout_threshold
 
+        # Ticker monitoring attributes (needed by strategy executor)
+        self._last_ticker_time: float = time.time()
+        self._ticker_timeout_threshold: float = 300.0  # 5 minutes default
+
         # Use ultra-robust WebSocket configuration for unstable networks
         self._ws_config = ULTRA_ROBUST_CONFIG
         logger.info("Using ultra-robust WebSocket configuration for network stability")
@@ -341,6 +345,9 @@ class BrokerSpot:
 
     def handle_ticker_message(self, msg: List[Dict]) -> None:
         """Handle all market ticker WebSocket messages, and invoke error handler if ticker stream is dead."""
+
+        # Update last ticker timestamp for timeout monitoring
+        self._last_ticker_time = time.time()
 
         if isinstance(msg, str):
             logging.debug("Received control frame: %s", msg)

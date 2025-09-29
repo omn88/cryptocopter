@@ -255,10 +255,35 @@ class StrategyExecutor:
         if isinstance(error_msg, dict):
             error_type = error_msg.get("type", "")
             error_message = error_msg.get("m", "")
+
+            # Check direct error type and message first
             if any(t in error_type for t in unrecoverable_types) or any(
                 m in error_message for m in unrecoverable_msgs
             ):
                 is_unrecoverable = True
+
+            # Check for nested error messages (common with TickerStreamError)
+            if not is_unrecoverable and error_type == "TickerStreamError":
+                try:
+
+                    # Handle malfoqrmed JSON by extracting key info
+                    if "'e': 'error'" in error_message and "'type':" in error_message:
+                        # Extract nested error type using string parsing
+                        start_idx = error_message.find("'type': '") + 9
+                        if start_idx > 8:  # Found the pattern
+                            end_idx = error_message.find("'", start_idx)
+                            if end_idx > start_idx:
+                                nested_error_type = error_message[start_idx:end_idx]
+                                if any(
+                                    t in nested_error_type for t in unrecoverable_types
+                                ):
+                                    logger.warning(
+                                        "Detected unrecoverable error in nested TickerStreamError: %s",
+                                        nested_error_type,
+                                    )
+                                    is_unrecoverable = True
+                except Exception as e:
+                    logger.debug("Error parsing nested error message: %s", e)
 
         # If unrecoverable, restart websocket client with circuit breaker pattern
         if is_unrecoverable:
