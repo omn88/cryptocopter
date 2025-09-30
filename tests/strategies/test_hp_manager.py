@@ -9,7 +9,7 @@ from binance.enums import (
     ORDER_STATUS_CANCELED,
     ORDER_STATUS_EXPIRED,
 )
-from src.gui.identifiers.spot import HPGuiDataBuy, HPGuiDataSell
+from src.gui.identifiers import HPGuiDataBuy, HPGuiDataSell
 from src.identifiers import (
     Event,
     EventName,

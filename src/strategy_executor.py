@@ -40,7 +40,7 @@ from src.identifiers import (
     HPPositionCancelled,
 )
 from src.common.symbol import Symbol
-from src.gui.identifiers.spot import (
+from src.gui.identifiers import (
     HPClose,
     HPGuiDataBuy,
     HPGuiDataSell,

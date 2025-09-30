@@ -11,7 +11,7 @@ from binance.enums import (
     ORDER_STATUS_PARTIALLY_FILLED,
     ORDER_STATUS_CANCELED,
 )
-from src.gui.identifiers.spot import HPGuiDataBuy, HPGuiDataSell
+from src.gui.identifiers import HPGuiDataBuy, HPGuiDataSell
 from src.common.symbol import Symbol
 from src.position_sell import HPPositionSell
 from src.strategies.hp_manager import HpStrategy

@@ -41,7 +41,7 @@ from src.identifiers import (
     PositionSide,
     HPSellPositionCompleted,
 )
-from src.gui.identifiers.spot import HPClose, HPGuiDataBuy, HPGuiDataSell, HPUpdate
+from src.gui.identifiers import HPClose, HPGuiDataBuy, HPGuiDataSell, HPUpdate
 from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
 

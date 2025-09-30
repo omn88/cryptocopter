@@ -24,7 +24,7 @@ from src.portfolio.usd_price_resolver import UsdPriceResolver
 
 os.environ["KIVY_NO_CONSOLELOG"] = "1"
 from kivy.core.window import Window
-from src.gui.asyncapp import AsyncApp
+from src.gui.app.asyncapp import AsyncApp
 from src.database import TradingDatabase
 
 warnings.simplefilter(action="ignore", category=FutureWarning)

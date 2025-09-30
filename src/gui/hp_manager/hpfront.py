@@ -33,7 +33,7 @@ from src.identifiers import (
     Mode,
     PositionSide,
 )
-from src.gui.identifiers.spot import (
+from src.gui.identifiers import (
     HPGuiDataBuy,
     HPGuiDataSell,
     HPUpdate,
