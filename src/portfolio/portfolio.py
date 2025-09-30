@@ -9,7 +9,7 @@ import time
 from typing import Dict, List, Optional
 import uuid
 from decouple import Config, RepositoryEnv
-from src.database.trading_database import TradingDatabase
+from src.database.trading_database import Database
 from src.identifiers import (
     AccountPosition,
     AllTickers,
@@ -39,7 +39,7 @@ class PortfolioManager:
         broker: BrokerSpot,
         ui_queue: queue.Queue,
         price_resolver: UsdPriceResolver,
-        db: TradingDatabase,
+        db: Database,
     ):
         self.client: Optional[BinanceClient] = None
         self.broker = broker

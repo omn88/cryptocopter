@@ -39,7 +39,7 @@ from .exceptions import DatabaseError, RecoveryError, DatabaseConnectionError
 logger = logging.getLogger("trading_database")
 
 
-class TradingDatabase:
+class Database:
     """
     SQLite-based database for trading system with focus on recovery operations.
 

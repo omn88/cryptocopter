@@ -16,7 +16,7 @@ from kivy.uix.popup import Popup
 from kivy.uix.textinput import TextInput
 from kivy.graphics import Color, Rectangle, Line
 from kivy.uix.widget import Widget
-from src.database import TradingDatabase
+from src.database import Database
 from src.identifiers import (
     HPBuyConfig,
     HPBuy,
@@ -77,7 +77,7 @@ class HpFront(BoxLayout):
         client: BinanceClient,
         config_queue: queue.Queue,
         ui_queue: queue.Queue,
-        db: TradingDatabase,
+        db: Database,
         price_resolver: UsdPriceResolver,
         portfolio_queue: queue.Queue,
         test_mode=False,

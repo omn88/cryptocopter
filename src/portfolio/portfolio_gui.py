@@ -31,7 +31,7 @@ from src.identifiers import (
     StateInfo,
     PositionSide,
 )
-from src.database import TradingDatabase
+from src.database import Database
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 
 logger = logging.getLogger("portfolio_gui_handler")
@@ -52,7 +52,7 @@ class PortfolioUI(BoxLayout):
         ui_queue: queue.Queue,
         strategy_config_queue: queue.Queue,
         price_resolver: UsdPriceResolver,
-        db: TradingDatabase,
+        db: Database,
         test_mode: bool = False,
         **kwargs,
     ) -> None:

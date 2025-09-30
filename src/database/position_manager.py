@@ -17,7 +17,7 @@ from src.identifiers import (
     SellPosition,
 )
 
-from .trading_database import TradingDatabase
+from .trading_database import Database
 from .models import (
     Position,
     Order,
@@ -42,7 +42,7 @@ class PositionManager:
     - Providing a clean interface for the trading system
     """
 
-    def __init__(self, database: TradingDatabase):
+    def __init__(self, database: Database):
         self.database = database
 
     async def save_buy_position(self, buy_data: HPBuy) -> str:

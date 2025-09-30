@@ -12,7 +12,7 @@ from binance.enums import (
     ORDER_STATUS_NEW,
 )
 from src.common.helpers import generate_hp_id
-from src.database import TradingDatabase
+from src.database import Database
 from src.identifiers import (
     Event,
     EventName,
@@ -74,7 +74,7 @@ logger = logging.getLogger("strategy_executor")
 class StrategyExecutor:
     def __init__(
         self,
-        db: TradingDatabase,
+        db: Database,
         broker: BrokerSpot,
         ui_queue: queue.Queue,
         inventory: List[InventoryItem],
@@ -1657,7 +1657,7 @@ class StrategyExecutor:
         Recover all active trading positions from database after system crash/restart.
 
         This is the main crash recovery method that:
-        1. Uses TradingDatabase to get active positions
+        1. Uses Database to get active positions
         2. Verifies them with the exchange via RecoveryService
         3. Calls setup_buy_position and setup_sell_position_with_new_hp to restore them
         """

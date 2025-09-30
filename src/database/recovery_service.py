@@ -8,7 +8,7 @@ verifying their state with the exchange, and ensuring consistency.
 import logging
 from typing import List, Dict, Optional, Tuple, Any
 
-from src.database.trading_database import TradingDatabase
+from src.database.trading_database import Database
 from src.identifiers import (
     BinanceClient,
     HPBuyConfig,
@@ -48,7 +48,7 @@ class RecoveryService:
     def __init__(
         self,
         symbols: Dict[str, Symbol],
-        database: TradingDatabase,
+        database: Database,
         client: BinanceClient,
     ):
         self.database = database
