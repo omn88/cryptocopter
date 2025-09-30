@@ -16,7 +16,7 @@ from src.strategy_executor import StrategyExecutor
 from src.portfolio.portfolio_gui import PortfolioUI
 from src.identifiers import (
     HPSellConfig,
-    HPSellData,
+    HPSell,
     InventoryItem,
     PositionSide,
     State,
@@ -184,7 +184,7 @@ class InventorySellSimulator:
             symbol=self.strategy_executor.price_resolver.symbols[f"{coin}USDT"],
         )
 
-        sell_data = HPSellData(
+        sell_data = HPSell(
             config=sell_config,
             state_info=StateInfo(side=PositionSide.SHORT),
         )

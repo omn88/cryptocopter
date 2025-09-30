@@ -36,7 +36,7 @@ from src.common.symbol import Symbol
 from src.database.trading_database import TradingDatabase
 from src.identifiers import (
     HPBuyConfig,
-    HPBuyData,
+    HPBuy,
     HPSellConfig,
     Order,
     PositionSide,
@@ -508,7 +508,7 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
         hp_id = generate_hp_id(hp_list=[])
 
         # Create buy data with the generated ID and config
-        buy_data = HPBuyData(
+        buy_data = HPBuy(
             config=HPBuyConfig(
                 hp_id=hp_id,
                 symbol=hp_config.symbol,

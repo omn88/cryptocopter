@@ -18,9 +18,9 @@ from src.identifiers import (
     EventName,
     ExecutionReport,
     HPBuyConfig,
-    HPBuyData,
+    HPBuy,
     HPSellConfig,
-    HPSellData,
+    HPSell,
     InventoryItem,
     Order,
     RemoveRecord,
@@ -89,8 +89,6 @@ class StrategyExecutor:
         self.portfolio_ui_queue = portfolio_ui_queue
         self.config_queue: queue.Queue = queue.Queue()
         self.strategies: Dict[str, HpStrategy] = {}
-        self.recovery_service: Optional[RecoveryService] = None
-        self.inventory = inventory
         self.inventory_manager = InventoryManager(inventory)  # Create inventory manager
         self.supported_quotes = ["USDC", "PLN", "BTC", "BNB", "USDT"]
         self.test_mode = test_mode  # Add a test_mode parameter
@@ -160,9 +158,9 @@ class StrategyExecutor:
             try:
                 strategy_data = self.config_queue.get_nowait()
                 logger.info("New config for strategy executor: %s", strategy_data)
-                if isinstance(strategy_data, HPBuyData):
+                if isinstance(strategy_data, HPBuy):
                     asyncio.create_task(self.setup_buy_position(new_hp=strategy_data))
-                if isinstance(strategy_data, HPSellData):
+                if isinstance(strategy_data, HPSell):
                     sell_strategy = self.determine_sell_strategy(
                         config=strategy_data.config
                     )
@@ -674,7 +672,7 @@ class StrategyExecutor:
 
     async def setup_buy_position(
         self,
-        new_hp: HPBuyData,
+        new_hp: HPBuy,
         is_restoration: bool = False,
     ) -> None:
         logger.info(
@@ -954,7 +952,7 @@ class StrategyExecutor:
 
         self.ui_queue.put_nowait(
             HPGuiDataBuy(
-                data=HPBuyData(config=config, state_info=state_info),
+                data=HPBuy(config=config, state_info=state_info),
                 hp_update=HPUpdate(
                     hp_id=config.hp_id,
                     coin=config.coin,
@@ -998,7 +996,7 @@ class StrategyExecutor:
         quantity_usd = config.symbol.adjust_price(config.quantity * buy_price)
         self.ui_queue.put_nowait(
             HPGuiDataSell(
-                data=HPSellData(config=config, state_info=state_info),
+                data=HPSell(config=config, state_info=state_info),
                 hp_update=HPUpdate(
                     hp_id=config.hp_id,
                     buy_price=buy_price,
@@ -1089,7 +1087,7 @@ class StrategyExecutor:
             ui_queue=self.ui_queue,
             buy_position=HPPositionBuy(
                 client=self.client,
-                data=HPBuyData(
+                data=HPBuy(
                     config=HPBuyConfig(
                         hp_id=parent_hp_id,
                         symbol=strategy_data.config.symbol,
@@ -1681,7 +1679,7 @@ class StrategyExecutor:
             logger.info("Client is available, proceeding with crash recovery")
 
             # Create recovery service with the same database instance
-            self.recovery_service = RecoveryService(
+            recovery_service = RecoveryService(
                 symbols=self.price_resolver.symbols,
                 client=self.client,
                 database=self.db,
@@ -1691,7 +1689,7 @@ class StrategyExecutor:
             (
                 buy_positions,
                 sell_positions,
-            ) = await self.recovery_service.recover_all_positions()
+            ) = await recovery_service.recover_all_positions()
 
             logger.info(
                 "Crash recovery found %d buy positions and %d sell positions",
@@ -1737,7 +1735,7 @@ class StrategyExecutor:
             logger.error("Unexpected error during crash recovery: %s", e, exc_info=True)
             # Don't raise - let the system continue with empty state
 
-    async def restore_buy_position(self, buy_data: HPBuyData) -> None:
+    async def restore_buy_position(self, buy_data: HPBuy) -> None:
         """
         Restore a buy position from crash recovery with its existing HP ID and state.
         Uses the normal setup process but with restoration flag to preserve state.
@@ -1763,12 +1761,12 @@ class StrategyExecutor:
             )
             raise
 
-    async def restore_sell_position(self, sell_data: HPSellData) -> None:
+    async def restore_sell_position(self, sell_data: HPSell) -> None:
         """
         Restore a sell position from crash recovery with its existing HP ID and state.
         Uses the normal setup process but with restoration flag to preserve state.
         """
-        # Convert HPSellData to SellPosition format expected by setup method
+        # Convert HPSell to SellPosition format expected by setup method
         sell_position = SellPosition(
             config=sell_data.config,
             state_info=sell_data.state_info,

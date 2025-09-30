@@ -14,9 +14,9 @@ from src.identifiers import (
     EventName,
     ExecutionReport,
     HPBuyConfig,
-    HPBuyData,
+    HPBuy,
     HPSellConfig,
-    HPSellData,
+    HPSell,
     Order,
     State,
     StateInfo,
@@ -51,7 +51,7 @@ class HPSimulator:
         quantity=10.0,
         buy_price=2.0,
         sell_price=2.0,
-    ) -> HPSellData:
+    ) -> HPSell:
         """
         Simulates a convert-only position (e.g., DYM/USDC) for E2E tests.
         - Assumes the config queue and backend are ready.
@@ -61,7 +61,7 @@ class HPSimulator:
         name = f"{coin}{end_currency}"
 
         # Simulate sending config for convert-only position
-        hp_sell_data = HPSellData(
+        hp_sell_data = HPSell(
             config=HPSellConfig(
                 coin=coin,
                 buy_price=buy_price,
@@ -102,7 +102,7 @@ class HPSimulator:
         hp_id: str = "0",
         coin: str = "BTC",
     ):
-        hp = HPBuyData(
+        hp = HPBuy(
             HPBuyConfig(
                 hp_id=hp_id,
                 symbol=Symbol(name=symbol, precision=5, price_precision=2),
@@ -821,7 +821,7 @@ class HPSimulator:
         end_currency: str,
         coin: str,
     ):
-        sell_config = HPSellData(
+        sell_config = HPSell(
             config=HPSellConfig(
                 hp_id=hp_id,
                 coin=coin,
@@ -1248,7 +1248,7 @@ class HPSimulator:
         end_currency: str,
         coin: str,
     ):
-        sell_config = HPSellData(
+        sell_config = HPSell(
             config=HPSellConfig(
                 hp_id=hp_id,
                 coin=coin,
@@ -1880,7 +1880,7 @@ class HPSimulator:
 
         coin = "AXL"
 
-        sell_config = HPSellData(
+        sell_config = HPSell(
             config=HPSellConfig(
                 hp_id="",
                 coin=coin,

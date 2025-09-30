@@ -411,12 +411,12 @@ class HPBuyConfig:
 
 
 @dataclass
-class HPBuyData:
+class HPBuy:
     config: HPBuyConfig
     state_info: StateInfo
 
     def __str__(self):
-        return f"HPBuyData(config={self.config}, state_info={self.state_info})"
+        return f"HPBuy(config={self.config}, state_info={self.state_info})"
 
 
 @dataclass
@@ -454,12 +454,12 @@ class SellPosition:
 
 
 @dataclass
-class HPSellData:
+class HPSell:
     config: HPSellConfig
     state_info: StateInfo
 
     def __str__(self):
-        return f"HPSellData(config={self.config}, state_info={self.state_info})"
+        return f"HPSell(config={self.config}, state_info={self.state_info})"
 
 
 class SubscriptionType(Enum):

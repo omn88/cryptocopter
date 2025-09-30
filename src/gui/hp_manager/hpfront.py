@@ -19,12 +19,12 @@ from kivy.uix.widget import Widget
 from src.database import TradingDatabase
 from src.identifiers import (
     HPBuyConfig,
-    HPBuyData,
+    HPBuy,
     HPSellConfig,
     AllTickers,
     Event,
     EventName,
-    HPSellData,
+    HPSell,
     RemoveRecord,
     State,
     StateInfo,
@@ -285,7 +285,7 @@ Side: {side}"""
             logger.error(f"Symbol info not found for {config.symbol}")
             return
 
-        new_hp = HPBuyData(
+        new_hp = HPBuy(
             config=HPBuyConfig(
                 coin=config.coin,
                 symbol=self.price_resolver.symbols[config.symbol],
@@ -1638,7 +1638,7 @@ Enter sell price to create sell order:"""
                     )
                     return
 
-            sell_config = HPSellData(
+            sell_config = HPSell(
                 config=HPSellConfig(
                     hp_id=hp_id,  # Use the same HP ID to create sell child
                     coin=coin_symbol,

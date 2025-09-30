@@ -21,7 +21,7 @@ from src.identifiers import (
     HPSellConfig,
     SellType,
     State,
-    HPBuyData,
+    HPBuy,
     SellPosition,
     StateInfo,
 )
@@ -706,17 +706,17 @@ class TradingDatabase:
             logger.error("Failed to upsert order: %s", e)
 
     async def upsert_buy_price_level(
-        self, data: HPBuyData, strategy_state: Any = None
+        self, data: HPBuy, strategy_state: Any = None
     ) -> None:
         """
         Save buy position data to the database.
 
         Args:
-            data: HPBuyData object
+            data: HPBuy object
             strategy_state: Optional strategy state to use for strategy_state field
         """
         try:
-            # Convert HPBuyData to Position
+            # Convert HPBuy to Position
             position = Position(
                 hp_id=data.config.hp_id,
                 position_type=PositionType.BUY,
@@ -766,7 +766,7 @@ class TradingDatabase:
         Save sell position data to the database.
 
         Args:
-            data: SellPosition or HPSellData object
+            data: SellPosition object
             strategy_state: Optional strategy state
         """
         try:

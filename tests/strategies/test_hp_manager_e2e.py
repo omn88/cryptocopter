@@ -13,7 +13,7 @@ from src.strategy_executor import StrategyExecutor
 from src.gui.hp_manager.hpfront import HpFront
 from src.identifiers import (
     HPSellConfig,
-    HPSellData,
+    HPSell,
     State,
     StateInfo,
     PositionSide,
@@ -1547,7 +1547,7 @@ async def test_no_sell_orders_send_if_buy_position_not_realized(
     await sim.assert_default_buy_position()
 
     strategy = back.strategies["1000"]
-    sell_config = HPSellData(
+    sell_config = HPSell(
         config=HPSellConfig(
             hp_id="1000",
             coin="BTC",
@@ -1615,7 +1615,7 @@ async def test_sell_orders_send_if_buy_position_realized_partially(
     await sim.assert_default_buy_position()
 
     strategy = back.strategies["1000"]
-    sell_config = HPSellData(
+    sell_config = HPSell(
         config=HPSellConfig(
             hp_id="1000",
             coin="BTC",

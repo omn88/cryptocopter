@@ -20,13 +20,13 @@ from src.identifiers import (
     EventName,
     ExecutionReport,
     HPBuyConfig,
-    HPBuyData,
+    HPBuy,
     HPBuyOrdersPlaced,
     HPBuyPositionFilled,
     HPBuyPositionPartiallyFilled,
     HPPositionCancelled,
     HPSellConfig,
-    HPSellData,
+    HPSell,
     HPSellPositionCreated,
     HPSellPositionPartiallyFilled,
     SellPosition,
@@ -538,7 +538,7 @@ class HpStrategy:
         hp_update.buy_operation_state = buy_state
 
         buy_data = HPGuiDataBuy(
-            data=HPBuyData(
+            data=HPBuy(
                 config=self.buy.data.config, state_info=self.buy.data.state_info
             ),
             hp_update=hp_update,
@@ -574,7 +574,7 @@ class HpStrategy:
         hp_update.sell_state = self.sell.current_position.state_info.state.value
 
         sell_data = HPGuiDataSell(
-            data=HPSellData(
+            data=HPSell(
                 config=self.sell.current_position.config,
                 state_info=self.sell.current_position.state_info,
             ),
@@ -1332,7 +1332,7 @@ class HpStrategy:
                 state_info=self.sell.original_position.state_info,
             )
             data = HPGuiDataSell(
-                data=HPSellData(
+                data=HPSell(
                     config=self.sell.original_position.config,
                     state_info=self.sell.original_position.state_info,
                 ),

@@ -12,9 +12,9 @@ from src.database.trading_database import TradingDatabase
 from src.identifiers import (
     BinanceClient,
     HPBuyConfig,
-    HPBuyData,
+    HPBuy,
     HPSellConfig,
-    HPSellData,
+    HPSell,
     StateInfo,
     State,
     PositionSide,
@@ -55,7 +55,7 @@ class RecoveryService:
         self.client = client
         self.symbols = symbols
 
-    async def recover_all_positions(self) -> Tuple[List[HPBuyData], List[HPSellData]]:
+    async def recover_all_positions(self) -> Tuple[List[HPBuy], List[HPSell]]:
         """
         Recover all active positions from the database.
 
@@ -318,7 +318,7 @@ class RecoveryService:
         self, status: PositionStatus, completeness: float, side: PositionSide
     ) -> State:
         """
-        Convert database PositionStatus and side to the nested state_info.state for HPBuyData/HPSellData.
+        Convert database PositionStatus and side to the nested state_info.state for HPBuy/HPSell.
         This state should never be BUYING or SELLING, only terminal/summary states.
         Handles both buy and sell sides, and complex/edge states.
         For OPEN status, return BUYING/SELLING for the nested state to match the main strategy state.
@@ -382,8 +382,8 @@ class RecoveryService:
         )
         return State.NEW
 
-    async def _convert_to_buy_data(self, position: Position) -> Optional[HPBuyData]:
-        """Convert database Position to HPBuyData for the trading system."""
+    async def _convert_to_buy_data(self, position: Position) -> Optional[HPBuy]:
+        """Convert database Position to HPBuy for the trading system."""
         try:
             symbol = self.symbols.get(position.symbol)
             if not symbol:
@@ -474,12 +474,12 @@ class RecoveryService:
             )
 
             logger.debug(
-                "[Recovery] Creating HPBuyData with state=%s for hp_id=%s",
+                "[Recovery] Creating HPBuy with state=%s for hp_id=%s",
                 state_info_state,
                 position.hp_id,
             )
 
-            return HPBuyData(config=config, state_info=state_info)
+            return HPBuy(config=config, state_info=state_info)
 
         except Exception as e:
             logger.error(
@@ -487,8 +487,8 @@ class RecoveryService:
             )
             return None
 
-    async def _convert_to_sell_data(self, position: Position) -> Optional[HPSellData]:
-        """Convert database Position to HPSellData for the trading system."""
+    async def _convert_to_sell_data(self, position: Position) -> Optional[HPSell]:
+        """Convert database Position to HPSell for the trading system."""
         try:
             symbol = self.symbols.get(position.symbol)
             if not symbol:
@@ -519,7 +519,7 @@ class RecoveryService:
                 completeness=position.completeness,
             )
 
-            return HPSellData(config=config, state_info=state_info)
+            return HPSell(config=config, state_info=state_info)
 
         except Exception as e:
             logger.error(

@@ -26,7 +26,7 @@ from src.identifiers import (
     HPBuyPositionPartiallyFilled,
     HPBuyOrdersPlaced,
     HPPositionCancelled,
-    HPSellData,
+    HPSell,
     HPSellConfig,
     StateInfo,
     PositionSide,
@@ -369,7 +369,7 @@ class PortfolioUI(BoxLayout):
                             return
 
                     # Create HP sell configuration
-                    sell_config = HPSellData(
+                    sell_config = HPSell(
                         config=HPSellConfig(
                             symbol=self.price_resolver.symbols[symbol_key],
                             hp_id="",  # Empty HP ID for new position

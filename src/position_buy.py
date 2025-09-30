@@ -20,7 +20,7 @@ from binance.exceptions import (
 from src.database import TradingDatabase
 from src.identifiers import (
     ExecutionReport,
-    HPBuyData,
+    HPBuy,
     Order,
     UiState,
     BinanceClient,
@@ -36,7 +36,7 @@ class HPPositionBuy:
     def __init__(
         self,
         client: BinanceClient,
-        data: HPBuyData,
+        data: HPBuy,
         db: TradingDatabase,
     ):
         self.client = client
