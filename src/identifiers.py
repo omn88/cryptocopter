@@ -68,7 +68,10 @@ class HPSellPositionCompleted:
     buy_price: float
     sell_price: float
     end_currency: str
-    end_currency_received: float  # Amount of USDC/end currency received
+    end_currency_received: float = field(init=False)
+
+    def __post_init__(self):
+        self.end_currency_received = self.quantity_sold * self.sell_price
 
 
 @dataclass

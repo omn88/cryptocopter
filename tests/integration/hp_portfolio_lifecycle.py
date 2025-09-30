@@ -174,7 +174,6 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
         buy_price=50500.0,
         sell_price=55000.0,
         end_currency="USDC",
-        end_currency_received=16500.0,  # 0.3 * 55000
     )
 
     await portfolio_ui.handle_hp_sell_completed(hp_sell_partial)
@@ -229,7 +228,6 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
         buy_price=50500.0,
         sell_price=56000.0,
         end_currency="USDC",
-        end_currency_received=11200.0,  # 0.2 * 56000
     )
 
     await portfolio_ui.handle_hp_sell_completed(hp_sell_final)

@@ -31,7 +31,7 @@ from unittest.mock import AsyncMock, MagicMock
 from unittest.mock import patch
 from pytest_mock import MockerFixture
 from decouple import Config, RepositoryEnv
-from src.common.common import generate_hp_id
+from src.common.helpers import generate_hp_id
 from src.common.symbol import Symbol
 from src.database.trading_database import TradingDatabase
 from src.identifiers import (

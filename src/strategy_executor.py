@@ -11,7 +11,7 @@ from binance.enums import (
     ORDER_STATUS_FILLED,
     ORDER_STATUS_NEW,
 )
-from src.common.common import generate_hp_id
+from src.common.helpers import generate_hp_id
 from src.database import TradingDatabase
 from src.identifiers import (
     Event,
@@ -618,7 +618,6 @@ class StrategyExecutor:
                             buy_price=close_data.config.buy_price,
                             sell_price=close_data.config.sell_price,
                             end_currency=close_data.config.end_currency,
-                            end_currency_received=0.0,  # Parent position doesn't receive currency directly
                         )
                         strategy._send_portfolio_event(
                             EventName.HP_SELL_POSITION_COMPLETED, hp_completed
@@ -1617,10 +1616,6 @@ class StrategyExecutor:
             # Send HP sell position completed event to portfolio when fully sold
             if strategy.state == State.SOLD:
                 # Calculate the end currency received (typically USDC for the amount received)
-                end_currency_received = (
-                    sell.current_position.sell_order.realized_quantity
-                    * sell.current_position.config.sell_price
-                )
 
                 hp_sell_completed = HPSellPositionCompleted(
                     hp_id=hp_id,
@@ -1629,7 +1624,6 @@ class StrategyExecutor:
                     buy_price=sell.current_position.config.buy_price,  # Add missing buy price
                     sell_price=sell.current_position.config.sell_price,  # Add missing sell price
                     end_currency=sell.current_position.config.end_currency,  # Use actual end_currency from config
-                    end_currency_received=end_currency_received,
                 )
                 logger.info(
                     "Sending HP sell position completed event as part of REMOVE RECORD: %s",
