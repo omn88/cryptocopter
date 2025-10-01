@@ -131,14 +131,16 @@ class StrategyExecutor:
         )
         if self.test_mode:
             logger.info(
-                "Test mode - using injected client, crash recovery will be triggered manually when client is assigned"
+                "Test mode - using injected client, crash recovery will be "
+                "triggered manually when client is assigned"
             )
         else:
             self.client = BinanceClient(
                 api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
             )
             logger.info("Production client initialized")
-            # Always run crash recovery after client is available (will be no-op if database is empty)
+            # Always run crash recovery after client is available
+            # (will be no-op if database is empty)
             logger.info(
                 "About to start crash recovery, client available: %s",
                 self.client is not None,
@@ -226,7 +228,8 @@ class StrategyExecutor:
     async def _handle_websocket_error(
         self, error_msg: Union[str, Dict[str, Any]]
     ) -> None:
-        """Handle WebSocket errors, especially keepalive timeouts and unrecoverable failures."""
+        """Handle WebSocket errors, especially keepalive timeouts and
+        unrecoverable failures."""
         current_time = time.time()
 
         # Check for unrecoverable errors
@@ -277,7 +280,8 @@ class StrategyExecutor:
                                     t in nested_error_type for t in unrecoverable_types
                                 ):
                                     logger.warning(
-                                        "Detected unrecoverable error in nested TickerStreamError: %s",
+                                        "Detected unrecoverable error in nested "
+                                        "TickerStreamError: %s",
                                         nested_error_type,
                                     )
                                     is_unrecoverable = True
@@ -330,7 +334,8 @@ class StrategyExecutor:
                     logger.info("Recreating BinanceClient...")
                     if self.test_mode:
                         logger.info(
-                            "Test mode - using injected client, crash recovery will be triggered manually when client is assigned"
+                            "Test mode - using injected client, crash recovery will be "
+                            "triggered manually when client is assigned"
                         )
                     else:
                         self.client = BinanceClient(
@@ -384,7 +389,8 @@ class StrategyExecutor:
                     self._websocket_error_count += 1
                 if self._websocket_error_count > 20:
                     logger.warning(
-                        "Excessive WebSocket reconnections detected (%d errors), will resubscribe all streams",
+                        "Excessive WebSocket reconnections detected (%d errors), "
+                        "will resubscribe all streams",
                         self._websocket_error_count,
                     )
                     await self._resubscribe_all_strategies()
@@ -395,7 +401,8 @@ class StrategyExecutor:
         logger.error("WebSocket error: %s", error_msg)
 
     async def _monitor_ticker_timeout(self) -> None:
-        """Monitor for ticker timeout and trigger circuit breaker if no ticker data for too long."""
+        """Monitor for ticker timeout and trigger circuit breaker if no
+        ticker data for too long."""
         logger.info(
             "Starting ticker timeout monitoring (max silence: %d seconds)",
             self._max_ticker_silence_duration,
@@ -424,7 +431,10 @@ class StrategyExecutor:
                         # Trigger circuit breaker by simulating an unrecoverable error
                         timeout_error = {
                             "type": "TickerTimeoutError",
-                            "m": f"Ticker silent for {time_since_ticker:.1f} seconds - backup circuit breaker activated",
+                            "m": (
+                                f"Ticker silent for {time_since_ticker:.1f} seconds - "
+                                "backup circuit breaker activated"
+                            ),
                         }
                         await self._handle_websocket_error(timeout_error)
                         return  # Exit monitoring after triggering restart
@@ -640,11 +650,13 @@ class StrategyExecutor:
                             close_data.config.hp_id,
                         )
                 elif hasattr(strategy, "buy") and strategy.buy.orders:
-                    # This is a buy position cancellation (buy positions don't have successful completion via close_position)
+                    # This is a buy position cancellation (buy positions don't have
+                    # successful completion via close_position)
                     # Only unlock budget if orders were actually sent to exchange (state != NEW)
 
                     if strategy.state != State.NEW:
-                        # For buy positions, we need to unlock the USDC budget amount, not the coin quantity
+                        # For buy positions, we need to unlock the USDC budget amount,
+                        # not the coin quantity
                         budget_amount = strategy.get_remaining_quantity_buy()
                         hp_cancelled = HPPositionCancelled(
                             hp_id=close_data.config.hp_id,
@@ -656,12 +668,14 @@ class StrategyExecutor:
                             EventName.HP_POSITION_CANCELLED, hp_cancelled
                         )
                         logger.info(
-                            "Sent manual HP cancellation event for buy position: %s - budget unlocked",
+                            "Sent manual HP cancellation event for buy position: %s - "
+                            "budget unlocked",
                             close_data.config.hp_id,
                         )
                     else:
                         logger.info(
-                            "Skipped budget unlock for buy position %s - orders never sent to exchange",
+                            "Skipped budget unlock for buy position %s - "
+                            "orders never sent to exchange",
                             close_data.config.hp_id,
                         )
             except Exception as e:
@@ -727,13 +741,15 @@ class StrategyExecutor:
                 broker=self.broker,
                 worker_queue=worker_queue,
             ),
-            portfolio_event_callback=self._send_hp_event_to_portfolio,  # Pass callback for portfolio events
+            # Pass callback for portfolio events
+            portfolio_event_callback=self._send_hp_event_to_portfolio,
         )
 
         assert isinstance(strategy.buy.data.config, HPBuyConfig)
         logger.info("HpStrategy created successfully for HP %s", new_hp.config.hp_id)
 
-        # Handle order preparation: restore from DB for restoration mode, create new for normal mode
+        # Handle order preparation: restore from DB for restoration mode,
+        # create new for normal mode
         if is_restoration:
             # Restore existing buy orders from database instead of creating new ones
             strategy.buy.orders = await self.restore_buy_orders(
@@ -749,9 +765,11 @@ class StrategyExecutor:
                 order.realized_quantity > 0 for order in strategy.buy.orders
             )
 
-            # Default state logic - for restoration, preserve the strategy state but calculate buy data state
+            # Default state logic - for restoration, preserve the strategy state
+            # but calculate buy data state
             if is_restoration:
-                # During restoration, preserve the main strategy state correctly mapped by recovery service
+                # During restoration, preserve the main strategy state correctly
+                # mapped by recovery service
                 # But calculate buy data state based on actual order completion status
                 # Calculate buy data state based on actual order fills
                 strategy.buy.data.state_info.state = (
@@ -1121,7 +1139,7 @@ class StrategyExecutor:
             worker_queue=worker_queue,
             config_queue=self.config_queue,
             initial_state=State.BOUGHT,
-            portfolio_event_callback=self._send_hp_event_to_portfolio,  # Pass callback for portfolio events
+            portfolio_event_callback=self._send_hp_event_to_portfolio,
         )
 
         config = strategy.sell.current_position.config
@@ -1171,10 +1189,7 @@ class StrategyExecutor:
                 "Before restoration, current_position: %s",
                 strategy.sell.current_position,
             )
-            # --- Patch: For two-hop sells, advance current_position to second leg if first leg is FILLED ---
             self._restore_current_sell_position_for_multihop(strategy)
-            # logger.info("After restoration, current_position: %s", strategy.sell.current_position)
-            # # --- General: For two-hop sells, restore both child legs and set current_position appropriately ---
             await self._restore_all_child_sell_positions_for_multihop(strategy)
 
         else:

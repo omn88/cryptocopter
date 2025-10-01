@@ -157,7 +157,9 @@ class HpStrategy:
                 "trigger": "process_ticker",
                 "source": State.PARTIALLY_BOUGHT,
                 "dest": State.SELLING,
-                "conditions": "conditions_for_sending_sell_orders_for_partially_bought_position",
+                "conditions": (
+                    "conditions_for_sending_sell_orders_for_partially_bought_position"
+                ),
                 "after": "send_sell_order",
             },
             {
@@ -165,7 +167,9 @@ class HpStrategy:
                 "trigger": "process_ticker",
                 "source": State.SELLING,
                 "dest": State.PARTIALLY_BOUGHT,
-                "conditions": "conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position",
+                "conditions": (
+                    "conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position"
+                ),
                 "after": "cancel_unfilled_sell_orders",
             },
             {
@@ -236,7 +240,9 @@ class HpStrategy:
                 "trigger": "process_ticker",
                 "source": State.SELLING,
                 "dest": State.PART_SOLD_PART_BOUGHT,
-                "conditions": "conditions_for_cancelling_partially_sold_and_bought_orders_sell_position",
+                "conditions": (
+                    "conditions_for_cancelling_partially_sold_and_bought_orders_sell_position"
+                ),
                 "after": "cancel_partially_sold_orders",
             },
             {
@@ -244,7 +250,9 @@ class HpStrategy:
                 "trigger": "process_ticker",
                 "source": State.PART_SOLD_PART_BOUGHT,
                 "dest": State.SELLING,
-                "conditions": "conditions_for_resending_sell_orders_from_part_sold_and_bought_orders",
+                "conditions": (
+                    "conditions_for_resending_sell_orders_from_part_sold_and_bought_orders"
+                ),
                 "before": "resend_sell_order",
             },
             {
@@ -252,7 +260,9 @@ class HpStrategy:
                 "trigger": "process_ticker",
                 "source": State.PART_SOLD_PART_BOUGHT,
                 "dest": State.BUYING,
-                "conditions": "conditions_for_resending_buy_orders_from_part_sold_and_bought_orders",
+                "conditions": (
+                    "conditions_for_resending_buy_orders_from_part_sold_and_bought_orders"
+                ),
                 "after": "resend_buy_orders",
             },
             {
@@ -260,7 +270,9 @@ class HpStrategy:
                 "trigger": "process_ticker",
                 "source": State.BUYING,
                 "dest": State.PART_SOLD_PART_BOUGHT,
-                "conditions": "conditions_for_cancelling_partially_sold_and_bought_orders_buy_position",
+                "conditions": (
+                    "conditions_for_cancelling_partially_sold_and_bought_orders_buy_position"
+                ),
                 "after": "cancel_partially_bought_orders",
             },
             {
@@ -706,7 +718,8 @@ class HpStrategy:
         )
         if condition:
             logger.info(
-                "[Cancel Unfilled BUY] %s, last price: %s, trig price: %s, state: %s, buy state: %s",
+                "[Cancel Unfilled BUY] %s, last price: %s, trig price: %s, "
+                "state: %s, buy state: %s",
                 self.buy.data.config.symbol.name,
                 self.ticker_update.last_price,
                 self.buy.orders_cancel_price,
@@ -1192,13 +1205,15 @@ class HpStrategy:
             self.sell.current_position.state_info.state == State.PARTIALLY_SOLD
         ), "sell state is wrong"
         assert self.buy.data.state_info.state == State.BOUGHT, "buy state is wrong"
-        assert (
-            self.ticker_update.last_price >= trigger_send_orders_price
-        ), f"price condition is wrong, last price: {self.ticker_update.last_price}, trigger: {trigger_send_orders_price}"
+        assert self.ticker_update.last_price >= trigger_send_orders_price, (
+            f"price condition is wrong, last price: {self.ticker_update.last_price}, "
+            f"trigger: {trigger_send_orders_price}"
+        )
         assert condition
         if condition:
             logger.info(
-                "[Resend sell] %s, sell state: %s, state: %s, balance: %s, price trig: %s last price: %s",
+                "[Resend sell] %s, sell state: %s, state: %s, balance: %s, "
+                "price trig: %s last price: %s",
                 self.sell.current_position.config.symbol.name,
                 self.sell.current_position.state_info.state.value,
                 self.state.value,
@@ -1307,7 +1322,8 @@ class HpStrategy:
             else:
                 # For direct sell (single position), send completion event instead of HPClose
                 logger.info(
-                    "Sending HP sell position completed from CLOSE FILLED POSITION SELL (direct): %s",
+                    "Sending HP sell position completed from CLOSE FILLED POSITION SELL "
+                    "(direct): %s",
                     hp_sell_completed,
                 )
                 self._send_portfolio_event(
@@ -1379,7 +1395,8 @@ class HpStrategy:
         ):
             self.send_sell_position_to_ui()
             logger.info(
-                "First sell position from two hop trade closed, assigning second one as current one."
+                "First sell position from two hop trade closed, "
+                "assigning second one as current one."
             )
             self.sell.current_position = self.sell.sell_positions[1]
             assert isinstance(self.sell.current_position, SellPosition)
@@ -1534,7 +1551,8 @@ class HpStrategy:
             quantity_sold=self.sell.current_position.sell_order.realized_quantity,
             buy_price=self.sell.current_position.config.buy_price,  # Add missing buy price
             sell_price=self.sell.current_position.config.sell_price,  # Add missing sell price
-            end_currency=self.sell.current_position.config.end_currency,  # Use actual end_currency from config
+            # Use actual end_currency from config
+            end_currency=self.sell.current_position.config.end_currency,
         )
         logger.info(
             "Sending HP sell position completed from SOLD POSITION WHICH IS PART BOUGHT: %s",
@@ -1620,7 +1638,8 @@ class HpStrategy:
         )
 
         # Send fill event to portfolio for inventory updates
-        # Only send PARTIALLY_FILLED if not all orders are filled (to avoid duplicate with FILLED event)
+        # Only send PARTIALLY_FILLED if not all orders are filled
+        # (to avoid duplicate with FILLED event)
         all_orders_filled = all(
             order.status == ORDER_STATUS_FILLED for order in self.buy.orders
         )
