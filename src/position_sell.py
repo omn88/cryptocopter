@@ -2,7 +2,6 @@ import asyncio
 import logging
 import queue
 from typing import List
-from dataclasses import replace
 from binance.enums import (
     TIME_IN_FORCE_GTC,
     ORDER_STATUS_PARTIALLY_FILLED,
@@ -66,7 +65,7 @@ class HPPositionSell:
         self.sell_positions: List[SellPosition] = []
         self.current_position: SellPosition = SellPosition(
             Order(quantity=0),
-            config=HPSellConfig(symbol=Symbol()),
+            config=HPSellConfig(),
             state_info=StateInfo(side=PositionSide.SHORT),
             sell_type=SellType.DIRECT,
         )
@@ -323,7 +322,8 @@ class HPPositionSell:
         current_leg2_price = self.price_resolver.latest_prices.get(leg2.name)
         if not current_leg2_price:
             logger.warning(
-                f"Missing current price for {leg2.name}, skipping recalculation"
+                "Missing current price for %s, skipping recalculation",
+                leg2.name,
             )
             return
 

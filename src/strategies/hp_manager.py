@@ -27,7 +27,6 @@ from src.identifiers import (
     HPPositionCancelled,
     HPSellConfig,
     HPSell,
-    HPSellPositionCreated,
     HPSellPositionPartiallyFilled,
     SellPosition,
     SellType,
@@ -117,7 +116,7 @@ class HpStrategy:
             try:
                 self.portfolio_event_callback(event_name, event_data)
             except Exception as e:
-                logger.error(f"Failed to send portfolio event: {e}")
+                logger.error("Failed to send portfolio event: %s", e)
 
     def _get_transitions(self):
         return [
@@ -690,7 +689,9 @@ class HpStrategy:
         )
         self._send_portfolio_event(EventName.HP_BUY_ORDERS_PLACED, hp_orders_placed)
         logger.info(
-            f"Sent HP buy orders placed event to lock {budget_amount} USDC budget for position {self.buy.data.config.hp_id}"
+            "Sent HP buy orders placed event to lock %s USDC budget for position %s",
+            budget_amount,
+            self.buy.data.config.hp_id,
         )
 
         self.send_buy_position_to_ui()
@@ -732,7 +733,9 @@ class HpStrategy:
         )
         self._send_portfolio_event(EventName.HP_POSITION_CANCELLED, hp_cancelled)
         logger.info(
-            f"Sent HP buy cancellation event to unlock {budget_amount} USDC budget for position {self.buy.data.config.hp_id}"
+            "Sent HP buy cancellation event to unlock %s USDC budget for position %s",
+            budget_amount,
+            self.buy.data.config.hp_id,
         )
 
         self.buy.data.state_info.state = State.NEW
@@ -1930,7 +1933,7 @@ class HpStrategy:
                     assert isinstance(event.content, SignalUpdate)
                     self.signal_update = event.content
                     logger.info(
-                        f"[WORKER QUEUE] Processing signal: {self.signal_update}"
+                        "[WORKER QUEUE] Processing signal: %s", self.signal_update
                     )
                     await self.process_signal()  # pylint: disable=no-member
 

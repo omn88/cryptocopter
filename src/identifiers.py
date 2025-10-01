@@ -421,7 +421,7 @@ class HPBuy:
 
 @dataclass
 class HPSellConfig:
-    symbol: Symbol
+    symbol: Symbol = Symbol()
     hp_id: str = ""
     coin: str = ""
     quantity: float = 0.0

@@ -1,4 +1,5 @@
 import asyncio
+from collections import defaultdict
 import logging
 import os
 import queue
@@ -211,15 +212,15 @@ class StrategyExecutor:
             event = Event(name=event_name, content=event_data)
             self.portfolio_ui_queue.put_nowait(event)
             logger.info(
-                f"[STRATEGY EXECUTOR] Sent HP event to portfolio: {event_name.value}"
+                "[STRATEGY EXECUTOR] Sent HP event to portfolio: %s", event_name.value
             )
             if event_name == EventName.HP_POSITION_CANCELLED:
                 logger.info(
-                    f"[STRATEGY EXECUTOR] Cancellation event details: {event_data}"
+                    "[STRATEGY EXECUTOR] Cancellation event details: %s", event_data
                 )
         except Exception as e:
             logger.error(
-                f"[STRATEGY EXECUTOR] Failed to send HP event to portfolio: {e}"
+                "[STRATEGY EXECUTOR] Failed to send HP event to portfolio: %s", e
             )
 
     async def _handle_websocket_error(
@@ -597,9 +598,8 @@ class StrategyExecutor:
         if strategy:
             # Check if this is a successful completion vs an actual cancellation
             is_successful_completion = (
-                hasattr(close_data, "hp_update")
-                and close_data.hp_update.state == State.SOLD
-                and close_data.hp_update.completeness >= 1.0
+                close_data.state_info.completeness >= 1.0
+                and close_data.state_info.state == State.SOLD
             )
 
             try:
@@ -621,7 +621,8 @@ class StrategyExecutor:
                             EventName.HP_SELL_POSITION_COMPLETED, hp_completed
                         )
                         logger.info(
-                            f"Sent HP sell completion event for parent position: {close_data.config.hp_id}"
+                            "Sent HP sell completion event for parent position: %s",
+                            close_data.config.hp_id,
                         )
                     else:
                         # This is a sell position cancellation - unlock the locked quantities
@@ -635,12 +636,12 @@ class StrategyExecutor:
                             EventName.HP_POSITION_CANCELLED, hp_cancelled
                         )
                         logger.info(
-                            f"Sent manual HP cancellation event for sell position: {close_data.config.hp_id}"
+                            "Sent manual HP cancellation event for sell position: %s",
+                            close_data.config.hp_id,
                         )
                 elif hasattr(strategy, "buy") and strategy.buy.orders:
                     # This is a buy position cancellation (buy positions don't have successful completion via close_position)
                     # Only unlock budget if orders were actually sent to exchange (state != NEW)
-                    from src.identifiers import State
 
                     if strategy.state != State.NEW:
                         # For buy positions, we need to unlock the USDC budget amount, not the coin quantity
@@ -655,20 +656,22 @@ class StrategyExecutor:
                             EventName.HP_POSITION_CANCELLED, hp_cancelled
                         )
                         logger.info(
-                            f"Sent manual HP cancellation event for buy position: {close_data.config.hp_id} - budget unlocked"
+                            "Sent manual HP cancellation event for buy position: %s - budget unlocked",
+                            close_data.config.hp_id,
                         )
                     else:
                         logger.info(
-                            f"Skipped budget unlock for buy position {close_data.config.hp_id} - orders never sent to exchange"
+                            "Skipped budget unlock for buy position %s - orders never sent to exchange",
+                            close_data.config.hp_id,
                         )
             except Exception as e:
                 logger.error(
-                    f"Failed to send HP event for {close_data.config.hp_id}: {e}"
+                    "Failed to send HP event for %s: %s", close_data.config.hp_id, e
                 )
 
             strategy.stop_event.set()
         else:
-            logger.warning(f"Strategy not found for HP ID: {close_data.config.hp_id}")
+            logger.warning("Strategy not found for HP ID: %s", close_data.config.hp_id)
 
     async def setup_buy_position(
         self,
@@ -745,16 +748,6 @@ class StrategyExecutor:
             part_bought = any(
                 order.realized_quantity > 0 for order in strategy.buy.orders
             )
-
-            # Calculate completeness
-            total_realized = sum(
-                order.realized_quantity for order in strategy.buy.orders
-            )
-            total_quantity = sum(order.quantity for order in strategy.buy.orders)
-            if total_quantity > 0:
-                completeness = total_realized / total_quantity
-            else:
-                completeness = 0.0
 
             # Default state logic - for restoration, preserve the strategy state but calculate buy data state
             if is_restoration:
@@ -981,11 +974,14 @@ class StrategyExecutor:
             ):
                 buy_price = strategy.buy.data.config.price_high
                 logger.info(
-                    f"Using buy config price_high {buy_price} instead of sell config buy_price {config.buy_price}"
+                    "Using buy config price_high %s instead of sell config buy_price %s",
+                    buy_price,
+                    config.buy_price,
                 )
             else:
                 logger.warning(
-                    f"Could not find buy config for HP {config.hp_id}, using sell config buy_price"
+                    "Could not find buy config for HP %s, using sell config buy_price",
+                    config.hp_id,
                 )
 
         expected_return = None
@@ -1258,11 +1254,15 @@ class StrategyExecutor:
                 EventName.HP_SELL_POSITION_CREATED, hp_sell_created
             )
             logger.info(
-                f"Sent HP_SELL_POSITION_CREATED event for new position {parent_hp_id} to lock {config.quantity} {config.coin}"
+                "Sent HP_SELL_POSITION_CREATED event for new position %s to lock %s %s",
+                parent_hp_id,
+                config.quantity,
+                config.coin,
             )
         else:
             logger.info(
-                f"Skipped HP_SELL_POSITION_CREATED event for restored position {parent_hp_id} - inventory already locked from previous session"
+                "Skipped HP_SELL_POSITION_CREATED event for restored position %s - inventory already locked from previous session",
+                parent_hp_id,
             )
 
         strategy.worker_task = asyncio.create_task(strategy.worker())
@@ -1277,7 +1277,9 @@ class StrategyExecutor:
         base_hp_id = hp_id[:4] if len(hp_id) >= 4 else hp_id
         if base_hp_id != hp_id:
             logger.info(
-                f"Child position detected. Using base HP ID: {base_hp_id} (from {hp_id})"
+                "Child position detected. Using base HP ID: %s (from %s)",
+                base_hp_id,
+                hp_id,
             )
 
         if base_hp_id not in self.strategies:
@@ -1315,11 +1317,13 @@ class StrategyExecutor:
                     EventName.HP_POSITION_CANCELLED, hp_cancelled
                 )
                 logger.info(
-                    f"Sent manual HP buy cancellation event for position: {hp_id} - budget unlocked"
+                    "Sent manual HP buy cancellation event for position: %s - budget unlocked",
+                    hp_id,
                 )
             elif buy.orders:
                 logger.info(
-                    f"Skipped budget unlock for buy position {hp_id} - orders never sent to exchange"
+                    "Skipped budget unlock for buy position %s - orders never sent to exchange",
+                    hp_id,
                 )
 
             self.broker.unsubscribe(system_id=hp_id)
@@ -1372,7 +1376,8 @@ class StrategyExecutor:
                         EventName.HP_POSITION_CANCELLED, hp_cancelled
                     )
                     logger.info(
-                        f"Sent manual HP partial buy cancellation event for position: {hp_id}"
+                        "Sent manual HP partial buy cancellation event for position: %s",
+                        hp_id,
                     )
 
                 buy.orders = await buy.cancel_remaining_limit_orders(
@@ -1415,7 +1420,8 @@ class StrategyExecutor:
                 EventName.HP_POSITION_CANCELLED, hp_cancelled
             )
             logger.info(
-                f"Sent manual HP bought position cancellation event for position: {hp_id}"
+                "Sent manual HP bought position cancellation event for position: %s",
+                hp_id,
             )
 
             # Close the position
@@ -1439,10 +1445,17 @@ class StrategyExecutor:
 
         if side == PositionSide.SHORT:
             logger.info(
-                f"Processing SHORT side cancellation for {hp_id}. Strategy state: {strategy.state}"
+                "Processing SHORT side cancellation for %s. Strategy state: %s",
+                hp_id,
+                strategy.state,
             )
             logger.info(
-                f"Sell state: {sell.current_position.state_info.state if sell.current_position else 'No sell position'}"
+                "Sell state: %s",
+                (
+                    sell.current_position.state_info.state
+                    if sell.current_position
+                    else "No sell position"
+                ),
             )
 
             # Initialize variables for all sell cancellation types
@@ -1467,19 +1480,20 @@ class StrategyExecutor:
                         EventName.HP_POSITION_CANCELLED, hp_cancelled
                     )
                     logger.info(
-                        f"Sent manual HP sell cancellation event for position: {hp_id}"
+                        "Sent manual HP sell cancellation event for position: %s", hp_id
                     )
             elif (
                 sell.current_position
                 and sell.current_position.state_info.state == State.NEW
             ):
                 # Handle sell positions that are in NEW state (just created, not actively selling yet)
-                logger.info(f"Cancelling NEW sell position: {hp_id}")
+                logger.info("Cancelling NEW sell position: %s", hp_id)
 
                 # Check if this is a multihop sell (multiple sell_positions)
                 if hasattr(sell, "sell_positions") and len(sell.sell_positions) > 1:
                     logger.info(
-                        f"Detected multihop sell with {len(sell.sell_positions)} positions"
+                        "Detected multihop sell with %d positions",
+                        len(sell.sell_positions),
                     )
 
                     # Cancel ALL positions in the multihop sell by iterating through each position
@@ -1502,7 +1516,8 @@ class StrategyExecutor:
                             EventName.HP_POSITION_CANCELLED, hp_cancelled
                         )
                         logger.info(
-                            f"Sent manual HP sell cancellation event for multihop position: {position.config.hp_id}"
+                            "Sent manual HP sell cancellation event for multihop position: %s",
+                            position.config.hp_id,
                         )
 
                         # Update database for each position
@@ -1511,7 +1526,8 @@ class StrategyExecutor:
                         )
 
                         logger.info(
-                            f"Successfully cancelled multihop sell position: {position.config.hp_id}"
+                            "Successfully cancelled multihop sell position: %s",
+                            position.config.hp_id,
                         )
 
                     # Restore original current position
@@ -1532,7 +1548,8 @@ class StrategyExecutor:
                         del self.strategies[base_hp_id]
 
                     logger.info(
-                        f"Successfully cancelled all multihop sell positions and closed parent strategy: {hp_id}"
+                        "Successfully cancelled all multihop sell positions and closed parent strategy: %s",
+                        hp_id,
                     )
                 else:
                     # Single sell position cancellation
@@ -1549,7 +1566,8 @@ class StrategyExecutor:
                         EventName.HP_POSITION_CANCELLED, hp_cancelled
                     )
                     logger.info(
-                        f"Sent manual HP sell cancellation event for NEW position: {hp_id}"
+                        "Sent manual HP sell cancellation event for NEW position: %s",
+                        hp_id,
                     )
 
                     # Close the sell position
@@ -1568,15 +1586,22 @@ class StrategyExecutor:
                         state=sell.current_position.state_info.state,
                     )
 
-                    logger.info(f"Successfully cancelled NEW sell position: {hp_id}")
+                    logger.info("Successfully cancelled NEW sell position: %s", hp_id)
 
                 return
             else:
                 logger.warning(
-                    f"Sell position {hp_id} is in unexpected state. Strategy state: {strategy.state}"
+                    "Sell position %s is in unexpected state. Strategy state: %s",
+                    hp_id,
+                    strategy.state,
                 )
                 logger.warning(
-                    f"Sell position state: {sell.current_position.state_info.state if sell.current_position else 'None'}"
+                    "Sell position state: %s",
+                    (
+                        sell.current_position.state_info.state
+                        if sell.current_position
+                        else "None"
+                    ),
                 )
                 return
 
@@ -1801,16 +1826,13 @@ class StrategyExecutor:
             buy_position.prepare_orders()
             return buy_position.orders
 
-        # Group orders by price level (price, quantity)
-        from collections import defaultdict
-
         grouped_orders = defaultdict(list)
         for order_dict in orders:
             key = (order_dict["price"], order_dict["quantity"])
             grouped_orders[key].append(order_dict)
 
         restored_orders: List[Order] = []
-        for (price, quantity), order_dicts in grouped_orders.items():
+        for (_, _), order_dicts in grouped_orders.items():
             # Aggregate realized_quantity from all orders for this price level
             total_realized = sum(o["realized_quantity"] for o in order_dicts)
             # Find the latest open order (not FILLED or CANCELED), else the latest order
