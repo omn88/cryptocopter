@@ -94,6 +94,7 @@ class StrategyExecutor:
         self.supported_quotes = ["USDC", "PLN", "BTC", "BNB", "USDT"]
         self.test_mode = test_mode  # Add a test_mode parameter
         self.price_resolver = price_resolver
+        self.recovery_service: Optional[RecoveryService] = None
 
         # WebSocket error handling attributes
         self._websocket_error_count = 0
@@ -124,38 +125,23 @@ class StrategyExecutor:
 
     async def run(self) -> None:
         logger.info("Strategy executor ready to retrieve the first config")
-        logger.info(
-            "Test mode: %s, Client available: %s",
-            self.test_mode,
-            self.client is not None,
-        )
-        if self.test_mode:
-            logger.info(
-                "Test mode - using injected client, crash recovery will be "
-                "triggered manually when client is assigned"
-            )
-        else:
+        if not self.test_mode:
             self.client = BinanceClient(
                 api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
             )
-            logger.info("Production client initialized")
-            # Always run crash recovery after client is available
-            # (will be no-op if database is empty)
-            logger.info(
-                "About to start crash recovery, client available: %s",
-                self.client is not None,
+            self._ticker_timeout_task = asyncio.create_task(
+                self._monitor_ticker_timeout()
             )
-            await self.recover_positions_from_crash()
+
+        self.recovery_service = RecoveryService(
+            symbols=self.price_resolver.symbols,
+            database=self.db,
+        )
+        await self.recover_positions_from_crash()
 
         # Set up WebSocket error handling (for both test and real mode)
         if hasattr(self.broker, "set_error_handler"):
             self.broker.set_error_handler(self._handle_websocket_error)
-
-        # Start ticker timeout monitoring task
-        if not self.test_mode:  # Only in production mode
-            self._ticker_timeout_task = asyncio.create_task(
-                self._monitor_ticker_timeout()
-            )
 
         while not self.stop_event.is_set():
             try:
@@ -199,295 +185,6 @@ class StrategyExecutor:
 
             except queue.Empty:
                 await asyncio.sleep(0.1)
-
-    def _send_hp_event_to_portfolio(
-        self, event_name: EventName, event_data: Any
-    ) -> None:
-        """Send HP events to portfolio for quantity management."""
-        if self.portfolio_ui_queue is None:
-            logger.warning(
-                "[STRATEGY EXECUTOR] Portfolio UI queue is None - cannot send HP event"
-            )
-            return
-
-        try:
-            event = Event(name=event_name, content=event_data)
-            self.portfolio_ui_queue.put_nowait(event)
-            logger.info(
-                "[STRATEGY EXECUTOR] Sent HP event to portfolio: %s", event_name.value
-            )
-            if event_name == EventName.HP_POSITION_CANCELLED:
-                logger.info(
-                    "[STRATEGY EXECUTOR] Cancellation event details: %s", event_data
-                )
-        except Exception as e:
-            logger.error(
-                "[STRATEGY EXECUTOR] Failed to send HP event to portfolio: %s", e
-            )
-
-    async def _handle_websocket_error(
-        self, error_msg: Union[str, Dict[str, Any]]
-    ) -> None:
-        """Handle WebSocket errors, especially keepalive timeouts and
-        unrecoverable failures."""
-        current_time = time.time()
-
-        # Check for unrecoverable errors
-        unrecoverable_types = [
-            "BinanceWebsocketUnableToConnect",
-            "BinanceWebsocketClosed",
-            "ConnectionClosedError",
-            "ConnectionClosedOK",  # Server-initiated disconnections (e.g., "going away")
-            "ConnectionClosed",  # Generic connection closed errors
-            "TickerTimeoutError",  # Backup circuit breaker for silent ticker streams
-        ]
-        unrecoverable_msgs = [
-            "Max reconnections",
-            "timed out during opening handshake",
-            "Cannot connect to host",
-            "Temporary failure in name resolution",
-            "getaddrinfo failed",
-            "going away",  # WebSocket close code 1001
-            "abnormal closure",  # WebSocket close code 1006
-            "received 1001",  # Explicit check for going away code
-            "received 1006",  # Explicit check for abnormal closure
-        ]
-
-        is_unrecoverable = False
-        if isinstance(error_msg, dict):
-            error_type = error_msg.get("type", "")
-            error_message = error_msg.get("m", "")
-
-            # Check direct error type and message first
-            if any(t in error_type for t in unrecoverable_types) or any(
-                m in error_message for m in unrecoverable_msgs
-            ):
-                is_unrecoverable = True
-
-            # Check for nested error messages (common with TickerStreamError)
-            if not is_unrecoverable and error_type == "TickerStreamError":
-                try:
-
-                    # Handle malfoqrmed JSON by extracting key info
-                    if "'e': 'error'" in error_message and "'type':" in error_message:
-                        # Extract nested error type using string parsing
-                        start_idx = error_message.find("'type': '") + 9
-                        if start_idx > 8:  # Found the pattern
-                            end_idx = error_message.find("'", start_idx)
-                            if end_idx > start_idx:
-                                nested_error_type = error_message[start_idx:end_idx]
-                                if any(
-                                    t in nested_error_type for t in unrecoverable_types
-                                ):
-                                    logger.warning(
-                                        "Detected unrecoverable error in nested "
-                                        "TickerStreamError: %s",
-                                        nested_error_type,
-                                    )
-                                    is_unrecoverable = True
-                except Exception as e:
-                    logger.debug("Error parsing nested error message: %s", e)
-
-        # If unrecoverable, restart websocket client with circuit breaker pattern
-        if is_unrecoverable:
-            # Calculate delay using circuit breaker pattern
-            self._restart_count += 1
-            time_since_last_restart = current_time - self._last_restart_time
-
-            # If it's been more than 10 minutes since last restart, reset counter
-            if time_since_last_restart > 600:
-                self._restart_count = 1
-
-            # Calculate progressive delay: base_delay * (restart_count ^ 1.5), capped at max
-            restart_delay = min(
-                self._restart_base_delay * (self._restart_count**1.5),
-                self._max_restart_delay,
-            )
-
-            logger.error(
-                "Unrecoverable websocket error detected: %s. Restart #%d. "
-                "Waiting %.1f seconds before restarting to allow network to stabilize...",
-                error_msg,
-                self._restart_count,
-                restart_delay,
-            )
-
-            # Wait before attempting restart to let network stabilize
-            await asyncio.sleep(restart_delay)
-            self._last_restart_time = time.time()  # Update after the delay
-
-            retry_count = 0
-            while True:
-                try:
-                    # Stop current client if exists
-                    logger.info(
-                        "Attempting to restart BinanceClient (restart #%d)...",
-                        self._restart_count,
-                    )
-                    if self.client:
-                        try:
-                            await self.client.close_connection()
-                        except Exception as e:
-                            logger.warning("Error closing client: %s", e)
-                        self.client = None
-                    # Recreate client
-                    logger.info("Recreating BinanceClient...")
-                    if self.test_mode:
-                        logger.info(
-                            "Test mode - using injected client, crash recovery will be "
-                            "triggered manually when client is assigned"
-                        )
-                    else:
-                        self.client = BinanceClient(
-                            api_key=config_env("API_KEY"),
-                            api_secret=config_env("API_SECRET"),
-                        )
-                    logger.info("BinanceClient restarted successfully.")
-                    # Resubscribe all strategies
-                    await self._resubscribe_all_strategies()
-                    logger.info("Resubscription after restart complete.")
-
-                    # Reset restart count on successful restart
-                    if retry_count == 0:  # Only reset if first attempt succeeded
-                        logger.info(
-                            "WebSocket client restart successful. Circuit breaker reset."
-                        )
-                        # Don't reset _restart_count here - keep it for progressive delay
-                    break
-                except Exception as e:
-                    retry_count += 1
-                    restart_retry_delay = min(30, 2**retry_count)
-                    logger.error(
-                        "Websocket restart attempt #%d failed: %s. Retrying in %d seconds...",
-                        retry_count,
-                        e,
-                        restart_retry_delay,
-                    )
-                    await asyncio.sleep(restart_retry_delay)
-            return
-
-        # Check if this is a keepalive timeout error (legacy logic)
-        if isinstance(error_msg, dict):
-            error_type = error_msg.get("type", "")
-            error_message = error_msg.get("m", "")
-            if (
-                "keepalive ping timeout" in error_message
-                or "ConnectionClosedError" in error_type
-            ):
-                # Suppress frequent logging of the same error
-                if (
-                    current_time - self._last_websocket_error_time
-                    > self._websocket_error_suppression_time
-                ):
-                    logger.warning(
-                        "WebSocket keepalive timeout detected. This is a known issue with "
-                        "python-binance + Python 3.12. Connection will auto-reconnect."
-                    )
-                    self._last_websocket_error_time = current_time
-                    self._websocket_error_count = 1
-                else:
-                    self._websocket_error_count += 1
-                if self._websocket_error_count > 20:
-                    logger.warning(
-                        "Excessive WebSocket reconnections detected (%d errors), "
-                        "will resubscribe all streams",
-                        self._websocket_error_count,
-                    )
-                    await self._resubscribe_all_strategies()
-                    self._websocket_error_count = 0
-                return
-
-        # Handle other WebSocket errors normally
-        logger.error("WebSocket error: %s", error_msg)
-
-    async def _monitor_ticker_timeout(self) -> None:
-        """Monitor for ticker timeout and trigger circuit breaker if no
-        ticker data for too long."""
-        logger.info(
-            "Starting ticker timeout monitoring (max silence: %d seconds)",
-            self._max_ticker_silence_duration,
-        )
-
-        while not self.stop_event.is_set():
-            try:
-                await asyncio.sleep(self._ticker_timeout_check_interval)
-
-                if self.stop_event.is_set():
-                    break
-
-                # Check if broker reports ticker timeout
-                if hasattr(self.broker, "_last_ticker_time") and hasattr(
-                    self.broker, "_ticker_timeout_threshold"
-                ):
-                    time_since_ticker = time.time() - self.broker._last_ticker_time
-                    if time_since_ticker > self._max_ticker_silence_duration:
-                        logger.error(
-                            "Backup circuit breaker triggered: ticker silent for %.1f seconds "
-                            "(max: %d seconds). Forcing WebSocket restart...",
-                            time_since_ticker,
-                            self._max_ticker_silence_duration,
-                        )
-
-                        # Trigger circuit breaker by simulating an unrecoverable error
-                        timeout_error = {
-                            "type": "TickerTimeoutError",
-                            "m": (
-                                f"Ticker silent for {time_since_ticker:.1f} seconds - "
-                                "backup circuit breaker activated"
-                            ),
-                        }
-                        await self._handle_websocket_error(timeout_error)
-                        return  # Exit monitoring after triggering restart
-
-            except asyncio.CancelledError:
-                logger.info("Ticker timeout monitoring task cancelled")
-                break
-            except Exception as e:
-                logger.error("Error in ticker timeout monitoring: %s", e)
-                await asyncio.sleep(10)  # Wait before retrying
-
-        logger.info("Ticker timeout monitoring stopped")
-
-    async def _resubscribe_all_strategies(self) -> None:
-        """Resubscribe all active strategies after excessive reconnections"""
-        logger.info("Resubscribing all active strategy WebSocket streams...")
-
-        for strategy_id, strategy in self.strategies.items():
-            try:
-                worker_queue = strategy.worker_queue
-
-                # Unsubscribe first
-                self.broker.unsubscribe(system_id=str(strategy_id))
-
-                # Wait a bit
-                await asyncio.sleep(1)
-
-                # Resubscribe to user data stream
-                self.broker.subscribe(
-                    system_id=str(strategy_id),
-                    subscription_info=SubscriptionInfo(
-                        data_type=SubscriptionType.USER,
-                        symbol=strategy.buy.data.config.symbol.name,
-                        target=SubscriptionTarget.BACKEND,
-                        queue=worker_queue,
-                    ),
-                )
-
-                # Resubscribe to price stream
-                self.broker.subscribe(
-                    system_id=str(strategy_id),
-                    subscription_info=SubscriptionInfo(
-                        data_type=SubscriptionType.PRICE,
-                        symbol=strategy.buy.data.config.symbol.name,
-                        target=SubscriptionTarget.BACKEND,
-                        queue=worker_queue,
-                    ),
-                )
-
-            except Exception as e:
-                logger.error("Failed to resubscribe strategy %s: %s", strategy_id, e)
-
-        logger.info("Finished resubscribing all strategies")
 
     def determine_sell_strategy(self, config: HPSellConfig) -> List[Symbol]:
         delisted_coins = {
@@ -690,26 +387,14 @@ class StrategyExecutor:
     async def setup_buy_position(
         self,
         new_hp: HPBuy,
-        is_restoration: bool = False,
     ) -> None:
-        logger.info(
-            "setup_buy_position called: hp_id=%s, is_restoration=%s",
-            new_hp.config.hp_id,
-            is_restoration,
-        )
 
-        # For restoration, preserve existing HP ID; for new positions, generate new one
-        if not is_restoration:
-            logger.info("Setting up new position with config: %s", new_hp.config)
+        logger.info("Setting up new position with config: %s", new_hp.config)
 
-            new_hp.config.hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
-            new_hp.state_info.generate_open_time()
-        else:
-            logger.info("Restoration mode: preserving HP ID %s", new_hp.config.hp_id)
-
-        logger.info("Client check: %s", self.client is not None)
-        assert self.client is not None
+        new_hp.config.hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
+        new_hp.state_info.generate_open_time()
         worker_queue: queue.Queue = queue.Queue()
+        assert self.client is not None
 
         logger.info("Creating HpStrategy for HP %s", new_hp.config.hp_id)
         strategy = HpStrategy(
@@ -748,117 +433,9 @@ class StrategyExecutor:
         assert isinstance(strategy.buy.data.config, HPBuyConfig)
         logger.info("HpStrategy created successfully for HP %s", new_hp.config.hp_id)
 
-        # Handle order preparation: restore from DB for restoration mode,
-        # create new for normal mode
-        if is_restoration:
-            # Restore existing buy orders from database instead of creating new ones
-            strategy.buy.orders = await self.restore_buy_orders(
-                buy_position=strategy.buy, worker_queue=worker_queue
-            )
-
-            # --- Patch: recalculate state from orders after restoration ---
-            # Completeness calculation for buy orders
-            all_filled = all(
-                order.status == ORDER_STATUS_FILLED for order in strategy.buy.orders
-            )
-            part_bought = any(
-                order.realized_quantity > 0 for order in strategy.buy.orders
-            )
-
-            # Default state logic - for restoration, preserve the strategy state
-            # but calculate buy data state
-            if is_restoration:
-                # During restoration, preserve the main strategy state correctly
-                # mapped by recovery service
-                # But calculate buy data state based on actual order completion status
-                # Calculate buy data state based on actual order fills
-                strategy.buy.data.state_info.state = (
-                    State.BOUGHT
-                    if all_filled
-                    else State.NEW if not part_bought else State.PARTIALLY_BOUGHT
-                )
-
-            else:
-                # For normal setup, use default state logic for buy data
-                strategy.buy.data.state_info.state = (
-                    State.BOUGHT
-                    if all_filled
-                    else State.NEW if not part_bought else State.PARTIALLY_BOUGHT
-                )
-
-            # --- Restore sell position state and orders if they exist in DB ---
-            sell_orders = await self.db.fetch_orders_for_price_level(
-                hp_id=new_hp.config.hp_id, side=PositionSide.SHORT.value
-            )
-            logger.info(
-                "[Recovery] fetch_orders_for_price_level returned: %s", sell_orders
-            )
-            if sell_orders:
-                logger.info(
-                    "[Recovery] Found %d sell orders for HP %s",
-                    len(sell_orders),
-                    new_hp.config.hp_id,
-                )
-                db_order = sell_orders[0]
-                logger.info(
-                    "[Recovery] Restoring sell order fields from DB: %s", db_order
-                )
-                strategy.sell.current_position.sell_order.order_id = db_order[
-                    "order_id"
-                ]
-                strategy.sell.current_position.sell_order.quantity = db_order[
-                    "quantity"
-                ]
-                strategy.sell.current_position.sell_order.precision = (
-                    strategy.sell.current_position.config.symbol.precision
-                )
-                strategy.sell.current_position.sell_order.price_precision = (
-                    strategy.sell.current_position.config.symbol.price_precision
-                )
-                strategy.sell.current_position.sell_order.price = db_order["price"]
-                strategy.sell.current_position.sell_order.quantity_stable = db_order[
-                    "quantity_stable"
-                ]
-                strategy.sell.current_position.sell_order.realized_quantity = db_order[
-                    "realized_quantity"
-                ]
-                strategy.sell.current_position.sell_order.status = db_order["status"]
-                logger.info(
-                    "[Recovery] Patched sell order for HP %s: %s",
-                    new_hp.config.hp_id,
-                    strategy.sell.current_position.sell_order,
-                )
-            else:
-                logger.info(
-                    "[Recovery] No sell orders found in DB for HP %s",
-                    new_hp.config.hp_id,
-                )
-
-            # For restoration mode, get main strategy state from database
-            # (separate from buy data state which is in new_hp.state_info.state)
-            if is_restoration:
-
-                # Get main strategy state from database (not from buy data state)
-                strategy_state_str = await self._get_strategy_state_from_db(
-                    new_hp.config.hp_id
-                )
-                strategy.state = State(strategy_state_str)
-                logger.info(
-                    "strategy.state restored from DB for restoration: %s",
-                    strategy.state,
-                )
-                logger.info("buy data state preserved as: %s", new_hp.state_info.state)
-            else:
-                # Restore strategy execution state from database (for main state)
-                strategy_state_str = await self._get_strategy_state_from_db(
-                    new_hp.config.hp_id
-                )
-                strategy.state = State(strategy_state_str)
-                logger.info("strategy.state restored from DB: %s", strategy.state)
-        else:
-            # Create new orders for normal setup
-            strategy.buy.prepare_orders()
-            strategy.buy.data.state_info.generate_open_time()
+        # Create new orders for normal setup
+        strategy.buy.prepare_orders()
+        strategy.buy.data.state_info.generate_open_time()
 
         self.strategies[new_hp.config.hp_id] = strategy
 
@@ -891,21 +468,19 @@ class StrategyExecutor:
             data=strategy.buy.data, strategy_state=strategy.state
         )
 
-        # Send HP buy position created event to portfolio for budget locking
-        if not is_restoration:  # Only send for new positions, not restored ones
-            hp_buy_created = HPBuyPositionCreated(
-                hp_id=str(new_hp.config.hp_id),
-                coin=new_hp.config.coin,
-                budget=new_hp.config.budget,
-                price_low=new_hp.config.price_low,
-                price_high=new_hp.config.price_high,
-                end_currency="USDC",  # Default to USDC for budget locking
+        hp_buy_created = HPBuyPositionCreated(
+            hp_id=str(new_hp.config.hp_id),
+            coin=new_hp.config.coin,
+            budget=new_hp.config.budget,
+            price_low=new_hp.config.price_low,
+            price_high=new_hp.config.price_high,
+            end_currency="USDC",  # Default to USDC for budget locking
+        )
+        if self.portfolio_ui_queue is not None:
+            event = Event(
+                name=EventName.HP_BUY_POSITION_CREATED, content=hp_buy_created
             )
-            if self.portfolio_ui_queue is not None:
-                event = Event(
-                    name=EventName.HP_BUY_POSITION_CREATED, content=hp_buy_created
-                )
-                self.portfolio_ui_queue.put_nowait(event)
+            self.portfolio_ui_queue.put_nowait(event)
 
         strategy.worker_task = asyncio.create_task(strategy.worker())
         logger.info("System with ID %s initialized.", new_hp.config.hp_id)
@@ -1094,6 +669,7 @@ class StrategyExecutor:
         )
 
         assert self.client is not None
+        assert self.recovery_service is not None
         worker_queue: queue.Queue = queue.Queue()
 
         strategy = HpStrategy(
@@ -1165,8 +741,8 @@ class StrategyExecutor:
                 strategy.buy.orders = await self.restore_buy_orders(
                     buy_position=strategy.buy, worker_queue=worker_queue
                 )
-                strategy_state_str = await self._get_strategy_state_from_db(
-                    parent_hp_id
+                strategy_state_str = (
+                    await self.recovery_service.get_strategy_state_from_db(parent_hp_id)
                 )
                 strategy.state = State(strategy_state_str)
 
@@ -1189,8 +765,10 @@ class StrategyExecutor:
                 "Before restoration, current_position: %s",
                 strategy.sell.current_position,
             )
-            self._restore_current_sell_position_for_multihop(strategy)
-            await self._restore_all_child_sell_positions_for_multihop(strategy)
+            self.recovery_service.restore_current_sell_position_for_multihop(strategy)
+            await self.recovery_service.restore_all_child_sell_positions_for_multihop(
+                strategy
+            )
 
         else:
             # Generate new timestamp for new positions
@@ -1704,32 +1282,13 @@ class StrategyExecutor:
         logger.info("Starting crash recovery process...")
 
         try:
-            # Ensure client is available for recovery
-            if not self.client:
-                logger.error(
-                    "No client available for crash recovery (test_mode=%s)",
-                    self.test_mode,
-                )
-                if self.test_mode:
-                    logger.error(
-                        "In test mode but client was not assigned before recovery started"
-                    )
-                return
-
-            logger.info("Client is available, proceeding with crash recovery")
-
-            # Create recovery service with the same database instance
-            recovery_service = RecoveryService(
-                symbols=self.price_resolver.symbols,
-                client=self.client,
-                database=self.db,
-            )
-            logger.info("Recovery service created successfully")
+            assert self.recovery_service is not None
+            assert self.client is not None
 
             (
                 buy_positions,
                 sell_positions,
-            ) = await recovery_service.recover_all_positions()
+            ) = await self.recovery_service.recover_all_positions(client=self.client)
 
             logger.info(
                 "Crash recovery found %d buy positions and %d sell positions",
@@ -1781,25 +1340,149 @@ class StrategyExecutor:
         Uses the normal setup process but with restoration flag to preserve state.
         """
         logger.info("Restoring buy position: %s", buy_data.config.hp_id)
-        logger.info(
-            "Buy position details: symbol=%s, coin=%s, budget=%s",
-            buy_data.config.symbol.name,
-            buy_data.config.coin,
-            buy_data.config.budget,
+
+        worker_queue: queue.Queue = queue.Queue()
+        assert self.client is not None
+        assert self.recovery_service is not None
+
+        logger.info("Creating HpStrategy for HP %s", buy_data.config.hp_id)
+        strategy = HpStrategy(
+            client=self.client,
+            ui_queue=self.ui_queue,
+            balance=self.inventory_manager["USDC"]["total_quantity"],
+            db=self.db,
+            worker_queue=worker_queue,
+            config_queue=self.config_queue,
+            buy_position=HPPositionBuy(
+                client=self.client,
+                data=buy_data,
+                db=self.db,
+            ),
+            sell_position=HPPositionSell(
+                client=self.client,
+                original_position=SellPosition(
+                    config=HPSellConfig(
+                        hp_id=buy_data.config.hp_id,
+                        symbol=buy_data.config.symbol,
+                        coin=buy_data.config.coin,
+                    ),
+                    state_info=StateInfo(side=PositionSide.SHORT),
+                    sell_order=Order(quantity=0.0),
+                ),
+                db=self.db,
+                sell_strategy=[],
+                price_resolver=self.price_resolver,
+                broker=self.broker,
+                worker_queue=worker_queue,
+            ),
+            # Pass callback for portfolio events
+            portfolio_event_callback=self._send_hp_event_to_portfolio,
         )
 
-        try:
-            # Use the normal setup process but in restoration mode
-            await self.setup_buy_position(new_hp=buy_data, is_restoration=True)
-            logger.info("Buy position %s restored successfully", buy_data.config.hp_id)
-        except Exception as e:
-            logger.error(
-                "Failed to restore buy position %s: %s",
+        assert isinstance(strategy.buy.data.config, HPBuyConfig)
+        logger.info("HpStrategy created successfully for HP %s", buy_data.config.hp_id)
+
+        # Restore existing buy orders from database instead of creating new ones
+        strategy.buy.orders = await self.restore_buy_orders(
+            buy_position=strategy.buy, worker_queue=worker_queue
+        )
+
+        # --- Patch: recalculate state from orders after restoration ---
+        # Completeness calculation for buy orders
+        all_filled = all(
+            order.status == ORDER_STATUS_FILLED for order in strategy.buy.orders
+        )
+        part_bought = any(order.realized_quantity > 0 for order in strategy.buy.orders)
+
+        strategy.buy.data.state_info.state = (
+            State.BOUGHT
+            if all_filled
+            else State.NEW if not part_bought else State.PARTIALLY_BOUGHT
+        )
+
+        # --- Restore sell position state and orders if they exist in DB ---
+        sell_orders = await self.db.fetch_orders_for_price_level(
+            hp_id=buy_data.config.hp_id, side=PositionSide.SHORT.value
+        )
+        logger.info("[Recovery] fetch_orders_for_price_level returned: %s", sell_orders)
+        if sell_orders:
+            logger.info(
+                "[Recovery] Found %d sell orders for HP %s",
+                len(sell_orders),
                 buy_data.config.hp_id,
-                e,
-                exc_info=True,
             )
-            raise
+            db_order = sell_orders[0]
+            logger.info("[Recovery] Restoring sell order fields from DB: %s", db_order)
+            strategy.sell.current_position.sell_order.order_id = db_order["order_id"]
+            strategy.sell.current_position.sell_order.quantity = db_order["quantity"]
+            strategy.sell.current_position.sell_order.precision = (
+                strategy.sell.current_position.config.symbol.precision
+            )
+            strategy.sell.current_position.sell_order.price_precision = (
+                strategy.sell.current_position.config.symbol.price_precision
+            )
+            strategy.sell.current_position.sell_order.price = db_order["price"]
+            strategy.sell.current_position.sell_order.quantity_stable = db_order[
+                "quantity_stable"
+            ]
+            strategy.sell.current_position.sell_order.realized_quantity = db_order[
+                "realized_quantity"
+            ]
+            strategy.sell.current_position.sell_order.status = db_order["status"]
+            logger.info(
+                "[Recovery] Patched sell order for HP %s: %s",
+                buy_data.config.hp_id,
+                strategy.sell.current_position.sell_order,
+            )
+        else:
+            logger.info(
+                "[Recovery] No sell orders found in DB for HP %s",
+                buy_data.config.hp_id,
+            )
+
+        strategy_state_str = await self.recovery_service.get_strategy_state_from_db(
+            buy_data.config.hp_id
+        )
+        strategy.state = State(strategy_state_str)
+        logger.info(
+            "strategy.state restored from DB for restoration: %s",
+            strategy.state,
+        )
+        logger.info("buy data state preserved as: %s", buy_data.state_info.state)
+
+        self.strategies[buy_data.config.hp_id] = strategy
+
+        self.send_buy_position_to_ui(
+            config=buy_data.config,
+            state_info=buy_data.state_info,
+            state=strategy.state,
+            buy_orders=strategy.buy.orders,
+        )
+        self.broker.subscribe(
+            system_id=str(buy_data.config.hp_id),
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.USER,
+                symbol=buy_data.config.symbol.name,
+                target=SubscriptionTarget.BACKEND,
+                queue=worker_queue,
+            ),
+        )
+        self.broker.subscribe(
+            system_id=str(buy_data.config.hp_id),
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.PRICE,
+                symbol=buy_data.config.symbol.name,
+                target=SubscriptionTarget.BACKEND,
+                queue=worker_queue,
+            ),
+        )
+
+        await self.db.upsert_buy_price_level(
+            data=strategy.buy.data, strategy_state=strategy.state
+        )
+
+        strategy.worker_task = asyncio.create_task(strategy.worker())
+        logger.info("System with ID %s restored.", buy_data.config.hp_id)
 
     async def restore_sell_position(self, sell_data: HPSell) -> None:
         """
@@ -2003,116 +1686,291 @@ class StrategyExecutor:
                 )
         return trading_order
 
-    async def _get_strategy_state_from_db(self, hp_id: str) -> Optional[str]:
-        """
-        Get the strategy execution state for a given HP ID from the database.
-
-        Args:
-            hp_id: The HP ID to query for
-
-        Returns:
-            The strategy_state string from the database, or None if not found
-        """
-        try:
-            async with self.db.get_connection() as conn:
-                cursor = await conn.execute(
-                    "SELECT strategy_state FROM positions WHERE hp_id = ? LIMIT 1",
-                    (hp_id,),
-                )
-                row = await cursor.fetchone()
-                if row:
-                    return row["strategy_state"]
-                else:
-                    logger.warning("No strategy state found for HP ID: %s", hp_id)
-                    return None
-        except Exception as e:
-            logger.error("Failed to get strategy state for HP %s: %s", hp_id, e)
-            return None
-
-    def _restore_current_sell_position_for_multihop(self, strategy: HpStrategy) -> None:
-        """
-        If this is a two-hop sell, and the first leg is FILLED, advance current_position to the second leg.
-        """
-        sell_positions = strategy.sell.sell_positions
-        if sell_positions and len(sell_positions) == 2:
-            first_leg = sell_positions[0]
-            second_leg = sell_positions[1]
-            if first_leg.sell_order.status == ORDER_STATUS_FILLED:
-                # Advance current_position to the second leg
-                strategy.sell.current_position = second_leg
-                logger.info(
-                    "[Recovery] Advanced current_position to second leg after first leg FILLED: %s",
-                    second_leg.config.hp_id,
-                )
-
-    async def _restore_all_child_sell_positions_for_multihop(
-        self, strategy: HpStrategy
-    ):
-        """
-        For two-hop sells, after recovery, restore both child sell positions (e.g., hp_id ending with 'a' and 'b') from DB.
-        Set their orders and state, and set current_position to the correct child based on the status of the child positions in the DB.
-        """
-        sell_positions = strategy.sell.sell_positions
-        if not (sell_positions and len(sell_positions) == 2):
+    def _send_hp_event_to_portfolio(
+        self, event_name: EventName, event_data: Any
+    ) -> None:
+        """Send HP events to portfolio for quantity management."""
+        if self.portfolio_ui_queue is None:
+            logger.warning(
+                "[STRATEGY EXECUTOR] Portfolio UI queue is None - cannot send HP event"
+            )
             return
 
-        # Restore each child sell position's order from DB (as before)
-        for pos in sell_positions:
-            orders = await self.db.fetch_orders_for_price_level(
-                hp_id=pos.config.hp_id, side=PositionSide.SHORT.value
+        try:
+            event = Event(name=event_name, content=event_data)
+            self.portfolio_ui_queue.put_nowait(event)
+            logger.info(
+                "[STRATEGY EXECUTOR] Sent HP event to portfolio: %s", event_name.value
             )
-            if orders:
-                order_dict = orders[0]
-                pos.sell_order.order_id = order_dict["order_id"]
-                pos.sell_order.quantity = order_dict["quantity"]
-                pos.sell_order.precision = pos.config.symbol.precision
-                pos.sell_order.price_precision = pos.config.symbol.price_precision
-                pos.sell_order.price = order_dict["price"]
-                pos.sell_order.quantity_stable = order_dict["quantity_stable"]
-                pos.sell_order.realized_quantity = order_dict["realized_quantity"]
-                pos.sell_order.status = order_dict["status"]
+            if event_name == EventName.HP_POSITION_CANCELLED:
                 logger.info(
-                    "[Recovery] Patched sell order for child %s: %s",
-                    pos.config.hp_id,
-                    pos.sell_order,
+                    "[STRATEGY EXECUTOR] Cancellation event details: %s", event_data
                 )
-            else:
-                logger.info(
-                    "[Recovery] No sell orders found in DB for child %s",
-                    pos.config.hp_id,
-                )
+        except Exception as e:
+            logger.error(
+                "[STRATEGY EXECUTOR] Failed to send HP event to portfolio: %s", e
+            )
 
-        # Set current_position based on child leg order status
-        first_leg = sell_positions[0]
-        second_leg = sell_positions[1]
-        first_status = first_leg.sell_order.status
-        second_status = second_leg.sell_order.status
+    async def _handle_websocket_error(
+        self, error_msg: Union[str, Dict[str, Any]]
+    ) -> None:
+        """Handle WebSocket errors, especially keepalive timeouts and
+        unrecoverable failures."""
+        current_time = time.time()
 
-        if first_status == ORDER_STATUS_FILLED:
-            strategy.sell.current_position = second_leg
-            logger.info(
-                "[Recovery] Set current_position to second leg after first leg FILLED: %s",
-                second_leg.config.hp_id,
+        # Check for unrecoverable errors
+        unrecoverable_types = [
+            "BinanceWebsocketUnableToConnect",
+            "BinanceWebsocketClosed",
+            "ConnectionClosedError",
+            "ConnectionClosedOK",  # Server-initiated disconnections (e.g., "going away")
+            "ConnectionClosed",  # Generic connection closed errors
+            "TickerTimeoutError",  # Backup circuit breaker for silent ticker streams
+        ]
+        unrecoverable_msgs = [
+            "Max reconnections",
+            "timed out during opening handshake",
+            "Cannot connect to host",
+            "Temporary failure in name resolution",
+            "getaddrinfo failed",
+            "going away",  # WebSocket close code 1001
+            "abnormal closure",  # WebSocket close code 1006
+            "received 1001",  # Explicit check for going away code
+            "received 1006",  # Explicit check for abnormal closure
+        ]
+
+        is_unrecoverable = False
+        if isinstance(error_msg, dict):
+            error_type = error_msg.get("type", "")
+            error_message = error_msg.get("m", "")
+
+            # Check direct error type and message first
+            if any(t in error_type for t in unrecoverable_types) or any(
+                m in error_message for m in unrecoverable_msgs
+            ):
+                is_unrecoverable = True
+
+            # Check for nested error messages (common with TickerStreamError)
+            if not is_unrecoverable and error_type == "TickerStreamError":
+                try:
+
+                    # Handle malfoqrmed JSON by extracting key info
+                    if "'e': 'error'" in error_message and "'type':" in error_message:
+                        # Extract nested error type using string parsing
+                        start_idx = error_message.find("'type': '") + 9
+                        if start_idx > 8:  # Found the pattern
+                            end_idx = error_message.find("'", start_idx)
+                            if end_idx > start_idx:
+                                nested_error_type = error_message[start_idx:end_idx]
+                                if any(
+                                    t in nested_error_type for t in unrecoverable_types
+                                ):
+                                    logger.warning(
+                                        "Detected unrecoverable error in nested "
+                                        "TickerStreamError: %s",
+                                        nested_error_type,
+                                    )
+                                    is_unrecoverable = True
+                except Exception as e:
+                    logger.debug("Error parsing nested error message: %s", e)
+
+        # If unrecoverable, restart websocket client with circuit breaker pattern
+        if is_unrecoverable:
+            # Calculate delay using circuit breaker pattern
+            self._restart_count += 1
+            time_since_last_restart = current_time - self._last_restart_time
+
+            # If it's been more than 10 minutes since last restart, reset counter
+            if time_since_last_restart > 600:
+                self._restart_count = 1
+
+            # Calculate progressive delay: base_delay * (restart_count ^ 1.5), capped at max
+            restart_delay = min(
+                self._restart_base_delay * (self._restart_count**1.5),
+                self._max_restart_delay,
             )
-        elif first_status in [ORDER_STATUS_NEW, "PARTIALLY_FILLED", "SUBMITTED"]:
-            strategy.sell.current_position = first_leg
-            logger.info(
-                "[Recovery] Set current_position to first leg (open): %s",
-                first_leg.config.hp_id,
+
+            logger.error(
+                "Unrecoverable websocket error detected: %s. Restart #%d. "
+                "Waiting %.1f seconds before restarting to allow network to stabilize...",
+                error_msg,
+                self._restart_count,
+                restart_delay,
             )
-        elif second_status in [ORDER_STATUS_NEW, "PARTIALLY_FILLED", "SUBMITTED"]:
-            strategy.sell.current_position = second_leg
-            logger.info(
-                "[Recovery] Set current_position to second leg (open): %s",
-                second_leg.config.hp_id,
-            )
-        else:
-            # Fallback: set to 'b' if present
-            for pos in sell_positions:
-                if pos.config.hp_id.endswith("b"):
-                    strategy.sell.current_position = pos
+
+            # Wait before attempting restart to let network stabilize
+            await asyncio.sleep(restart_delay)
+            self._last_restart_time = time.time()  # Update after the delay
+
+            retry_count = 0
+            while True:
+                try:
+                    # Stop current client if exists
                     logger.info(
-                        "[Recovery] Fallback: Set current_position to child leg 'b': %s",
-                        pos.config.hp_id,
+                        "Attempting to restart BinanceClient (restart #%d)...",
+                        self._restart_count,
                     )
+                    if self.client:
+                        try:
+                            await self.client.close_connection()
+                        except Exception as e:
+                            logger.warning("Error closing client: %s", e)
+                        self.client = None
+                    # Recreate client
+                    logger.info("Recreating BinanceClient...")
+                    if self.test_mode:
+                        logger.info(
+                            "Test mode - using injected client, crash recovery will be "
+                            "triggered manually when client is assigned"
+                        )
+                    else:
+                        self.client = BinanceClient(
+                            api_key=config_env("API_KEY"),
+                            api_secret=config_env("API_SECRET"),
+                        )
+                    logger.info("BinanceClient restarted successfully.")
+                    # Resubscribe all strategies
+                    await self._resubscribe_all_strategies()
+                    logger.info("Resubscription after restart complete.")
+
+                    # Reset restart count on successful restart
+                    if retry_count == 0:  # Only reset if first attempt succeeded
+                        logger.info(
+                            "WebSocket client restart successful. Circuit breaker reset."
+                        )
+                        # Don't reset _restart_count here - keep it for progressive delay
                     break
+                except Exception as e:
+                    retry_count += 1
+                    restart_retry_delay = min(30, 2**retry_count)
+                    logger.error(
+                        "Websocket restart attempt #%d failed: %s. Retrying in %d seconds...",
+                        retry_count,
+                        e,
+                        restart_retry_delay,
+                    )
+                    await asyncio.sleep(restart_retry_delay)
+            return
+
+        # Check if this is a keepalive timeout error (legacy logic)
+        if isinstance(error_msg, dict):
+            error_type = error_msg.get("type", "")
+            error_message = error_msg.get("m", "")
+            if (
+                "keepalive ping timeout" in error_message
+                or "ConnectionClosedError" in error_type
+            ):
+                # Suppress frequent logging of the same error
+                if (
+                    current_time - self._last_websocket_error_time
+                    > self._websocket_error_suppression_time
+                ):
+                    logger.warning(
+                        "WebSocket keepalive timeout detected. This is a known issue with "
+                        "python-binance + Python 3.12. Connection will auto-reconnect."
+                    )
+                    self._last_websocket_error_time = current_time
+                    self._websocket_error_count = 1
+                else:
+                    self._websocket_error_count += 1
+                if self._websocket_error_count > 20:
+                    logger.warning(
+                        "Excessive WebSocket reconnections detected (%d errors), "
+                        "will resubscribe all streams",
+                        self._websocket_error_count,
+                    )
+                    await self._resubscribe_all_strategies()
+                    self._websocket_error_count = 0
+                return
+
+        # Handle other WebSocket errors normally
+        logger.error("WebSocket error: %s", error_msg)
+
+    async def _monitor_ticker_timeout(self) -> None:
+        """Monitor for ticker timeout and trigger circuit breaker if no
+        ticker data for too long."""
+        logger.info(
+            "Starting ticker timeout monitoring (max silence: %d seconds)",
+            self._max_ticker_silence_duration,
+        )
+
+        while not self.stop_event.is_set():
+            try:
+                await asyncio.sleep(self._ticker_timeout_check_interval)
+
+                if self.stop_event.is_set():
+                    break
+
+                # Check if broker reports ticker timeout
+                if hasattr(self.broker, "_last_ticker_time") and hasattr(
+                    self.broker, "_ticker_timeout_threshold"
+                ):
+                    time_since_ticker = time.time() - self.broker._last_ticker_time
+                    if time_since_ticker > self._max_ticker_silence_duration:
+                        logger.error(
+                            "Backup circuit breaker triggered: ticker silent for %.1f seconds "
+                            "(max: %d seconds). Forcing WebSocket restart...",
+                            time_since_ticker,
+                            self._max_ticker_silence_duration,
+                        )
+
+                        # Trigger circuit breaker by simulating an unrecoverable error
+                        timeout_error = {
+                            "type": "TickerTimeoutError",
+                            "m": (
+                                f"Ticker silent for {time_since_ticker:.1f} seconds - "
+                                "backup circuit breaker activated"
+                            ),
+                        }
+                        await self._handle_websocket_error(timeout_error)
+                        return  # Exit monitoring after triggering restart
+
+            except asyncio.CancelledError:
+                logger.info("Ticker timeout monitoring task cancelled")
+                break
+            except Exception as e:
+                logger.error("Error in ticker timeout monitoring: %s", e)
+                await asyncio.sleep(10)  # Wait before retrying
+
+        logger.info("Ticker timeout monitoring stopped")
+
+    async def _resubscribe_all_strategies(self) -> None:
+        """Resubscribe all active strategies after excessive reconnections"""
+        logger.info("Resubscribing all active strategy WebSocket streams...")
+
+        for strategy_id, strategy in self.strategies.items():
+            try:
+                worker_queue = strategy.worker_queue
+
+                # Unsubscribe first
+                self.broker.unsubscribe(system_id=str(strategy_id))
+
+                # Wait a bit
+                await asyncio.sleep(1)
+
+                # Resubscribe to user data stream
+                self.broker.subscribe(
+                    system_id=str(strategy_id),
+                    subscription_info=SubscriptionInfo(
+                        data_type=SubscriptionType.USER,
+                        symbol=strategy.buy.data.config.symbol.name,
+                        target=SubscriptionTarget.BACKEND,
+                        queue=worker_queue,
+                    ),
+                )
+
+                # Resubscribe to price stream
+                self.broker.subscribe(
+                    system_id=str(strategy_id),
+                    subscription_info=SubscriptionInfo(
+                        data_type=SubscriptionType.PRICE,
+                        symbol=strategy.buy.data.config.symbol.name,
+                        target=SubscriptionTarget.BACKEND,
+                        queue=worker_queue,
+                    ),
+                )
+
+            except Exception as e:
+                logger.error("Failed to resubscribe strategy %s: %s", strategy_id, e)
+
+        logger.info("Finished resubscribing all strategies")

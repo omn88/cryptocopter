@@ -8,6 +8,11 @@ verifying their state with the exchange, and ensuring consistency.
 import logging
 from typing import List, Dict, Optional, Tuple, Any
 
+from binance.enums import (
+    ORDER_STATUS_FILLED,
+    ORDER_STATUS_NEW,
+)
+
 from src.database.trading_database import Database
 from src.identifiers import (
     BinanceClient,
@@ -21,6 +26,7 @@ from src.identifiers import (
     Mode,
 )
 from src.common.symbol import Symbol
+from src.strategies.hp_manager import HpStrategy
 from .models import (
     Position,
     Order as DatabaseOrder,
@@ -49,13 +55,13 @@ class RecoveryService:
         self,
         symbols: Dict[str, Symbol],
         database: Database,
-        client: BinanceClient,
     ):
-        self.database = database
-        self.client = client
+        self.db = database
         self.symbols = symbols
 
-    async def recover_all_positions(self) -> Tuple[List[HPBuy], List[HPSell]]:
+    async def recover_all_positions(
+        self, client: BinanceClient
+    ) -> Tuple[List[HPBuy], List[HPSell]]:
         """
         Recover all active positions from the database.
 
@@ -66,14 +72,14 @@ class RecoveryService:
 
         try:
             # Load all active positions from database
-            active_positions = await self.database.get_active_positions()
+            active_positions = await self.db.get_active_positions()
             logger.info("Found %d active positions in database", len(active_positions))
 
             logger.info("Active positions: %s", active_positions)
 
             # Verify positions with exchange
             verified_positions = await self._verify_positions_with_exchange(
-                active_positions
+                client, active_positions
             )
 
             # Group positions by type
@@ -102,7 +108,7 @@ class RecoveryService:
             raise RecoveryError(f"Failed to recover positions: {e}") from e
 
     async def _verify_positions_with_exchange(
-        self, positions: List[Position]
+        self, client: BinanceClient, positions: List[Position]
     ) -> List[Position]:
         """
         Verify position states with the exchange and update if necessary.
@@ -114,7 +120,7 @@ class RecoveryService:
         for position in positions:
             try:
                 # Get position orders from database
-                orders = await self.database.get_position_orders(position.id)
+                orders = await self.db.get_position_orders(position.id)
 
                 # Optimization: If all orders are FILLED, skip exchange verification
                 all_filled = all(
@@ -140,7 +146,7 @@ class RecoveryService:
                     if order.exchange_order_id:
                         # Check order status with exchange
                         try:
-                            exchange_order = await self.client.get_order(
+                            exchange_order = await client.get_order(
                                 symbol=order.symbol, orderId=order.exchange_order_id
                             )
 
@@ -160,7 +166,7 @@ class RecoveryService:
                                 )
 
                                 # Save updated order
-                                await self.database.save_order(order)
+                                await self.db.save_order(order)
 
                             updated_orders.append(order)
 
@@ -266,13 +272,13 @@ class RecoveryService:
             ):
                 # Try to find a related SELL position (same hp_id, type SELL)
                 related_sell_positions = []
-                if hasattr(self.database, "get_positions_by_hp_id"):
-                    related_sell_positions = await self.database.get_positions_by_hp_id(
+                if hasattr(self.db, "get_positions_by_hp_id"):
+                    related_sell_positions = await self.db.get_positions_by_hp_id(
                         position.hp_id, PositionType.SELL
                     )
                 # Fallback: try to get all positions and filter
-                elif hasattr(self.database, "get_active_positions"):
-                    all_positions = await self.database.get_active_positions()
+                elif hasattr(self.db, "get_active_positions"):
+                    all_positions = await self.db.get_active_positions()
                     related_sell_positions = [
                         p
                         for p in all_positions
@@ -282,10 +288,8 @@ class RecoveryService:
                 for sell_pos in related_sell_positions:
                     # Get all orders for the sell position
                     sell_orders = []
-                    if hasattr(self.database, "get_position_orders"):
-                        sell_orders = await self.database.get_position_orders(
-                            sell_pos.id
-                        )
+                    if hasattr(self.db, "get_position_orders"):
+                        sell_orders = await self.db.get_position_orders(sell_pos.id)
                     # If any sell order is CANCELED and realized_quantity > 0, set PARTIALLY_SOLD
                     for so in sell_orders:
                         so_status = (
@@ -311,7 +315,7 @@ class RecoveryService:
                 e,
             )
 
-        await self.database.save_position(position)
+        await self.db.save_position(position)
         return position
 
     def _convert_to_state_info_state(
@@ -563,7 +567,7 @@ class RecoveryService:
         """
         try:
             active_positions = (
-                await self.database.get_active_positions()
+                await self.db.get_active_positions()
             )  # Group by parent positions
             multihop_chains: Dict[str, List[Position]] = {}
 
@@ -609,7 +613,7 @@ class RecoveryService:
                 "broken_hierarchies": [],
             }
 
-            positions = await self.database.get_active_positions()
+            positions = await self.db.get_active_positions()
 
             for position in positions:
                 # Check if symbol info exists
@@ -627,7 +631,7 @@ class RecoveryService:
                         )
 
                 # Check orders
-                orders = await self.database.get_position_orders(position.id)
+                orders = await self.db.get_position_orders(position.id)
                 for order in orders:
                     if order.position_id != position.id:
                         issues["orphaned_orders"].append(order.id)
@@ -637,3 +641,115 @@ class RecoveryService:
         except Exception as e:
             logger.error("Failed to validate recovery integrity: %s", e)
             return {"validation_error": str(e)}
+
+    async def get_strategy_state_from_db(self, hp_id: str) -> Optional[str]:
+        """
+        Get the strategy execution state for a given HP ID from the database.
+
+        Args:
+            hp_id: The HP ID to query for
+
+        Returns:
+            The strategy_state string from the database, or None if not found
+        """
+        try:
+            async with self.db.get_connection() as conn:
+                cursor = await conn.execute(
+                    "SELECT strategy_state FROM positions WHERE hp_id = ? LIMIT 1",
+                    (hp_id,),
+                )
+                row = await cursor.fetchone()
+                if row:
+                    return row["strategy_state"]
+                logger.warning("No strategy state found for HP ID: %s", hp_id)
+                return None
+        except Exception as e:
+            logger.error("Failed to get strategy state for HP %s: %s", hp_id, e)
+            return None
+
+    def restore_current_sell_position_for_multihop(self, strategy: HpStrategy) -> None:
+        """
+        If this is a two-hop sell, and the first leg is FILLED,
+        advance current_position to the second leg.
+        """
+        sell_positions = strategy.sell.sell_positions
+        if sell_positions and len(sell_positions) == 2:
+            first_leg = sell_positions[0]
+            second_leg = sell_positions[1]
+            if first_leg.sell_order.status == ORDER_STATUS_FILLED:
+                # Advance current_position to the second leg
+                strategy.sell.current_position = second_leg
+                logger.info(
+                    "[Recovery] Advanced current_position to second leg after first leg FILLED: %s",
+                    second_leg.config.hp_id,
+                )
+
+    async def restore_all_child_sell_positions_for_multihop(self, strategy: HpStrategy):
+        """
+        For two-hop sells, after recovery, restore both child sell positions (e.g., hp_id ending with 'a' and 'b') from DB.
+        Set their orders and state, and set current_position to the correct child based on the status of the child positions in the DB.
+        """
+        sell_positions = strategy.sell.sell_positions
+        if not (sell_positions and len(sell_positions) == 2):
+            return
+
+        # Restore each child sell position's order from DB (as before)
+        for pos in sell_positions:
+            orders = await self.db.fetch_orders_for_price_level(
+                hp_id=pos.config.hp_id, side=PositionSide.SHORT.value
+            )
+            if orders:
+                order_dict = orders[0]
+                pos.sell_order.order_id = order_dict["order_id"]
+                pos.sell_order.quantity = order_dict["quantity"]
+                pos.sell_order.precision = pos.config.symbol.precision
+                pos.sell_order.price_precision = pos.config.symbol.price_precision
+                pos.sell_order.price = order_dict["price"]
+                pos.sell_order.quantity_stable = order_dict["quantity_stable"]
+                pos.sell_order.realized_quantity = order_dict["realized_quantity"]
+                pos.sell_order.status = order_dict["status"]
+                logger.info(
+                    "[Recovery] Patched sell order for child %s: %s",
+                    pos.config.hp_id,
+                    pos.sell_order,
+                )
+            else:
+                logger.info(
+                    "[Recovery] No sell orders found in DB for child %s",
+                    pos.config.hp_id,
+                )
+
+        # Set current_position based on child leg order status
+        first_leg = sell_positions[0]
+        second_leg = sell_positions[1]
+        first_status = first_leg.sell_order.status
+        second_status = second_leg.sell_order.status
+
+        if first_status == ORDER_STATUS_FILLED:
+            strategy.sell.current_position = second_leg
+            logger.info(
+                "[Recovery] Set current_position to second leg after first leg FILLED: %s",
+                second_leg.config.hp_id,
+            )
+        elif first_status in [ORDER_STATUS_NEW, "PARTIALLY_FILLED", "SUBMITTED"]:
+            strategy.sell.current_position = first_leg
+            logger.info(
+                "[Recovery] Set current_position to first leg (open): %s",
+                first_leg.config.hp_id,
+            )
+        elif second_status in [ORDER_STATUS_NEW, "PARTIALLY_FILLED", "SUBMITTED"]:
+            strategy.sell.current_position = second_leg
+            logger.info(
+                "[Recovery] Set current_position to second leg (open): %s",
+                second_leg.config.hp_id,
+            )
+        else:
+            # Fallback: set to 'b' if present
+            for pos in sell_positions:
+                if pos.config.hp_id.endswith("b"):
+                    strategy.sell.current_position = pos
+                    logger.info(
+                        "[Recovery] Fallback: Set current_position to child leg 'b': %s",
+                        pos.config.hp_id,
+                    )
+                    break
