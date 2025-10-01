@@ -550,6 +550,7 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
             client=mock_async_client,
             balance=10000.0,  # Set balance higher than budget (1000.0) to allow trading
             ui_queue=queue.Queue(),
+            portfolio_ui_queue=queue.Queue(),  # Add missing parameter
             worker_queue=worker_queue,
             config_queue=queue.Queue(),
             db=test_db,

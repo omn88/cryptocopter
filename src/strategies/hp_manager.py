@@ -1,7 +1,7 @@
 import asyncio
 import queue
 import logging
-from typing import Optional, Callable
+from typing import Any, Optional, Callable
 from transitions.extensions.asyncio import AsyncMachine
 from binance.enums import (
     ORDER_STATUS_NEW,
@@ -55,13 +55,13 @@ class HpStrategy:
         client: BinanceClient,
         balance: float,
         ui_queue: queue.Queue,
+        portfolio_ui_queue: Optional[queue.Queue],
         worker_queue: queue.Queue,
         config_queue: queue.Queue,
         db: Database,
         buy_position: HPPositionBuy,
         sell_position: HPPositionSell,
         initial_state: State = State.NEW,
-        portfolio_event_callback: Optional[Callable] = None,
     ):
         self.client = client
         self.balance = balance
@@ -70,11 +70,13 @@ class HpStrategy:
         self.worker_queue = worker_queue
         self.config_queue = config_queue
         self.ui_queue = ui_queue
+        self.portfolio_ui_queue = portfolio_ui_queue
         self.buy = buy_position
         self.sell = sell_position
-        self.portfolio_event_callback = (
-            portfolio_event_callback  # Callback to send HP events to portfolio
-        )
+        # Initialize callback - this can be None in test scenarios
+        self.portfolio_event_callback: Optional[Callable[[EventName, Any], None]] = None
+        if self.portfolio_ui_queue is not None:
+            self.portfolio_event_callback = self._send_hp_event_to_portfolio
 
         # Initialize any other common attributes
         self.signal_update: SignalUpdate = SignalUpdate()
@@ -109,6 +111,31 @@ class HpStrategy:
         self.worker_task: Optional[asyncio.Task] = (
             None  # Track the worker task for cleanup
         )
+
+    def _send_hp_event_to_portfolio(
+        self, event_name: EventName, event_data: Any
+    ) -> None:
+        """Send HP events to portfolio for quantity management."""
+        if self.portfolio_ui_queue is None:
+            logger.warning(
+                "[STRATEGY EXECUTOR] Portfolio UI queue is None - cannot send HP event"
+            )
+            return
+
+        try:
+            event = Event(name=event_name, content=event_data)
+            self.portfolio_ui_queue.put_nowait(event)
+            logger.info(
+                "[STRATEGY EXECUTOR] Sent HP event to portfolio: %s", event_name.value
+            )
+            if event_name == EventName.HP_POSITION_CANCELLED:
+                logger.info(
+                    "[STRATEGY EXECUTOR] Cancellation event details: %s", event_data
+                )
+        except Exception as e:
+            logger.error(
+                "[STRATEGY EXECUTOR] Failed to send HP event to portfolio: %s", e
+            )
 
     def _send_portfolio_event(self, event_name, event_data):
         """Send HP events to portfolio via callback."""

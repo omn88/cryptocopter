@@ -5,27 +5,38 @@ This module handles the complex task of restoring all active positions,
 verifying their state with the exchange, and ensuring consistency.
 """
 
+import asyncio
+from collections import defaultdict
 import logging
+import queue
 from typing import List, Dict, Optional, Tuple, Any
 
-from binance.enums import (
-    ORDER_STATUS_FILLED,
-    ORDER_STATUS_NEW,
-)
+from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_NEW, ORDER_STATUS_CANCELED
 
+from src.broker import BrokerSpot
 from src.database.trading_database import Database
 from src.identifiers import (
     BinanceClient,
+    Event,
+    EventName,
+    ExecutionReport,
     HPBuyConfig,
     HPBuy,
     HPSellConfig,
     HPSell,
+    Order,
+    SellPosition,
     StateInfo,
     State,
     PositionSide,
     Mode,
+    SubscriptionInfo,
+    SubscriptionTarget,
+    SubscriptionType,
 )
 from src.common.symbol import Symbol
+from src.position_buy import HPPositionBuy
+from src.position_sell import HPPositionSell
 from src.strategies.hp_manager import HpStrategy
 from .models import (
     Position,
@@ -52,12 +63,11 @@ class RecoveryService:
     """
 
     def __init__(
-        self,
-        symbols: Dict[str, Symbol],
-        database: Database,
+        self, symbols: Dict[str, Symbol], database: Database, broker: BrokerSpot
     ):
         self.db = database
         self.symbols = symbols
+        self.broker = broker
 
     async def recover_all_positions(
         self, client: BinanceClient
@@ -106,6 +116,253 @@ class RecoveryService:
 
         except Exception as e:
             raise RecoveryError(f"Failed to recover positions: {e}") from e
+
+    async def restore_buy_position(
+        self,
+        buy_data: HPBuy,
+        client: BinanceClient,
+        ui_queue,
+        balance,
+        config_queue,
+        price_resolver,
+        portfolio_ui_queue=None,
+    ) -> HpStrategy:
+        """
+        Restore a buy position from crash recovery with its existing HP ID and state.
+        Uses the normal setup process but with restoration flag to preserve state.
+        """
+        logger.info("Restoring buy position: %s", buy_data.config.hp_id)
+
+        worker_queue: queue.Queue = queue.Queue()
+        assert client is not None
+
+        logger.info("Creating HpStrategy for HP %s", buy_data.config.hp_id)
+        strategy = HpStrategy(
+            client=client,
+            ui_queue=ui_queue,
+            balance=balance,
+            db=self.db,
+            worker_queue=worker_queue,
+            config_queue=config_queue,
+            buy_position=HPPositionBuy(
+                client=client,
+                data=buy_data,
+                db=self.db,
+            ),
+            sell_position=HPPositionSell(
+                client=client,
+                original_position=SellPosition(
+                    config=HPSellConfig(
+                        hp_id=buy_data.config.hp_id,
+                        symbol=buy_data.config.symbol,
+                        coin=buy_data.config.coin,
+                    ),
+                    state_info=StateInfo(side=PositionSide.SHORT),
+                    sell_order=Order(quantity=0.0),
+                ),
+                db=self.db,
+                sell_strategy=[],
+                price_resolver=price_resolver,
+                broker=self.broker,
+                worker_queue=worker_queue,
+            ),
+            # Pass callback for portfolio events
+            portfolio_ui_queue=portfolio_ui_queue,
+        )
+
+        assert isinstance(strategy.buy.data.config, HPBuyConfig)
+        logger.info("HpStrategy created successfully for HP %s", buy_data.config.hp_id)
+
+        # Restore existing buy orders from database instead of creating new ones
+        strategy.buy.orders = await self.restore_buy_orders(
+            buy_position=strategy.buy, worker_queue=worker_queue, client=client
+        )
+
+        # --- Patch: recalculate state from orders after restoration ---
+        # Completeness calculation for buy orders
+        all_filled = all(
+            order.status == ORDER_STATUS_FILLED for order in strategy.buy.orders
+        )
+        part_bought = any(order.realized_quantity > 0 for order in strategy.buy.orders)
+
+        strategy.buy.data.state_info.state = (
+            State.BOUGHT
+            if all_filled
+            else State.NEW if not part_bought else State.PARTIALLY_BOUGHT
+        )
+
+        # --- Restore sell position state and orders if they exist in DB ---
+        sell_orders = await self.db.fetch_orders_for_price_level(
+            hp_id=buy_data.config.hp_id, side=PositionSide.SHORT.value
+        )
+        logger.info("[Recovery] fetch_orders_for_price_level returned: %s", sell_orders)
+        if sell_orders:
+            logger.info(
+                "[Recovery] Found %d sell orders for HP %s",
+                len(sell_orders),
+                buy_data.config.hp_id,
+            )
+            db_order = sell_orders[0]
+            logger.info("[Recovery] Restoring sell order fields from DB: %s", db_order)
+            strategy.sell.current_position.sell_order.order_id = db_order["order_id"]
+            strategy.sell.current_position.sell_order.quantity = db_order["quantity"]
+            strategy.sell.current_position.sell_order.precision = (
+                strategy.sell.current_position.config.symbol.precision
+            )
+            strategy.sell.current_position.sell_order.price_precision = (
+                strategy.sell.current_position.config.symbol.price_precision
+            )
+            strategy.sell.current_position.sell_order.price = db_order["price"]
+            strategy.sell.current_position.sell_order.quantity_stable = db_order[
+                "quantity_stable"
+            ]
+            strategy.sell.current_position.sell_order.realized_quantity = db_order[
+                "realized_quantity"
+            ]
+            strategy.sell.current_position.sell_order.status = db_order["status"]
+            logger.info(
+                "[Recovery] Patched sell order for HP %s: %s",
+                buy_data.config.hp_id,
+                strategy.sell.current_position.sell_order,
+            )
+        else:
+            logger.info(
+                "[Recovery] No sell orders found in DB for HP %s",
+                buy_data.config.hp_id,
+            )
+
+        strategy_state_str = await self.get_strategy_state_from_db(
+            buy_data.config.hp_id
+        )
+        strategy.state = State(strategy_state_str)
+        logger.info(
+            "strategy.state restored from DB for restoration: %s",
+            strategy.state,
+        )
+        logger.info("buy data state preserved as: %s", buy_data.state_info.state)
+
+        # Strategy management should be handled by StrategyExecutor
+        # Return the strategy so StrategyExecutor can manage it
+        return strategy
+        self.broker.subscribe(
+            system_id=str(buy_data.config.hp_id),
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.USER,
+                symbol=buy_data.config.symbol.name,
+                target=SubscriptionTarget.BACKEND,
+                queue=worker_queue,
+            ),
+        )
+        self.broker.subscribe(
+            system_id=str(buy_data.config.hp_id),
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.PRICE,
+                symbol=buy_data.config.symbol.name,
+                target=SubscriptionTarget.BACKEND,
+                queue=worker_queue,
+            ),
+        )
+
+        await self.db.upsert_buy_price_level(
+            data=strategy.buy.data, strategy_state=strategy.state
+        )
+
+        strategy.worker_task = asyncio.create_task(strategy.worker())
+        logger.info("System with ID %s restored.", buy_data.config.hp_id)
+
+    async def restore_buy_orders(
+        self,
+        buy_position: HPPositionBuy,
+        worker_queue: queue.Queue,
+        client: BinanceClient,
+    ) -> List[Order]:
+        buy_config = buy_position.data.config  # Restore orders for buy position
+
+        # Use the dedicated method to fetch all orders for this HP and side
+        orders = await self.db.fetch_orders_for_price_level(
+            hp_id=buy_config.hp_id, side=PositionSide.LONG.value
+        )
+
+        logger.info("Orders for HP: %s, %s", buy_config.hp_id, orders)
+        if not orders:
+            buy_position.prepare_orders()
+            return buy_position.orders
+
+        grouped_orders = defaultdict(list)
+        for order_dict in orders:
+            key = (order_dict["price"], order_dict["quantity"])
+            grouped_orders[key].append(order_dict)
+
+        restored_orders: List[Order] = []
+        for (_, _), order_dicts in grouped_orders.items():
+            # Aggregate realized_quantity from all orders for this price level
+            total_realized = sum(o["realized_quantity"] for o in order_dicts)
+            # Find the latest open order (not FILLED or CANCELED), else the latest order
+            open_orders = [
+                o
+                for o in order_dicts
+                if o["status"] not in [ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED]
+            ]
+            if open_orders:
+                # Use the latest open order (by order_id or timestamp if available)
+                latest_order = max(open_orders, key=lambda o: o.get("order_id", 0))
+            else:
+                # Use the latest order overall
+                latest_order = max(order_dicts, key=lambda o: o.get("order_id", 0))
+
+            trading_order = Order(
+                order_id=latest_order["order_id"],
+                quantity=latest_order["quantity"],
+                precision=buy_config.symbol.precision,
+                price_precision=buy_config.symbol.price_precision,
+                price=latest_order["price"],
+                quantity_stable=latest_order["quantity_stable"],
+                realized_quantity=total_realized,
+                status=latest_order["status"],
+            )
+            restored_orders.append(trading_order)
+
+        logger.info("Buy orders restored from DB (aggregated): %s.", restored_orders)
+
+        # Confirm buy position state with the exchange for open orders
+        for order in restored_orders:
+            if order.status not in [ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED]:
+                # Retrieve the latest order information from the API
+                resp = await client.get_order(
+                    symbol=buy_config.symbol.name,
+                    orderId=order.order_id,
+                )
+                latest_status = resp["status"]
+                latest_realized_quantity = float(resp["executedQty"])
+
+                # Check if status or realized quantity has changed
+                status_changed = latest_status != order.status
+                quantity_changed = latest_realized_quantity != order.realized_quantity
+
+                if status_changed or quantity_changed:
+                    ex_report = ExecutionReport(
+                        symbol=buy_config.symbol.name,
+                        quantity=order.quantity,
+                        price=order.price,
+                        current_order_status=latest_status,
+                        order_id=order.order_id,
+                        cumulative_filled_quantity=latest_realized_quantity,
+                    )
+                    worker_queue.put_nowait(
+                        Event(
+                            name=EventName.EXECUTION_REPORT,
+                            content=ex_report,
+                        )
+                    )
+                    logger.info(
+                        "Order %s has been modified, execution report send: %s",
+                        order.order_id,
+                        ex_report,
+                    )
+                else:
+                    logger.info("No changes detected for order %s.", order.order_id)
+
+        return restored_orders
 
     async def _verify_positions_with_exchange(
         self, client: BinanceClient, positions: List[Position]
