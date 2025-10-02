@@ -14,6 +14,7 @@ from typing import List, Dict, Optional, Tuple, Any
 from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_NEW, ORDER_STATUS_CANCELED
 
 from src.broker import BrokerSpot
+from src.common.helpers import determine_sell_strategy
 from src.database.trading_database import Database
 from src.identifiers import (
     BinanceClient,
@@ -26,6 +27,7 @@ from src.identifiers import (
     HPSell,
     Order,
     SellPosition,
+    SellType,
     StateInfo,
     State,
     PositionSide,
@@ -33,6 +35,7 @@ from src.identifiers import (
     SubscriptionInfo,
     SubscriptionTarget,
     SubscriptionType,
+    UiState,
 )
 from src.common.symbol import Symbol
 from src.position_buy import HPPositionBuy
@@ -363,6 +366,274 @@ class RecoveryService:
                     logger.info("No changes detected for order %s.", order.order_id)
 
         return restored_orders
+
+    async def restore_sell_position(
+        self,
+        sell_data: HPSell,
+        client: BinanceClient,
+        ui_queue,
+        balance,
+        config_queue,
+        price_resolver,
+        portfolio_ui_queue=None,
+    ) -> HpStrategy:
+        """
+        Restore a sell position from crash recovery with its existing HP ID and state.
+        Uses the normal setup process but with restoration flag to preserve state.
+        """
+        # Convert HPSell to SellPosition format expected by setup method
+        sell_position = SellPosition(
+            config=sell_data.config,
+            state_info=sell_data.state_info,
+            sell_order=Order(quantity=sell_data.config.quantity),
+        )
+
+        # Determine sell strategy for this position
+        sell_strategy = determine_sell_strategy(
+            config=sell_data.config, symbols=self.symbols
+        )
+
+        # For restored positions, extract parent ID for strategy registration
+        full_hp_id = sell_position.config.hp_id
+        if "_CONVERT" in full_hp_id:
+            parent_hp_id = full_hp_id.split("_CONVERT")[0]
+        elif "_SELL" in full_hp_id:
+            parent_hp_id = full_hp_id.split("_SELL")[0]
+        else:
+            parent_hp_id = full_hp_id
+        logger.info(
+            "Setting up NEW SELL position with config: %s", sell_position.config
+        )
+
+        worker_queue: queue.Queue = queue.Queue()
+
+        strategy = HpStrategy(
+            client=client,
+            ui_queue=ui_queue,
+            buy_position=HPPositionBuy(
+                client=client,
+                data=HPBuy(
+                    config=HPBuyConfig(
+                        hp_id=parent_hp_id,
+                        symbol=sell_position.config.symbol,
+                        coin=sell_position.config.coin,
+                    ),
+                    state_info=StateInfo(ui_state=UiState.CLOSED, state=State.BOUGHT),
+                ),
+                db=self.db,
+            ),
+            sell_position=HPPositionSell(
+                client=client,
+                original_position=SellPosition(
+                    config=sell_position.config,
+                    state_info=sell_position.state_info,
+                    sell_order=Order(quantity=sell_position.config.quantity),
+                    sell_type=(
+                        SellType.TWOHOPS
+                        if len(sell_strategy) == 2
+                        else (
+                            SellType.CONVERT
+                            if sell_strategy[0].is_convert_only
+                            else SellType.DIRECT
+                        )
+                    ),
+                ),
+                db=self.db,
+                sell_strategy=sell_strategy,
+                price_resolver=price_resolver,
+                broker=self.broker,
+                worker_queue=worker_queue,
+                is_restoration=True,
+            ),
+            balance=balance,
+            db=self.db,
+            worker_queue=worker_queue,
+            config_queue=config_queue,
+            initial_state=State.BOUGHT,
+            portfolio_ui_queue=portfolio_ui_queue,
+        )
+
+        config = strategy.sell.current_position.config
+
+        # Restore existing sell orders from database
+        sell_order = await self.restore_sell_orders(
+            sell_config=strategy.sell.current_position.config,
+            worker_queue=worker_queue,
+            client=client,
+        )
+        if sell_order:
+            strategy.sell.current_position.sell_order = sell_order
+
+        # --- Restore buy position state and orders if they exist in DB ---
+        # Check if there are buy orders for this hp_id
+        buy_orders = await self.db.fetch_orders_for_price_level(
+            hp_id=parent_hp_id, side=PositionSide.LONG.value
+        )
+        if buy_orders:
+            # Use the existing restore_buy_orders logic to populate strategy.buy.orders
+            strategy.buy.orders = await self.restore_buy_orders(
+                buy_position=strategy.buy,
+                worker_queue=worker_queue,
+                client=client,
+            )
+            strategy_state_str = await self.get_strategy_state_from_db(parent_hp_id)
+            strategy.state = State(strategy_state_str)
+
+            # Set buy state based on actual buy order statuses
+            all_filled = all(
+                o.status == ORDER_STATUS_FILLED for o in strategy.buy.orders
+            )
+            all_new = all(o.status == ORDER_STATUS_NEW for o in strategy.buy.orders)
+
+            if all_filled:
+                strategy.buy.data.state_info.state = State.BOUGHT
+            elif all_new:
+                strategy.buy.data.state_info.state = State.NEW
+            elif any(o.realized_quantity > 0 for o in strategy.buy.orders):
+                strategy.buy.data.state_info.state = State.PARTIALLY_BOUGHT
+            else:
+                strategy.buy.data.state_info.state = State.CLOSED
+
+        logger.info(
+            "Before restoration, current_position: %s",
+            strategy.sell.current_position,
+        )
+        self.restore_current_sell_position_for_multihop(strategy)
+        await self.restore_all_child_sell_positions_for_multihop(strategy)
+
+        logger.info("Current position: %s", strategy.sell.current_position)
+
+        self.broker.subscribe(
+            system_id=str(parent_hp_id),
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.USER,
+                symbol=config.symbol.name,
+                target=SubscriptionTarget.BACKEND,
+                queue=worker_queue,
+            ),
+        )
+        for symbol in sell_strategy:
+            self.broker.subscribe(
+                system_id=str(parent_hp_id),
+                subscription_info=SubscriptionInfo(
+                    data_type=SubscriptionType.PRICE,
+                    symbol=symbol.name,
+                    target=SubscriptionTarget.BACKEND,
+                    queue=worker_queue,
+                ),
+            )
+
+        await self.db.upsert_sell_price_level(
+            data=strategy.sell.current_position, strategy_state=strategy.state
+        )
+
+        # For two-hop scenarios, save all sell positions to database (not just current position)
+        if len(strategy.sell.sell_positions) > 1:
+            for position in strategy.sell.sell_positions:
+                if (
+                    position != strategy.sell.current_position
+                ):  # Don't duplicate the current position
+                    logger.info(
+                        "[MULTIHOP DEBUG] Saving additional position to DB: %s",
+                        position.config.hp_id,
+                    )
+                    await self.db.upsert_sell_price_level(
+                        data=position, strategy_state=strategy.state
+                    )
+
+        strategy.worker_task = asyncio.create_task(strategy.worker())
+
+        logger.info("Sell position %s restored successfully", sell_data.config.hp_id)
+
+        return strategy
+
+    async def restore_sell_orders(
+        self,
+        sell_config: HPSellConfig,
+        worker_queue: queue.Queue,
+        client: BinanceClient,
+    ) -> Optional[Order]:
+
+        # Use the dedicated method to fetch orders for this HP and side
+        orders = await self.db.fetch_orders_for_price_level(
+            hp_id=sell_config.hp_id,
+            side=PositionSide.SHORT.value,
+        )
+
+        if not orders:
+            logger.info("No sell orders found in DB")
+            return None
+
+        if len(orders) == 2:
+            for order in orders:
+                if order["status"] == ORDER_STATUS_NEW:
+                    current_order = order
+                    break
+        if len(orders) == 1:
+            current_order = orders[0]
+
+        # Convert order dictionaries to trading Order objects
+        # Only restore orders that are not filled or canceled
+        logger.info(
+            "Restoring order %s with status %s",
+            current_order["order_id"],
+            current_order["status"],
+        )
+        trading_order = Order(
+            order_id=current_order["order_id"],
+            quantity=current_order["quantity"],
+            precision=sell_config.symbol.precision,
+            price_precision=sell_config.symbol.price_precision,
+            price=current_order["price"],
+            quantity_stable=current_order["quantity_stable"],
+            realized_quantity=current_order["realized_quantity"],
+            status=current_order["status"],
+        )
+
+        logger.info("Sell orders restored from DB: %s.", trading_order)
+
+        if current_order["status"] not in [ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED]:
+            # Retrieve the latest order information from the API
+            resp = await client.get_order(
+                symbol=sell_config.symbol.name,
+                orderId=current_order["order_id"],
+            )
+            latest_status = resp["status"]
+            latest_realized_quantity = float(resp["executedQty"])
+
+            # Check if status or realized quantity has changed
+            status_changed = latest_status != current_order["status"]
+            quantity_changed = (
+                latest_realized_quantity != current_order["realized_quantity"]
+            )
+
+            if status_changed or quantity_changed:
+                # Send a message to the appropriate queue
+
+                ex_report = ExecutionReport(
+                    symbol=sell_config.symbol.name,
+                    quantity=current_order["quantity"],
+                    price=current_order["price"],
+                    current_order_status=latest_status,
+                    order_id=current_order["order_id"],
+                    cumulative_filled_quantity=latest_realized_quantity,
+                )
+                worker_queue.put_nowait(
+                    Event(
+                        name=EventName.EXECUTION_REPORT,
+                        content=ex_report,
+                    )
+                )
+                logger.info(
+                    "Order %s has been modified, execution report send: %s",
+                    current_order["order_id"],
+                    ex_report,
+                )
+            else:
+                logger.info(
+                    "No changes detected for order %s.", current_order["order_id"]
+                )
+        return trading_order
 
     async def _verify_positions_with_exchange(
         self, client: BinanceClient, positions: List[Position]

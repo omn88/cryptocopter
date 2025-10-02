@@ -2,9 +2,11 @@ import errno
 import logging
 import os
 from datetime import datetime, timezone
-from typing import List
+from typing import Dict, List
 import pytz
-from src.identifiers import BinanceClient
+
+from src.common.symbol import Symbol
+from src.identifiers import HPSellConfig
 
 logger = logging.getLogger("common")
 
@@ -54,3 +56,98 @@ def convert_time(timestamp):
     formatted_poland_time = poland_time.strftime("%Y-%m-%d %H:%M:%S")
 
     return formatted_poland_time
+
+
+def determine_sell_strategy(
+    config: HPSellConfig, symbols: Dict[str, Symbol]
+) -> List[Symbol]:
+    delisted_coins = {
+        "USDT",
+        "FDUSD",
+        "TUSD",
+        "USDP",
+        "DAI",
+        "AEUR",
+        "UST",
+        "USTC",
+        "PAXG",
+    }
+
+    strategy = []
+    coin = config.coin
+    end_currency = config.end_currency
+
+    if end_currency == "PLN":
+        # Priority 1: Direct pair to PLN
+        if f"{coin}PLN" in symbols:
+            strategy.append(symbols[f"{coin}PLN"])
+            return strategy
+
+        # Priority 2: coinUSDC + USDCPLN
+        if f"{coin}USDC" in symbols and "USDCPLN" in symbols:
+            strategy.append(symbols[f"{coin}USDC"])
+            strategy.append(symbols["USDCPLN"])
+            return strategy
+
+        # Priority 3: coinBTC + BTCPLN
+        if (
+            coin not in delisted_coins
+            and f"{coin}BTC" in symbols
+            and "BTCPLN" in symbols
+        ):
+            strategy.append(symbols[f"{coin}BTC"])
+            strategy.append(symbols["BTCPLN"])
+            return strategy
+
+        # Priority 4: coinBNB + BNBPLN
+        if (
+            coin not in delisted_coins
+            and f"{coin}BNB" in symbols
+            and "BNBPLN" in symbols
+        ):
+            strategy.append(symbols[f"{coin}BNB"])
+            strategy.append(symbols["BNBPLN"])
+            return strategy
+
+        # Priority 5: Converting
+        # Use USDT symbol for convert operations - ending with USDT indicates conversion
+        symbol = symbols[f"{coin}USDT"]
+        symbol.is_convert_only = True
+        strategy.append(symbol)
+        return strategy
+
+    if end_currency == "USDC":
+        # Priority 1: coinUSDC
+        if f"{coin}USDC" in symbols:
+            strategy.append(symbols[f"{coin}USDC"])
+            return strategy
+
+        # Priority 2: coinBTC + BTCUSDC
+        if (
+            coin not in delisted_coins
+            and f"{coin}BTC" in symbols
+            and "BTCUSDC" in symbols
+        ):
+            strategy.append(symbols[f"{coin}BTC"])
+            strategy.append(symbols["BTCUSDC"])
+            return strategy
+
+        # Priority 3: Exotic coinXYZ + XYZUSDC
+        if coin not in delisted_coins:
+            for pair in symbols:
+                if pair.startswith(coin):
+                    quote = pair.replace(coin, "")
+                    if quote in delisted_coins:
+                        continue
+                    if f"{quote}USDC" in symbols:
+                        strategy.append(symbols[pair])
+                        strategy.append(symbols[f"{quote}USDC"])
+                        return strategy
+
+        # Priority 4: Converting
+        # Use USDT symbol for convert operations - ending with USDT indicates conversion
+        symbol = symbols[f"{coin}USDT"]
+        symbol.is_convert_only = True
+        strategy.append(symbol)
+        return strategy
+    return []

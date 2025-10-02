@@ -11,7 +11,7 @@ from binance.enums import (
     ORDER_STATUS_FILLED,
     ORDER_STATUS_NEW,
 )
-from src.common.helpers import generate_hp_id
+from src.common.helpers import determine_sell_strategy, generate_hp_id
 from src.database import Database
 from src.identifiers import (
     Event,
@@ -150,8 +150,8 @@ class StrategyExecutor:
                 if isinstance(strategy_data, HPBuy):
                     asyncio.create_task(self.setup_buy_position(new_hp=strategy_data))
                 if isinstance(strategy_data, HPSell):
-                    sell_strategy = self.determine_sell_strategy(
-                        config=strategy_data.config
+                    sell_strategy = determine_sell_strategy(
+                        config=strategy_data.config, symbols=self.price_resolver.symbols
                     )
                     logger.info("Sell strategy determined: %s", sell_strategy)
                     # Patch: Set symbol if convert-only or USDC
@@ -185,99 +185,6 @@ class StrategyExecutor:
 
             except queue.Empty:
                 await asyncio.sleep(0.1)
-
-    def determine_sell_strategy(self, config: HPSellConfig) -> List[Symbol]:
-        delisted_coins = {
-            "USDT",
-            "FDUSD",
-            "TUSD",
-            "USDP",
-            "DAI",
-            "AEUR",
-            "UST",
-            "USTC",
-            "PAXG",
-        }
-
-        strategy = []
-        coin = config.coin
-        end_currency = config.end_currency
-        symbols = self.price_resolver.symbols
-
-        if end_currency == "PLN":
-            # Priority 1: Direct pair to PLN
-            if f"{coin}PLN" in symbols:
-                strategy.append(symbols[f"{coin}PLN"])
-                return strategy
-
-            # Priority 2: coinUSDC + USDCPLN
-            if f"{coin}USDC" in symbols and "USDCPLN" in symbols:
-                strategy.append(symbols[f"{coin}USDC"])
-                strategy.append(symbols["USDCPLN"])
-                return strategy
-
-            # Priority 3: coinBTC + BTCPLN
-            if (
-                coin not in delisted_coins
-                and f"{coin}BTC" in symbols
-                and "BTCPLN" in symbols
-            ):
-                strategy.append(symbols[f"{coin}BTC"])
-                strategy.append(symbols["BTCPLN"])
-                return strategy
-
-            # Priority 4: coinBNB + BNBPLN
-            if (
-                coin not in delisted_coins
-                and f"{coin}BNB" in symbols
-                and "BNBPLN" in symbols
-            ):
-                strategy.append(symbols[f"{coin}BNB"])
-                strategy.append(symbols["BNBPLN"])
-                return strategy
-
-            # Priority 5: Converting
-            # Use USDT symbol for convert operations - ending with USDT indicates conversion
-            symbol = symbols[f"{coin}USDT"]
-            symbol.is_convert_only = True
-            strategy.append(symbol)
-            return strategy
-
-        if end_currency == "USDC":
-            # Priority 1: coinUSDC
-            if f"{coin}USDC" in symbols:
-                strategy.append(symbols[f"{coin}USDC"])
-                return strategy
-
-            # Priority 2: coinBTC + BTCUSDC
-            if (
-                coin not in delisted_coins
-                and f"{coin}BTC" in symbols
-                and "BTCUSDC" in symbols
-            ):
-                strategy.append(symbols[f"{coin}BTC"])
-                strategy.append(symbols["BTCUSDC"])
-                return strategy
-
-            # Priority 3: Exotic coinXYZ + XYZUSDC
-            if coin not in delisted_coins:
-                for pair in symbols:
-                    if pair.startswith(coin):
-                        quote = pair.replace(coin, "")
-                        if quote in delisted_coins:
-                            continue
-                        if f"{quote}USDC" in symbols:
-                            strategy.append(symbols[pair])
-                            strategy.append(symbols[f"{quote}USDC"])
-                            return strategy
-
-            # Priority 4: Converting
-            # Use USDT symbol for convert operations - ending with USDT indicates conversion
-            symbol = symbols[f"{coin}USDT"]
-            symbol.is_convert_only = True
-            strategy.append(symbol)
-            return strategy
-        return []
 
     def stop(self) -> None:
         logger.info("Stopping strategy executor, stop event SET.")
@@ -648,21 +555,10 @@ class StrategyExecutor:
         self,
         strategy_data: SellPosition,
         sell_strategy: List[Symbol],
-        is_restoration: bool = False,
     ) -> None:
         # For restoration, preserve existing HP ID; for new positions, generate new one
-        if not is_restoration:
-            parent_hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
-            strategy_data.config.hp_id = parent_hp_id
-        else:
-            # For restored positions, extract parent ID for strategy registration
-            full_hp_id = strategy_data.config.hp_id
-            if "_CONVERT" in full_hp_id:
-                parent_hp_id = full_hp_id.split("_CONVERT")[0]
-            elif "_SELL" in full_hp_id:
-                parent_hp_id = full_hp_id.split("_SELL")[0]
-            else:
-                parent_hp_id = full_hp_id
+        parent_hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
+        strategy_data.config.hp_id = parent_hp_id
         logger.info(
             "Setting up NEW SELL position with config: %s", strategy_data.config
         )
@@ -707,7 +603,6 @@ class StrategyExecutor:
                 price_resolver=self.price_resolver,
                 broker=self.broker,
                 worker_queue=worker_queue,
-                is_restoration=is_restoration,
             ),
             balance=self.inventory_manager["USDC"]["total_quantity"],
             db=self.db,
@@ -719,61 +614,7 @@ class StrategyExecutor:
 
         config = strategy.sell.current_position.config
 
-        # Handle restoration vs new position setup
-        if is_restoration:
-
-            # Restore existing sell orders from database
-            sell_order = await self.restore_sell_orders(
-                sell_config=strategy.sell.current_position.config,
-                worker_queue=worker_queue,
-            )
-            if sell_order:
-                strategy.sell.current_position.sell_order = sell_order
-
-            # --- Restore buy position state and orders if they exist in DB ---
-            # Check if there are buy orders for this hp_id
-            buy_orders = await self.db.fetch_orders_for_price_level(
-                hp_id=parent_hp_id, side=PositionSide.LONG.value
-            )
-            if buy_orders:
-                # Use the existing restore_buy_orders logic to populate strategy.buy.orders
-                strategy.buy.orders = await self.recovery_service.restore_buy_orders(
-                    buy_position=strategy.buy,
-                    worker_queue=worker_queue,
-                    client=self.client,
-                )
-                strategy_state_str = (
-                    await self.recovery_service.get_strategy_state_from_db(parent_hp_id)
-                )
-                strategy.state = State(strategy_state_str)
-
-                # Set buy state based on actual buy order statuses
-                all_filled = all(
-                    o.status == ORDER_STATUS_FILLED for o in strategy.buy.orders
-                )
-                all_new = all(o.status == ORDER_STATUS_NEW for o in strategy.buy.orders)
-
-                if all_filled:
-                    strategy.buy.data.state_info.state = State.BOUGHT
-                elif all_new:
-                    strategy.buy.data.state_info.state = State.NEW
-                elif any(o.realized_quantity > 0 for o in strategy.buy.orders):
-                    strategy.buy.data.state_info.state = State.PARTIALLY_BOUGHT
-                else:
-                    strategy.buy.data.state_info.state = State.CLOSED
-
-            logger.info(
-                "Before restoration, current_position: %s",
-                strategy.sell.current_position,
-            )
-            self.recovery_service.restore_current_sell_position_for_multihop(strategy)
-            await self.recovery_service.restore_all_child_sell_positions_for_multihop(
-                strategy
-            )
-
-        else:
-            # Generate new timestamp for new positions
-            strategy.sell.current_position.state_info.generate_open_time()
+        strategy.sell.current_position.state_info.generate_open_time()
 
         logger.info("Current position: %s", strategy.sell.current_position)
 
@@ -833,31 +674,23 @@ class StrategyExecutor:
                         data=position, strategy_state=strategy.state
                     )
 
-        # Send HP sell position created event to portfolio for quantity locking
-        # CRITICAL FIX: Only send event for new positions, not restored ones (inventory already locked from previous session)
-        if not is_restoration:
-            hp_sell_created = HPSellPositionCreated(
-                hp_id=parent_hp_id,
-                coin=config.coin,
-                quantity=config.quantity,
-                buy_price=config.buy_price,  # Use buy price from config
-                sell_price=config.sell_price,  # Use sell price from config
-                end_currency=config.end_currency,  # Use end currency from config
-            )
-            strategy._send_hp_event_to_portfolio(
-                EventName.HP_SELL_POSITION_CREATED, hp_sell_created
-            )
-            logger.info(
-                "Sent HP_SELL_POSITION_CREATED event for new position %s to lock %s %s",
-                parent_hp_id,
-                config.quantity,
-                config.coin,
-            )
-        else:
-            logger.info(
-                "Skipped HP_SELL_POSITION_CREATED event for restored position %s - inventory already locked from previous session",
-                parent_hp_id,
-            )
+        hp_sell_created = HPSellPositionCreated(
+            hp_id=parent_hp_id,
+            coin=config.coin,
+            quantity=config.quantity,
+            buy_price=config.buy_price,  # Use buy price from config
+            sell_price=config.sell_price,  # Use sell price from config
+            end_currency=config.end_currency,  # Use end currency from config
+        )
+        strategy._send_hp_event_to_portfolio(
+            EventName.HP_SELL_POSITION_CREATED, hp_sell_created
+        )
+        logger.info(
+            "Sent HP_SELL_POSITION_CREATED event for new position %s to lock %s %s",
+            parent_hp_id,
+            config.quantity,
+            config.coin,
+        )
 
         strategy.worker_task = asyncio.create_task(strategy.worker())
         logger.info("System with ID %s initialized.", parent_hp_id)
@@ -1334,7 +1167,40 @@ class StrategyExecutor:
                     len(sell_positions),
                     sell_data.config.hp_id,
                 )
-                await self.restore_sell_position(sell_data=sell_data)
+                strategy = await self.recovery_service.restore_sell_position(
+                    sell_data=sell_data,
+                    client=self.client,
+                    ui_queue=self.ui_queue,
+                    balance=self.inventory_manager["USDC"]["total_quantity"],
+                    config_queue=self.config_queue,
+                    price_resolver=self.price_resolver,
+                    portfolio_ui_queue=self.portfolio_ui_queue,
+                )
+
+                # For convert-only positions, use parent HP ID as strategy key
+                full_hp_id = sell_data.config.hp_id
+                if "_CONVERT" in full_hp_id:
+                    strategy_key = full_hp_id.split("_CONVERT")[0]
+                elif "_SELL" in full_hp_id:
+                    strategy_key = full_hp_id.split("_SELL")[0]
+                else:
+                    strategy_key = full_hp_id
+
+                self.strategies[strategy_key] = strategy
+
+                self.send_sell_position_to_ui(
+                    config=strategy.sell.original_position.config,
+                    state_info=strategy.sell.original_position.state_info,
+                    state=strategy.state,
+                )
+
+                for position in strategy.sell.sell_positions:
+
+                    self.send_sell_position_to_ui(
+                        config=position.config,
+                        state_info=position.state_info,
+                        state=strategy.state,
+                    )
                 logger.info(
                     "Successfully restored sell position %s", sell_data.config.hp_id
                 )
@@ -1350,116 +1216,6 @@ class StrategyExecutor:
         except Exception as e:
             logger.error("Unexpected error during crash recovery: %s", e, exc_info=True)
             # Don't raise - let the system continue with empty state
-
-    async def restore_sell_position(self, sell_data: HPSell) -> None:
-        """
-        Restore a sell position from crash recovery with its existing HP ID and state.
-        Uses the normal setup process but with restoration flag to preserve state.
-        """
-        # Convert HPSell to SellPosition format expected by setup method
-        sell_position = SellPosition(
-            config=sell_data.config,
-            state_info=sell_data.state_info,
-            sell_order=Order(quantity=sell_data.config.quantity),
-        )
-
-        # Determine sell strategy for this position
-        sell_strategy = self.determine_sell_strategy(config=sell_data.config)
-
-        # Use the normal setup process but in restoration mode
-        await self.setup_sell_position_with_new_hp(
-            strategy_data=sell_position,
-            sell_strategy=sell_strategy,
-            is_restoration=True,
-        )
-
-        logger.info("Sell position %s restored successfully", sell_data.config.hp_id)
-
-    async def restore_sell_orders(
-        self, sell_config: HPSellConfig, worker_queue: queue.Queue
-    ) -> Optional[Order]:
-        assert self.client  # Restore orders for sell position
-
-        # Use the dedicated method to fetch orders for this HP and side
-        orders = await self.db.fetch_orders_for_price_level(
-            hp_id=sell_config.hp_id,
-            side=PositionSide.SHORT.value,
-        )
-
-        if not orders:
-            logger.info("No sell orders found in DB")
-            return None
-
-        if len(orders) == 2:
-            for order in orders:
-                if order["status"] == ORDER_STATUS_NEW:
-                    current_order = order
-                    break
-        if len(orders) == 1:
-            current_order = orders[0]
-
-        # Convert order dictionaries to trading Order objects
-        # Only restore orders that are not filled or canceled
-        logger.info(
-            "Restoring order %s with status %s",
-            current_order["order_id"],
-            current_order["status"],
-        )
-        trading_order = Order(
-            order_id=current_order["order_id"],
-            quantity=current_order["quantity"],
-            precision=sell_config.symbol.precision,
-            price_precision=sell_config.symbol.price_precision,
-            price=current_order["price"],
-            quantity_stable=current_order["quantity_stable"],
-            realized_quantity=current_order["realized_quantity"],
-            status=current_order["status"],
-        )
-
-        logger.info("Sell orders restored from DB: %s.", trading_order)
-
-        if current_order["status"] not in [ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED]:
-            # Retrieve the latest order information from the API
-            resp = await self.client.get_order(
-                symbol=sell_config.symbol.name,
-                orderId=current_order["order_id"],
-            )
-            latest_status = resp["status"]
-            latest_realized_quantity = float(resp["executedQty"])
-
-            # Check if status or realized quantity has changed
-            status_changed = latest_status != current_order["status"]
-            quantity_changed = (
-                latest_realized_quantity != current_order["realized_quantity"]
-            )
-
-            if status_changed or quantity_changed:
-                # Send a message to the appropriate queue
-
-                ex_report = ExecutionReport(
-                    symbol=sell_config.symbol.name,
-                    quantity=current_order["quantity"],
-                    price=current_order["price"],
-                    current_order_status=latest_status,
-                    order_id=current_order["order_id"],
-                    cumulative_filled_quantity=latest_realized_quantity,
-                )
-                worker_queue.put_nowait(
-                    Event(
-                        name=EventName.EXECUTION_REPORT,
-                        content=ex_report,
-                    )
-                )
-                logger.info(
-                    "Order %s has been modified, execution report send: %s",
-                    current_order["order_id"],
-                    ex_report,
-                )
-            else:
-                logger.info(
-                    "No changes detected for order %s.", current_order["order_id"]
-                )
-        return trading_order
 
     async def _handle_websocket_error(
         self, error_msg: Union[str, Dict[str, Any]]
