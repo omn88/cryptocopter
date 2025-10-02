@@ -76,7 +76,7 @@ class HpStrategy:
         # Initialize callback - this can be None in test scenarios
         self.portfolio_event_callback: Optional[Callable[[EventName, Any], None]] = None
         if self.portfolio_ui_queue is not None:
-            self.portfolio_event_callback = self._send_hp_event_to_portfolio
+            self.portfolio_event_callback = self.send_hp_event_to_portfolio
 
         # Initialize any other common attributes
         self.signal_update: SignalUpdate = SignalUpdate()
@@ -112,7 +112,7 @@ class HpStrategy:
             None  # Track the worker task for cleanup
         )
 
-    def _send_hp_event_to_portfolio(
+    def send_hp_event_to_portfolio(
         self, event_name: EventName, event_data: Any
     ) -> None:
         """Send HP events to portfolio for quantity management."""

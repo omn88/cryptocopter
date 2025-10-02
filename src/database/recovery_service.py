@@ -246,7 +246,6 @@ class RecoveryService:
 
         # Strategy management should be handled by StrategyExecutor
         # Return the strategy so StrategyExecutor can manage it
-        return strategy
         self.broker.subscribe(
             system_id=str(buy_data.config.hp_id),
             subscription_info=SubscriptionInfo(
@@ -272,6 +271,8 @@ class RecoveryService:
 
         strategy.worker_task = asyncio.create_task(strategy.worker())
         logger.info("System with ID %s restored.", buy_data.config.hp_id)
+
+        return strategy
 
     async def restore_buy_orders(
         self,

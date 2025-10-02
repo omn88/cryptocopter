@@ -682,7 +682,7 @@ class StrategyExecutor:
             sell_price=config.sell_price,  # Use sell price from config
             end_currency=config.end_currency,  # Use end currency from config
         )
-        strategy._send_hp_event_to_portfolio(
+        strategy.send_hp_event_to_portfolio(
             EventName.HP_SELL_POSITION_CREATED, hp_sell_created
         )
         logger.info(
@@ -740,7 +740,7 @@ class StrategyExecutor:
                     quantity=budget_amount,  # Amount of USDC budget to unlock
                     position_type="BUY",
                 )
-                strategy._send_hp_event_to_portfolio(
+                strategy.send_hp_event_to_portfolio(
                     EventName.HP_POSITION_CANCELLED, hp_cancelled
                 )
                 logger.info(
@@ -799,7 +799,7 @@ class StrategyExecutor:
                         quantity=budget_amount,  # Amount of USDC budget to unlock
                         position_type="BUY",
                     )
-                    strategy._send_hp_event_to_portfolio(
+                    strategy.send_hp_event_to_portfolio(
                         EventName.HP_POSITION_CANCELLED, hp_cancelled
                     )
                     logger.info(
@@ -843,7 +843,7 @@ class StrategyExecutor:
                 quantity=budget_amount,  # Amount of USDC budget to unlock
                 position_type="BUY",
             )
-            strategy._send_hp_event_to_portfolio(
+            strategy.send_hp_event_to_portfolio(
                 EventName.HP_POSITION_CANCELLED, hp_cancelled
             )
             logger.info(
@@ -903,7 +903,7 @@ class StrategyExecutor:
                         quantity=sell_order_qty,
                         position_type="SELL",
                     )
-                    strategy._send_hp_event_to_portfolio(
+                    strategy.send_hp_event_to_portfolio(
                         EventName.HP_POSITION_CANCELLED, hp_cancelled
                     )
                     logger.info(
@@ -939,7 +939,7 @@ class StrategyExecutor:
                             quantity=position.sell_order.quantity,
                             position_type="SELL",
                         )
-                        strategy._send_hp_event_to_portfolio(
+                        strategy.send_hp_event_to_portfolio(
                             EventName.HP_POSITION_CANCELLED, hp_cancelled
                         )
                         logger.info(
@@ -989,7 +989,7 @@ class StrategyExecutor:
                         quantity=sell_order_qty,
                         position_type="SELL",
                     )
-                    strategy._send_hp_event_to_portfolio(
+                    strategy.send_hp_event_to_portfolio(
                         EventName.HP_POSITION_CANCELLED, hp_cancelled
                     )
                     logger.info(
@@ -1079,7 +1079,7 @@ class StrategyExecutor:
                     "Sending HP sell position completed event as part of REMOVE RECORD: %s",
                     hp_sell_completed,
                 )
-                strategy._send_hp_event_to_portfolio(
+                strategy.send_hp_event_to_portfolio(
                     EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
                 )
 
