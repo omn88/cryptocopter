@@ -93,7 +93,7 @@ class AsyncApp(App):
         # Set the minimum size of the application window
         Window.minimum_width = 920  # Minimum width in pixels
         Window.minimum_height = 600  # Minimum height in pixels
-        self.root = Builder.load_file("src/gui/asyncapp.kv")
+        self.root = Builder.load_file("src/gui/app/asyncapp.kv")
         return self.root
 
     def on_start(self) -> None:
