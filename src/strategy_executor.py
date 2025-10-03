@@ -12,8 +12,6 @@ from binance.enums import (
 from src.common.helpers import determine_sell_strategy, generate_hp_id
 from src.database import Database
 from src.identifiers import (
-    Event,
-    EventName,
     HPBuyConfig,
     HPBuy,
     HPSellConfig,
@@ -31,10 +29,6 @@ from src.identifiers import (
     UiState,
     BinanceClient,
     PositionSide,
-    HPSellPositionCreated,
-    HPBuyPositionCreated,
-    HPSellPositionCompleted,
-    HPPositionCancelled,
 )
 from src.common.symbol import Symbol
 from src.gui.identifiers import (
@@ -51,7 +45,7 @@ from src.strategies.hp_manager import HpStrategy
 from src.broker import BrokerSpot
 from src.database.recovery_service import RecoveryService
 from src.database.exceptions import RecoveryError
-
+from src.portfolio_event_helper import PortfolioEventHelper
 
 # Specify the path to the .env file
 DOTENV_FILE = "config/.env"
@@ -123,40 +117,16 @@ class StrategyExecutor:
             try:
                 strategy_data = self.config_queue.get_nowait()
                 logger.info("New config for strategy executor: %s", strategy_data)
-                if isinstance(strategy_data, HPBuy):
-                    asyncio.create_task(self.setup_buy_position(new_hp=strategy_data))
-                if isinstance(strategy_data, HPSell):
-                    sell_strategy = determine_sell_strategy(
-                        config=strategy_data.config, symbols=self.price_resolver.symbols
-                    )
-                    logger.info("Sell strategy determined: %s", sell_strategy)
-                    # Patch: Set symbol if convert-only or USDC
-                    if sell_strategy[0].is_convert_only or sell_strategy[
-                        0
-                    ].name.endswith("USDC"):
-                        strategy_data.config.symbol = sell_strategy[0]
-                    sell_position = SellPosition(
-                        sell_order=Order(quantity=0),
-                        config=strategy_data.config,
-                        state_info=strategy_data.state_info,
-                    )
-                    if not strategy_data.config.hp_id:
-                        await self.setup_sell_position_with_new_hp(
-                            strategy_data=sell_position, sell_strategy=sell_strategy
-                        )
-                        await self.db.upsert_sell_price_level(
-                            data=sell_position, strategy_state=State.BOUGHT
-                        )
-                    else:
-                        await self.setup_sell_position(
-                            strategy_data=sell_position, sell_strategy=sell_strategy
-                        )
 
-                if isinstance(strategy_data, RemoveRecord):
+                if isinstance(strategy_data, HPBuy):
+                    await self._handle_buy_config(strategy_data)
+                elif isinstance(strategy_data, HPSell):
+                    await self._handle_sell_config(strategy_data)
+                elif isinstance(strategy_data, RemoveRecord):
                     await self.remove_record(
                         hp_id=strategy_data.hp_id, side=strategy_data.side
                     )
-                if isinstance(strategy_data, HPClose):
+                elif isinstance(strategy_data, HPClose):
                     await self.close_position(close_data=strategy_data)
 
             except queue.Empty:
@@ -181,87 +151,35 @@ class StrategyExecutor:
         self.broker.unsubscribe(system_id=close_data.config.hp_id)
         strategy = self.strategies.get(close_data.config.hp_id)
 
-        if strategy:
-            # Check if this is a successful completion vs an actual cancellation
-            is_successful_completion = (
-                close_data.state_info.completeness >= 1.0
-                and close_data.state_info.state == State.SOLD
+        if not strategy:
+            logger.warning("Strategy not found for HP ID: %s", close_data.config.hp_id)
+            return
+
+        # Check if this is a successful completion vs an actual cancellation
+        is_successful_completion = (
+            close_data.state_info.completeness >= 1.0
+            and close_data.state_info.state == State.SOLD
+        )
+
+        try:
+            # Handle sell position events
+            if (
+                hasattr(strategy, "sell")
+                and strategy.sell.current_position.sell_order.quantity > 0
+            ):
+                if is_successful_completion:
+                    PortfolioEventHelper.handle_sell_completion(strategy, close_data)
+                else:
+                    PortfolioEventHelper.handle_sell_cancellation(strategy, close_data)
+            # Handle buy position cancellation
+            elif hasattr(strategy, "buy") and strategy.buy.orders:
+                PortfolioEventHelper.handle_buy_cancellation(strategy, close_data)
+        except Exception as e:
+            logger.error(
+                "Failed to send HP event for %s: %s", close_data.config.hp_id, e
             )
 
-            try:
-                if (
-                    hasattr(strategy, "sell")
-                    and strategy.sell.current_position.sell_order.quantity > 0
-                ):
-                    if is_successful_completion:
-                        # This is a successful sell completion - remove consumed quantities
-                        hp_completed = HPSellPositionCompleted(
-                            hp_id=close_data.config.hp_id,
-                            coin=close_data.config.coin,
-                            quantity_sold=close_data.config.quantity,
-                            buy_price=close_data.config.buy_price,
-                            sell_price=close_data.config.sell_price,
-                            end_currency=close_data.config.end_currency,
-                        )
-                        strategy._send_portfolio_event(
-                            EventName.HP_SELL_POSITION_COMPLETED, hp_completed
-                        )
-                        logger.info(
-                            "Sent HP sell completion event for parent position: %s",
-                            close_data.config.hp_id,
-                        )
-                    else:
-                        # This is a sell position cancellation - unlock the locked quantities
-                        hp_cancelled = HPPositionCancelled(
-                            hp_id=close_data.config.hp_id,
-                            coin=close_data.config.coin,
-                            quantity=strategy.sell.current_position.sell_order.quantity,
-                            position_type="SELL",
-                        )
-                        strategy._send_portfolio_event(
-                            EventName.HP_POSITION_CANCELLED, hp_cancelled
-                        )
-                        logger.info(
-                            "Sent manual HP cancellation event for sell position: %s",
-                            close_data.config.hp_id,
-                        )
-                elif hasattr(strategy, "buy") and strategy.buy.orders:
-                    # This is a buy position cancellation (buy positions don't have
-                    # successful completion via close_position)
-                    # Only unlock budget if orders were actually sent to exchange (state != NEW)
-
-                    if strategy.state != State.NEW:
-                        # For buy positions, we need to unlock the USDC budget amount,
-                        # not the coin quantity
-                        budget_amount = strategy.get_remaining_quantity_buy()
-                        hp_cancelled = HPPositionCancelled(
-                            hp_id=close_data.config.hp_id,
-                            coin="USDC",  # The currency being unlocked (budget currency)
-                            quantity=budget_amount,  # Amount of USDC budget to unlock
-                            position_type="BUY",
-                        )
-                        strategy._send_portfolio_event(
-                            EventName.HP_POSITION_CANCELLED, hp_cancelled
-                        )
-                        logger.info(
-                            "Sent manual HP cancellation event for buy position: %s - "
-                            "budget unlocked",
-                            close_data.config.hp_id,
-                        )
-                    else:
-                        logger.info(
-                            "Skipped budget unlock for buy position %s - "
-                            "orders never sent to exchange",
-                            close_data.config.hp_id,
-                        )
-            except Exception as e:
-                logger.error(
-                    "Failed to send HP event for %s: %s", close_data.config.hp_id, e
-                )
-
-            strategy.stop_event.set()
-        else:
-            logger.warning("Strategy not found for HP ID: %s", close_data.config.hp_id)
+        strategy.stop_event.set()
 
     async def setup_buy_position(
         self,
@@ -323,42 +241,26 @@ class StrategyExecutor:
             state=strategy.state,
             buy_orders=strategy.buy.orders,
         )
-        self.broker.subscribe(
-            system_id=str(new_hp.config.hp_id),
-            subscription_info=SubscriptionInfo(
-                data_type=SubscriptionType.USER,
-                symbol=new_hp.config.symbol.name,
-                target=SubscriptionTarget.BACKEND,
-                queue=worker_queue,
-            ),
-        )
-        self.broker.subscribe(
-            system_id=str(new_hp.config.hp_id),
-            subscription_info=SubscriptionInfo(
-                data_type=SubscriptionType.PRICE,
-                symbol=new_hp.config.symbol.name,
-                target=SubscriptionTarget.BACKEND,
-                queue=worker_queue,
-            ),
+
+        self._setup_broker_subscriptions(
+            hp_id=str(new_hp.config.hp_id),
+            symbol=new_hp.config.symbol.name,
+            additional_symbols=None,
+            worker_queue=worker_queue,
         )
 
         await self.db.upsert_buy_price_level(
             data=strategy.buy.data, strategy_state=strategy.state
         )
 
-        hp_buy_created = HPBuyPositionCreated(
+        PortfolioEventHelper.send_buy_creation_event(
+            strategy=strategy,
             hp_id=str(new_hp.config.hp_id),
             coin=new_hp.config.coin,
             budget=new_hp.config.budget,
             price_low=new_hp.config.price_low,
             price_high=new_hp.config.price_high,
-            end_currency="USDC",  # Default to USDC for budget locking
         )
-        if self.portfolio_ui_queue is not None:
-            event = Event(
-                name=EventName.HP_BUY_POSITION_CREATED, content=hp_buy_created
-            )
-            self.portfolio_ui_queue.put_nowait(event)
 
         strategy.worker_task = asyncio.create_task(strategy.worker())
         logger.info("System with ID %s initialized.", new_hp.config.hp_id)
@@ -602,97 +504,325 @@ class StrategyExecutor:
         )
 
         for position in strategy.sell.sell_positions:
-
             self.send_sell_position_to_ui(
                 config=position.config,
                 state_info=position.state_info,
                 state=strategy.state,
             )
-        self.broker.subscribe(
-            system_id=str(parent_hp_id),
-            subscription_info=SubscriptionInfo(
-                data_type=SubscriptionType.USER,
-                symbol=config.symbol.name,
-                target=SubscriptionTarget.BACKEND,
-                queue=worker_queue,
-            ),
+
+        # Setup broker subscriptions (main symbol + additional symbols for multihop)
+        additional_symbols = (
+            [s.name for s in sell_strategy[1:]] if len(sell_strategy) > 1 else None
         )
-        for symbol in sell_strategy:
-            self.broker.subscribe(
-                system_id=str(parent_hp_id),
-                subscription_info=SubscriptionInfo(
-                    data_type=SubscriptionType.PRICE,
-                    symbol=symbol.name,
-                    target=SubscriptionTarget.BACKEND,
-                    queue=worker_queue,
-                ),
-            )
+        self._setup_broker_subscriptions(
+            hp_id=str(parent_hp_id),
+            symbol=config.symbol.name,
+            additional_symbols=additional_symbols,
+            worker_queue=worker_queue,
+        )
 
         await self.db.upsert_sell_price_level(
             data=strategy.sell.current_position, strategy_state=strategy.state
         )
 
-        # For two-hop scenarios, save all sell positions to database (not just current position)
-        if len(strategy.sell.sell_positions) > 1:
-            for position in strategy.sell.sell_positions:
-                if (
-                    position != strategy.sell.current_position
-                ):  # Don't duplicate the current position
-                    logger.info(
-                        "[MULTIHOP DEBUG] Saving additional position to DB: %s",
-                        position.config.hp_id,
-                    )
-                    await self.db.upsert_sell_price_level(
-                        data=position, strategy_state=strategy.state
-                    )
+        # For two-hop scenarios, save all sell positions to database
+        await self._persist_multihop_sell_positions(strategy, strategy.state)
 
-        hp_sell_created = HPSellPositionCreated(
+        PortfolioEventHelper.send_sell_creation_event(
+            strategy=strategy,
             hp_id=parent_hp_id,
             coin=config.coin,
             quantity=config.quantity,
-            buy_price=config.buy_price,  # Use buy price from config
-            sell_price=config.sell_price,  # Use sell price from config
-            end_currency=config.end_currency,  # Use end currency from config
-        )
-        strategy.send_hp_event_to_portfolio(
-            EventName.HP_SELL_POSITION_CREATED, hp_sell_created
-        )
-        logger.info(
-            "Sent HP_SELL_POSITION_CREATED event for new position %s to lock %s %s",
-            parent_hp_id,
-            config.quantity,
-            config.coin,
+            buy_price=config.buy_price,
+            sell_price=config.sell_price,
+            end_currency=config.end_currency,
         )
 
         strategy.worker_task = asyncio.create_task(strategy.worker())
         logger.info("System with ID %s initialized.", parent_hp_id)
 
-    async def _send_cancellation_event(
-        self,
-        strategy: HpStrategy,
-        hp_id: str,
-        coin: str,
-        quantity: float,
-        position_type: str,
-    ) -> None:
-        """Send HP position cancelled event to portfolio."""
-        if quantity > 0:
-            hp_cancelled = HPPositionCancelled(
-                hp_id=hp_id,
-                coin=coin,
-                quantity=quantity,
-                position_type=position_type,
+    async def remove_record(self, hp_id: str, side: PositionSide) -> None:
+        logger.info("Entering remove record, id: %s", hp_id)
+
+        # Extract base HP ID using first 4 digits (universal approach for all HP ID patterns)
+        base_hp_id = hp_id[:4]
+
+        if base_hp_id not in self.strategies:
+            logger.info("HP %s (base: %s) NOT in running strategies", hp_id, base_hp_id)
+            return
+
+        strategy: HpStrategy = self.strategies[base_hp_id]
+        logger.info("Found strategy %s, removing side: %s", base_hp_id, side)
+        buy = strategy.buy
+        sell = strategy.sell
+
+        # Handle removal of NEW buy positions (both buy and sell are NEW)
+        if (
+            side == PositionSide.LONG
+            and sell.current_position.state_info.state == State.NEW
+            and buy.data.state_info.state == State.NEW
+        ):
+            logger.info("Removing NEW trading system: %s", hp_id)
+
+            # Send cancellation event if orders were sent to exchange
+            if buy.orders and strategy.state != State.NEW:
+                budget_amount = strategy.get_remaining_quantity_buy()
+                PortfolioEventHelper.send_cancellation_event(
+                    strategy, hp_id, "USDC", budget_amount, "BUY"
+                )
+
+            self.broker.unsubscribe(system_id=hp_id)
+            strategy.state = State.CLOSED
+            await self._close_buy_position(strategy, hp_id, side)
+            logger.info("Removed strategy %s.", hp_id)
+            return
+
+        # Handle removal of PARTIALLY_BOUGHT positions
+        if (
+            side == PositionSide.LONG
+            and buy.data.state_info.state == State.PARTIALLY_BOUGHT
+        ):
+            logger.info("Removing PARTIALLY_BOUGHT position: %s", hp_id)
+
+            if strategy.state == State.BUYING:
+                budget_amount = strategy.get_remaining_quantity_buy()
+                PortfolioEventHelper.send_cancellation_event(
+                    strategy, hp_id, "USDC", budget_amount, "BUY"
+                )
+
+                buy.orders = await buy.cancel_remaining_limit_orders(
+                    symbol=buy.data.config.symbol.name,
+                    orders=buy.orders,
+                )
+                strategy.state = buy.data.state_info.state
+
+                for order in buy.orders:
+                    if order.status == ORDER_STATUS_CANCELED:
+                        await self.db.upsert_order(
+                            order=order, hp_id=buy.data.config.hp_id, side=side
+                        )
+
+            buy.data.state_info.completeness = sum(
+                order.realized_quantity for order in buy.orders
+            ) / sum(order.quantity for order in buy.orders)
+
+            await self._close_buy_position(strategy, hp_id, side, cancel_orders=False)
+
+        # Handle removal of BOUGHT positions
+        if side == PositionSide.LONG and buy.data.state_info.state == State.BOUGHT:
+            logger.info("Cancelling fully bought position: %s", hp_id)
+
+            budget_amount = strategy.get_remaining_quantity_buy()
+            PortfolioEventHelper.send_cancellation_event(
+                strategy, hp_id, "USDC", budget_amount, "BUY"
             )
-            strategy.send_hp_event_to_portfolio(
-                EventName.HP_POSITION_CANCELLED, hp_cancelled
-            )
+
+            strategy.state = State.CLOSED
+            await self._close_buy_position(strategy, hp_id, side, cancel_orders=False)
+            logger.info("Cancelled fully bought position %s.", hp_id)
+            return
+
+        # Handle SHORT side (sell position) removal
+        if side == PositionSide.SHORT:
             logger.info(
-                "Sent HP %s cancellation event for position: %s (qty: %.6f %s)",
-                position_type,
+                "Processing SHORT side cancellation for %s. Strategy state: %s",
                 hp_id,
-                quantity,
-                coin,
+                strategy.state,
             )
+
+            # Handle NEW sell positions
+            if (
+                sell.current_position
+                and sell.current_position.state_info.state == State.NEW
+            ):
+                logger.info("Cancelling NEW sell position: %s", hp_id)
+
+                # Check for multihop sell
+                if hasattr(sell, "sell_positions") and len(sell.sell_positions) > 1:
+                    await self._cancel_multihop_sell(strategy, hp_id, base_hp_id)
+                else:
+                    # Single sell position cancellation
+                    PortfolioEventHelper.send_cancellation_event(
+                        strategy,
+                        hp_id,
+                        sell.current_position.config.coin,
+                        sell.current_position.sell_order.quantity,
+                        "SELL",
+                    )
+                    await self._close_sell_position(
+                        strategy, sell.current_position, State.CLOSED
+                    )
+                    logger.info("Successfully cancelled NEW sell position: %s", hp_id)
+
+                return
+
+            # Handle SELLING state
+            if strategy.state != State.SELLING:
+                logger.warning(
+                    "Sell position %s in unexpected state: %s", hp_id, strategy.state
+                )
+                return
+
+            sell_rlzd_qty = sell.current_position.sell_order.realized_quantity
+            sell_order_qty = sell.current_position.sell_order.quantity
+
+            PortfolioEventHelper.send_cancellation_event(
+                strategy,
+                hp_id,
+                sell.current_position.config.coin,
+                sell_order_qty,
+                "SELL",
+            )
+
+            # Cancel the sell order and determine final state
+            await sell.cancel_remaining_order()
+
+            final_state = self._calculate_sell_cancellation_state(
+                strategy, sell_rlzd_qty, sell_order_qty
+            )
+            strategy.state = final_state
+
+            # Send completion event if fully sold
+            if final_state == State.SOLD:
+                PortfolioEventHelper.send_sell_completion_event(
+                    strategy=strategy,
+                    hp_id=hp_id,
+                    coin=sell.current_position.config.coin,
+                    quantity_sold=sell.current_position.sell_order.realized_quantity,
+                    buy_price=sell.current_position.config.buy_price,
+                    sell_price=sell.current_position.config.sell_price,
+                    end_currency=sell.current_position.config.end_currency,
+                )
+
+            # Update positions and database
+            sell.current_position.config.sell_price = 0.0
+            sell.current_position.state_info.ui_state = UiState.CLOSED
+            sell.current_position.state_info.get_completeness(
+                sell.current_position.sell_order
+            )
+
+            if sell.current_position.config.is_child:
+                sell.original_position.config.sell_price = 0.0
+                self.send_sell_position_to_ui(
+                    config=sell.original_position.config,
+                    state_info=sell.original_position.state_info,
+                    state=strategy.state,
+                )
+
+            self.send_sell_position_to_ui(
+                config=sell.current_position.config,
+                state_info=sell.current_position.state_info,
+                state=strategy.state,
+            )
+            await self.db.upsert_sell_price_level(
+                data=sell.current_position, strategy_state=strategy.state
+            )
+
+    async def recover_positions_from_crash(self) -> None:
+        """Recover all active trading positions from database after system crash/restart."""
+        logger.info("Starting crash recovery process...")
+
+        try:
+            assert self.recovery_service is not None
+            assert self.client is not None
+
+            (
+                buy_positions,
+                sell_positions,
+            ) = await self.recovery_service.recover_all_positions(client=self.client)
+
+            logger.info(
+                "Crash recovery found %d buy positions and %d sell positions",
+                len(buy_positions),
+                len(sell_positions),
+            )
+
+            # Restore buy positions
+            for i, buy_data in enumerate(buy_positions):
+                logger.info(
+                    "Restoring buy position %d/%d: %s",
+                    i + 1,
+                    len(buy_positions),
+                    buy_data.config.hp_id,
+                )
+                strategy = await self.recovery_service.restore_buy_position(
+                    buy_data=buy_data,
+                    client=self.client,
+                    ui_queue=self.ui_queue,
+                    balance=self.inventory_manager["USDC"]["total_quantity"],
+                    config_queue=self.config_queue,
+                    price_resolver=self.price_resolver,
+                    portfolio_ui_queue=self.portfolio_ui_queue,
+                )
+                # Strategy management
+                self.strategies[buy_data.config.hp_id] = strategy
+                self.send_buy_position_to_ui(
+                    config=buy_data.config,
+                    state_info=buy_data.state_info,
+                    state=strategy.state,
+                    buy_orders=strategy.buy.orders,
+                )
+                logger.info(
+                    "Successfully restored buy position %s", buy_data.config.hp_id
+                )
+
+            # Restore sell positions
+            for i, sell_data in enumerate(sell_positions):
+                logger.info(
+                    "Restoring sell position %d/%d: %s",
+                    i + 1,
+                    len(sell_positions),
+                    sell_data.config.hp_id,
+                )
+                strategy = await self.recovery_service.restore_sell_position(
+                    sell_data=sell_data,
+                    client=self.client,
+                    ui_queue=self.ui_queue,
+                    balance=self.inventory_manager["USDC"]["total_quantity"],
+                    config_queue=self.config_queue,
+                    price_resolver=self.price_resolver,
+                    portfolio_ui_queue=self.portfolio_ui_queue,
+                )
+
+                # For convert-only positions, use parent HP ID as strategy key
+                full_hp_id = sell_data.config.hp_id
+                if "_CONVERT" in full_hp_id:
+                    strategy_key = full_hp_id.split("_CONVERT")[0]
+                elif "_SELL" in full_hp_id:
+                    strategy_key = full_hp_id.split("_SELL")[0]
+                else:
+                    strategy_key = full_hp_id
+
+                self.strategies[strategy_key] = strategy
+
+                self.send_sell_position_to_ui(
+                    config=strategy.sell.original_position.config,
+                    state_info=strategy.sell.original_position.state_info,
+                    state=strategy.state,
+                )
+
+                for position in strategy.sell.sell_positions:
+
+                    self.send_sell_position_to_ui(
+                        config=position.config,
+                        state_info=position.state_info,
+                        state=strategy.state,
+                    )
+                logger.info(
+                    "Successfully restored sell position %s", sell_data.config.hp_id
+                )
+
+            logger.info(
+                "Crash recovery completed successfully. Total strategies now: %d",
+                len(self.strategies),
+            )
+
+        except RecoveryError as e:
+            logger.error("Crash recovery failed: %s", e)
+            # Don't raise - let the system continue with empty state
+        except Exception as e:
+            logger.error("Unexpected error during crash recovery: %s", e, exc_info=True)
+            # Don't raise - let the system continue with empty state
 
     async def _close_buy_position(
         self,
@@ -781,7 +911,7 @@ class StrategyExecutor:
 
             await sell.cancel_position()
 
-            await self._send_cancellation_event(
+            PortfolioEventHelper.send_cancellation_event(
                 strategy,
                 position.config.hp_id,
                 position.config.coin,
@@ -812,300 +942,93 @@ class StrategyExecutor:
 
         logger.info("Successfully cancelled all multihop sell positions for: %s", hp_id)
 
-    async def remove_record(self, hp_id: str, side: PositionSide) -> None:
-        logger.info("Entering remove record, id: %s", hp_id)
+    async def _handle_buy_config(self, strategy_data: HPBuy) -> None:
+        """Handle incoming buy position configuration."""
+        asyncio.create_task(self.setup_buy_position(new_hp=strategy_data))
 
-        # Extract base HP ID using first 4 digits (universal approach for all HP ID patterns)
-        base_hp_id = hp_id[:4]
-
-        if base_hp_id not in self.strategies:
-            logger.info("HP %s (base: %s) NOT in running strategies", hp_id, base_hp_id)
-            return
-
-        strategy: HpStrategy = self.strategies[base_hp_id]
-        logger.info(
-            "Found strategy with hp id: %s, side to remove: %s",
-            base_hp_id,
-            side,
+    async def _handle_sell_config(self, strategy_data: HPSell) -> None:
+        """Handle incoming sell position configuration."""
+        sell_strategy = determine_sell_strategy(
+            config=strategy_data.config, symbols=self.price_resolver.symbols
         )
-        buy = strategy.buy
-        sell = strategy.sell
+        logger.info("Sell strategy determined: %s", sell_strategy)
 
-        # Handle removal of NEW buy positions (both buy and sell are NEW)
-        if (
-            side == PositionSide.LONG
-            and sell.current_position.state_info.state == State.NEW
-            and buy.data.state_info.state == State.NEW
-        ):
-            logger.info("Removing NEW trading system: %s", hp_id)
+        # Patch: Set symbol if convert-only or USDC
+        if sell_strategy[0].is_convert_only or sell_strategy[0].name.endswith("USDC"):
+            strategy_data.config.symbol = sell_strategy[0]
 
-            # Send cancellation event if orders were sent to exchange
-            if buy.orders and strategy.state != State.NEW:
-                budget_amount = strategy.get_remaining_quantity_buy()
-                await self._send_cancellation_event(
-                    strategy, hp_id, "USDC", budget_amount, "BUY"
-                )
+        sell_position = SellPosition(
+            sell_order=Order(quantity=0),
+            config=strategy_data.config,
+            state_info=strategy_data.state_info,
+        )
 
-            self.broker.unsubscribe(system_id=hp_id)
-            strategy.state = State.CLOSED
-            await self._close_buy_position(strategy, hp_id, side)
-            logger.info("Removed strategy %s.", hp_id)
-            return
-
-        # Handle removal of PARTIALLY_BOUGHT positions
-        if (
-            side == PositionSide.LONG
-            and buy.data.state_info.state == State.PARTIALLY_BOUGHT
-        ):
-            logger.info("Removing PARTIALLY_BOUGHT position: %s", hp_id)
-
-            if strategy.state == State.BUYING:
-                budget_amount = strategy.get_remaining_quantity_buy()
-                await self._send_cancellation_event(
-                    strategy, hp_id, "USDC", budget_amount, "BUY"
-                )
-
-                buy.orders = await buy.cancel_remaining_limit_orders(
-                    symbol=buy.data.config.symbol.name,
-                    orders=buy.orders,
-                )
-                strategy.state = buy.data.state_info.state
-
-                for order in buy.orders:
-                    if order.status == ORDER_STATUS_CANCELED:
-                        await self.db.upsert_order(
-                            order=order, hp_id=buy.data.config.hp_id, side=side
-                        )
-
-            buy.data.state_info.completeness = sum(
-                order.realized_quantity for order in buy.orders
-            ) / sum(order.quantity for order in buy.orders)
-
-            await self._close_buy_position(strategy, hp_id, side, cancel_orders=False)
-
-        # Handle removal of BOUGHT positions
-        if side == PositionSide.LONG and buy.data.state_info.state == State.BOUGHT:
-            logger.info("Cancelling fully bought position: %s", hp_id)
-
-            budget_amount = strategy.get_remaining_quantity_buy()
-            await self._send_cancellation_event(
-                strategy, hp_id, "USDC", budget_amount, "BUY"
-            )
-
-            strategy.state = State.CLOSED
-            await self._close_buy_position(strategy, hp_id, side, cancel_orders=False)
-            logger.info("Cancelled fully bought position %s.", hp_id)
-            return
-
-        # Handle SHORT side (sell position) removal
-        if side == PositionSide.SHORT:
-            logger.info(
-                "Processing SHORT side cancellation for %s. Strategy state: %s",
-                hp_id,
-                strategy.state,
-            )
-
-            # Handle NEW sell positions
-            if (
-                sell.current_position
-                and sell.current_position.state_info.state == State.NEW
-            ):
-                logger.info("Cancelling NEW sell position: %s", hp_id)
-
-                # Check for multihop sell
-                if hasattr(sell, "sell_positions") and len(sell.sell_positions) > 1:
-                    await self._cancel_multihop_sell(strategy, hp_id, base_hp_id)
-                else:
-                    # Single sell position cancellation
-                    await self._send_cancellation_event(
-                        strategy,
-                        hp_id,
-                        sell.current_position.config.coin,
-                        sell.current_position.sell_order.quantity,
-                        "SELL",
-                    )
-                    await self._close_sell_position(
-                        strategy, sell.current_position, State.CLOSED
-                    )
-                    logger.info("Successfully cancelled NEW sell position: %s", hp_id)
-
-                return
-
-            # Handle SELLING state
-            if strategy.state != State.SELLING:
-                logger.warning(
-                    "Sell position %s is in unexpected state: %s",
-                    hp_id,
-                    strategy.state,
-                )
-                return
-
-            sell_rlzd_qty = sell.current_position.sell_order.realized_quantity
-            sell_order_qty = sell.current_position.sell_order.quantity
-
-            await self._send_cancellation_event(
-                strategy,
-                hp_id,
-                sell.current_position.config.coin,
-                sell_order_qty,
-                "SELL",
-            )
-
-            # Cancel the sell order and determine final state
-            await sell.cancel_remaining_order()
-
-            final_state = self._calculate_sell_cancellation_state(
-                strategy, sell_rlzd_qty, sell_order_qty
-            )
-            strategy.state = final_state
-
-            # Send completion event if fully sold
-            if final_state == State.SOLD:
-                hp_sell_completed = HPSellPositionCompleted(
-                    hp_id=hp_id,
-                    coin=sell.current_position.config.coin,
-                    quantity_sold=sell.current_position.sell_order.realized_quantity,
-                    buy_price=sell.current_position.config.buy_price,
-                    sell_price=sell.current_position.config.sell_price,
-                    end_currency=sell.current_position.config.end_currency,
-                )
-                strategy.send_hp_event_to_portfolio(
-                    EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
-                )
-
-            # Update positions and database
-            sell.current_position.config.sell_price = 0.0
-            sell.current_position.state_info.ui_state = UiState.CLOSED
-            sell.current_position.state_info.get_completeness(
-                sell.current_position.sell_order
-            )
-
-            if sell.current_position.config.is_child:
-                sell.original_position.config.sell_price = 0.0
-                self.send_sell_position_to_ui(
-                    config=sell.original_position.config,
-                    state_info=sell.original_position.state_info,
-                    state=strategy.state,
-                )
-
-            self.send_sell_position_to_ui(
-                config=sell.current_position.config,
-                state_info=sell.current_position.state_info,
-                state=strategy.state,
+        if not strategy_data.config.hp_id:
+            await self.setup_sell_position_with_new_hp(
+                strategy_data=sell_position, sell_strategy=sell_strategy
             )
             await self.db.upsert_sell_price_level(
-                data=sell.current_position, strategy_state=strategy.state
+                data=sell_position, strategy_state=State.BOUGHT
+            )
+        else:
+            await self.setup_sell_position(
+                strategy_data=sell_position, sell_strategy=sell_strategy
             )
 
-    async def recover_positions_from_crash(self) -> None:
-        """
-        Recover all active trading positions from database after system crash/restart.
-
-        This is the main crash recovery method that:
-        1. Uses Database to get active positions
-        2. Verifies them with the exchange via RecoveryService
-        3. Calls setup_buy_position and setup_sell_position_with_new_hp to restore them
-        """
-        logger.info("Starting crash recovery process...")
-
-        try:
-            assert self.recovery_service is not None
-            assert self.client is not None
-
-            (
-                buy_positions,
-                sell_positions,
-            ) = await self.recovery_service.recover_all_positions(client=self.client)
-
-            logger.info(
-                "Crash recovery found %d buy positions and %d sell positions",
-                len(buy_positions),
-                len(sell_positions),
-            )
-
-            # Restore buy positions using dedicated restore method (preserves HP IDs and state)
-            for i, buy_data in enumerate(buy_positions):
-                logger.info(
-                    "Restoring buy position %d/%d: %s",
-                    i + 1,
-                    len(buy_positions),
-                    buy_data.config.hp_id,
-                )
-                strategy = await self.recovery_service.restore_buy_position(
-                    buy_data=buy_data,
-                    client=self.client,
-                    ui_queue=self.ui_queue,
-                    balance=self.inventory_manager["USDC"]["total_quantity"],
-                    config_queue=self.config_queue,
-                    price_resolver=self.price_resolver,
-                    portfolio_ui_queue=self.portfolio_ui_queue,
-                )
-                # Strategy management
-                self.strategies[buy_data.config.hp_id] = strategy
-                self.send_buy_position_to_ui(
-                    config=buy_data.config,
-                    state_info=buy_data.state_info,
-                    state=strategy.state,
-                    buy_orders=strategy.buy.orders,
-                )
-                logger.info(
-                    "Successfully restored buy position %s", buy_data.config.hp_id
-                )
-
-            # Restore sell positions using dedicated restore method (preserves HP IDs and state)
-            for i, sell_data in enumerate(sell_positions):
-                logger.info(
-                    "Restoring sell position %d/%d: %s",
-                    i + 1,
-                    len(sell_positions),
-                    sell_data.config.hp_id,
-                )
-                strategy = await self.recovery_service.restore_sell_position(
-                    sell_data=sell_data,
-                    client=self.client,
-                    ui_queue=self.ui_queue,
-                    balance=self.inventory_manager["USDC"]["total_quantity"],
-                    config_queue=self.config_queue,
-                    price_resolver=self.price_resolver,
-                    portfolio_ui_queue=self.portfolio_ui_queue,
-                )
-
-                # For convert-only positions, use parent HP ID as strategy key
-                full_hp_id = sell_data.config.hp_id
-                if "_CONVERT" in full_hp_id:
-                    strategy_key = full_hp_id.split("_CONVERT")[0]
-                elif "_SELL" in full_hp_id:
-                    strategy_key = full_hp_id.split("_SELL")[0]
-                else:
-                    strategy_key = full_hp_id
-
-                self.strategies[strategy_key] = strategy
-
-                self.send_sell_position_to_ui(
-                    config=strategy.sell.original_position.config,
-                    state_info=strategy.sell.original_position.state_info,
-                    state=strategy.state,
-                )
-
-                for position in strategy.sell.sell_positions:
-
-                    self.send_sell_position_to_ui(
-                        config=position.config,
-                        state_info=position.state_info,
-                        state=strategy.state,
+    async def _persist_multihop_sell_positions(
+        self, strategy: HpStrategy, strategy_state: State
+    ) -> None:
+        """Persist all multihop sell positions to database."""
+        if len(strategy.sell.sell_positions) > 1:
+            for position in strategy.sell.sell_positions:
+                if position != strategy.sell.current_position:
+                    logger.info(
+                        "[MULTIHOP DEBUG] Saving additional position to DB: %s",
+                        position.config.hp_id,
                     )
-                logger.info(
-                    "Successfully restored sell position %s", sell_data.config.hp_id
+                    await self.db.upsert_sell_price_level(
+                        data=position, strategy_state=strategy_state
+                    )
+
+    def _setup_broker_subscriptions(
+        self,
+        hp_id: str,
+        symbol: str,
+        additional_symbols: Optional[List[str]],
+        worker_queue: queue.Queue,
+    ) -> None:
+        """Setup USER and PRICE subscriptions for a strategy."""
+        # User data subscription
+        self.broker.subscribe(
+            system_id=hp_id,
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.USER,
+                symbol=symbol,
+                target=SubscriptionTarget.BACKEND,
+                queue=worker_queue,
+            ),
+        )
+
+        # Price subscription for main symbol
+        self.broker.subscribe(
+            system_id=hp_id,
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.PRICE,
+                symbol=symbol,
+                target=SubscriptionTarget.BACKEND,
+                queue=worker_queue,
+            ),
+        )
+
+        # Additional price subscriptions (for multihop sell strategies)
+        if additional_symbols:
+            for add_symbol in additional_symbols:
+                self.broker.subscribe(
+                    system_id=hp_id,
+                    subscription_info=SubscriptionInfo(
+                        data_type=SubscriptionType.PRICE,
+                        symbol=add_symbol,
+                        target=SubscriptionTarget.BACKEND,
+                        queue=worker_queue,
+                    ),
                 )
-
-            logger.info(
-                "Crash recovery completed successfully. Total strategies now: %d",
-                len(self.strategies),
-            )
-
-        except RecoveryError as e:
-            logger.error("Crash recovery failed: %s", e)
-            # Don't raise - let the system continue with empty state
-        except Exception as e:
-            logger.error("Unexpected error during crash recovery: %s", e, exc_info=True)
-            # Don't raise - let the system continue with empty state
