@@ -88,11 +88,6 @@ class BrokerSpot:
 
         self.thread.start()
 
-    @property
-    def binance_client(self) -> Optional[BinanceClient]:
-        """Access the broker's BinanceClient for REST API operations."""
-        return self.client
-
     def start_loop(self) -> None:
         """Starts the asyncio loop in a new thread."""
         self.loop = asyncio.new_event_loop()

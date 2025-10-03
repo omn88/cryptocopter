@@ -79,7 +79,6 @@ class StrategyExecutor:
         portfolio_ui_queue: Optional[queue.Queue] = None,
         test_mode: bool = False,
     ):
-        self._client: Optional[BinanceClient] = None
         self.db = db
         self.broker = broker
         self.ui_queue = ui_queue
@@ -90,22 +89,13 @@ class StrategyExecutor:
         self.supported_quotes = ["USDC", "PLN", "BTC", "BNB", "USDT"]
         self.test_mode = test_mode  # Add a test_mode parameter
         self.price_resolver = price_resolver
+        self.client: Optional[BinanceClient] = None
         self.recovery_service: Optional[RecoveryService] = None
 
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self.start_loop)
         self.thread.start()
-
-    @property
-    def client(self) -> Optional[BinanceClient]:
-        """Access the StrategyExecutor's own BinanceClient for REST API operations."""
-        return self._client
-
-    @client.setter
-    def client(self, value: Optional[BinanceClient]) -> None:
-        """Set the StrategyExecutor's BinanceClient (primarily for testing)."""
-        self._client = value
 
     def start_loop(self) -> None:
         """Starts the asyncio loop in a new thread."""
@@ -117,8 +107,8 @@ class StrategyExecutor:
         logger.info("Strategy executor ready to retrieve the first config")
 
         # Create client if not in test mode and not already set
-        if not self.test_mode and self._client is None:
-            self._client = BinanceClient(
+        if not self.test_mode and self.client is None:
+            self.client = BinanceClient(
                 api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
             )
 
@@ -177,9 +167,9 @@ class StrategyExecutor:
         self.stop_event.set()
 
         # Close client connection if it exists
-        if self._client:
+        if self.client:
             try:
-                asyncio.run(self._client.close_connection())
+                asyncio.run(self.client.close_connection())
             except Exception as e:
                 logger.error("Error closing client connection: %s", e)
 
