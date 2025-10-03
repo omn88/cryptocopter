@@ -5,12 +5,17 @@ of all HP positions and modal configurators for creating new ones.
 """
 
 from kivy.uix.boxlayout import BoxLayout
-from kivy.properties import StringProperty, ObjectProperty
-from kivy.clock import Clock
 from typing import Dict, List, Optional, Callable, Any
 import logging
 
-from .models import UnifiedPosition, UnifiedHPData, PositionType, PositionState
+from .models import (
+    UnifiedPosition,
+    UnifiedHPData,
+    PositionType,
+    format_currency,
+    format_percentage,
+    format_quantity,
+)
 from .modal_configurators import BuyHPModal
 from .models import HPConfiguration
 
@@ -101,7 +106,6 @@ class HPManager(BoxLayout):  # type: ignore[misc]
     ) -> Optional[UnifiedPosition]:
         """Convert HP data to UnifiedPosition."""
         try:
-            from .models import format_currency, format_percentage, format_quantity
 
             # Add debugging for parent positions
             children_data = data.get("children", [])

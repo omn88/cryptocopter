@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional
 from src.common.symbol import Symbol
-from src.identifiers import HPBuyData, HPSellConfig, HPSellData, State, StateInfo
+from src.identifiers import HPBuy, HPSellConfig, HPSell, State, StateInfo
 
 
 @dataclass
@@ -37,7 +37,7 @@ class HPUpdate:
 
 @dataclass
 class HPGuiDataBuy:
-    data: HPBuyData
+    data: HPBuy
     hp_update: HPUpdate
 
     def __str__(self):
@@ -50,12 +50,12 @@ class HPClose:
     state_info: StateInfo
 
     def __str__(self):
-        return f"HPClose(data={self.config}, hp_update={self.state_info})"
+        return f"HPClose(config={self.config}, state_info={self.state_info})"
 
 
 @dataclass
 class HPGuiDataSell:
-    data: HPSellData
+    data: HPSell
     hp_update: HPUpdate
 
     def __str__(self):

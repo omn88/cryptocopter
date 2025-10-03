@@ -2,7 +2,6 @@ import asyncio
 import logging
 import queue
 from typing import List
-from dataclasses import replace
 from binance.enums import (
     TIME_IN_FORCE_GTC,
     ORDER_STATUS_PARTIALLY_FILLED,
@@ -20,9 +19,7 @@ from binance.exceptions import (
 from src.broker import BrokerSpot
 from src.common.symbol import Symbol
 
-from src.database import (
-    TradingDatabase,
-)  # This will use the old database.py file in src/
+from src.database import Database
 from src.identifiers import (
     ExecutionReport,
     HPSellConfig,
@@ -50,7 +47,7 @@ class HPPositionSell:
         client: BinanceClient,
         original_position: SellPosition,
         sell_strategy: List[Symbol],
-        db: TradingDatabase,
+        db: Database,
         price_resolver: UsdPriceResolver,
         broker: BrokerSpot,
         worker_queue: queue.Queue,
@@ -68,7 +65,7 @@ class HPPositionSell:
         self.sell_positions: List[SellPosition] = []
         self.current_position: SellPosition = SellPosition(
             Order(quantity=0),
-            config=HPSellConfig(symbol=Symbol()),
+            config=HPSellConfig(),
             state_info=StateInfo(side=PositionSide.SHORT),
             sell_type=SellType.DIRECT,
         )
@@ -325,7 +322,8 @@ class HPPositionSell:
         current_leg2_price = self.price_resolver.latest_prices.get(leg2.name)
         if not current_leg2_price:
             logger.warning(
-                f"Missing current price for {leg2.name}, skipping recalculation"
+                "Missing current price for %s, skipping recalculation",
+                leg2.name,
             )
             return
 

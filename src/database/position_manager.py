@@ -8,8 +8,8 @@ from typing import List, Optional, Dict
 from datetime import datetime
 
 from src.identifiers import (
-    HPBuyData,
-    HPSellData,
+    HPBuy,
+    HPSell,
     Order as TradingOrder,
     ExecutionReport,
     State,
@@ -17,7 +17,7 @@ from src.identifiers import (
     SellPosition,
 )
 
-from .trading_database import TradingDatabase
+from .trading_database import Database
 from .models import (
     Position,
     Order,
@@ -42,15 +42,15 @@ class PositionManager:
     - Providing a clean interface for the trading system
     """
 
-    def __init__(self, database: TradingDatabase):
+    def __init__(self, database: Database):
         self.database = database
 
-    async def save_buy_position(self, buy_data: HPBuyData) -> str:
+    async def save_buy_position(self, buy_data: HPBuy) -> str:
         """
         Save a buy position to the database.
 
         Args:
-            buy_data: HPBuyData from the trading system
+            buy_data: HPBuy from the trading system
 
         Returns:
             Position ID
@@ -88,13 +88,13 @@ class PositionManager:
             ) from e
 
     async def save_sell_position(
-        self, sell_data: HPSellData, parent_hp_id: Optional[str] = None
+        self, sell_data: HPSell, parent_hp_id: Optional[str] = None
     ) -> str:
         """
         Save a sell position to the database.
 
         Args:
-            sell_data: HPSellData from the trading system
+            sell_data: HPSell from the trading system
             parent_hp_id: Parent position ID for multihop trades
 
         Returns:

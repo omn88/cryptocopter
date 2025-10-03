@@ -68,7 +68,10 @@ class HPSellPositionCompleted:
     buy_price: float
     sell_price: float
     end_currency: str
-    end_currency_received: float  # Amount of USDC/end currency received
+    end_currency_received: float = field(init=False)
+
+    def __post_init__(self):
+        self.end_currency_received = self.quantity_sold * self.sell_price
 
 
 @dataclass
@@ -408,17 +411,17 @@ class HPBuyConfig:
 
 
 @dataclass
-class HPBuyData:
+class HPBuy:
     config: HPBuyConfig
     state_info: StateInfo
 
     def __str__(self):
-        return f"HPBuyData(config={self.config}, state_info={self.state_info})"
+        return f"HPBuy(config={self.config}, state_info={self.state_info})"
 
 
 @dataclass
 class HPSellConfig:
-    symbol: Symbol
+    symbol: Symbol = Symbol()
     hp_id: str = ""
     coin: str = ""
     quantity: float = 0.0
@@ -451,12 +454,12 @@ class SellPosition:
 
 
 @dataclass
-class HPSellData:
+class HPSell:
     config: HPSellConfig
     state_info: StateInfo
 
     def __str__(self):
-        return f"HPSellData(config={self.config}, state_info={self.state_info})"
+        return f"HPSell(config={self.config}, state_info={self.state_info})"
 
 
 class SubscriptionType(Enum):

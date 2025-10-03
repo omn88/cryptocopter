@@ -31,12 +31,12 @@ from unittest.mock import AsyncMock, MagicMock
 from unittest.mock import patch
 from pytest_mock import MockerFixture
 from decouple import Config, RepositoryEnv
-from src.common.common import generate_hp_id
+from src.common.helpers import generate_hp_id
 from src.common.symbol import Symbol
-from src.database.trading_database import TradingDatabase
+from src.database.trading_database import Database
 from src.identifiers import (
     HPBuyConfig,
-    HPBuyData,
+    HPBuy,
     HPSellConfig,
     Order,
     PositionSide,
@@ -94,9 +94,7 @@ def mock_async_client(mocker: MockerFixture) -> AsyncMock:
 
 
 @pytest.fixture
-def strategy_executor_fixture(
-    test_db: TradingDatabase, mock_async_client, mock_inventory
-):
+def strategy_executor_fixture(test_db: Database, mock_async_client, mock_inventory):
     """
     Fixture to create and run a StrategyExecutor instance.
 
@@ -143,13 +141,13 @@ def strategy_executor_fixture(
 
 
 @pytest.fixture
-async def test_db() -> AsyncGenerator[TradingDatabase, None]:
+async def test_db() -> AsyncGenerator[Database, None]:
     """Create a test SQLite database for testing."""  # Create a temporary SQLite database file for testing
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
         test_db_path = tmp_file.name
 
-    # Create the new TradingDatabase instance
-    db = TradingDatabase(db_path=test_db_path)
+    # Create the new Database instance
+    db = Database(db_path=test_db_path)
 
     logger.info("Created test database: %s", test_db_path)
 
@@ -259,9 +257,7 @@ async def frontend_backend_setup(
 
 
 @pytest.fixture
-async def crash_recovery_factory(
-    test_db: TradingDatabase, mock_async_client, mock_inventory
-):
+async def crash_recovery_factory(test_db: Database, mock_async_client, mock_inventory):
     """
     Factory fixture for crash recovery testing.
 
@@ -508,7 +504,7 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
         hp_id = generate_hp_id(hp_list=[])
 
         # Create buy data with the generated ID and config
-        buy_data = HPBuyData(
+        buy_data = HPBuy(
             config=HPBuyConfig(
                 hp_id=hp_id,
                 symbol=hp_config.symbol,
@@ -554,6 +550,7 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
             client=mock_async_client,
             balance=10000.0,  # Set balance higher than budget (1000.0) to allow trading
             ui_queue=queue.Queue(),
+            portfolio_ui_queue=queue.Queue(),  # Add missing parameter
             worker_queue=worker_queue,
             config_queue=queue.Queue(),
             db=test_db,
@@ -775,7 +772,7 @@ def mock_inventory():
 
 
 @pytest.fixture
-def portfolio_ui(test_db: TradingDatabase, mock_async_client, mock_inventory):
+def portfolio_ui(test_db: Database, mock_async_client, mock_inventory):
     """Create portfolio UI for testing with test mode enabled."""
     ui_queue: queue.Queue = queue.Queue()
 
@@ -857,7 +854,7 @@ async def portfolio_hp_backend_setup(
 
 @pytest.fixture
 async def portfolio_crash_recovery_factory(
-    test_db: TradingDatabase, mock_async_client, mock_inventory
+    test_db: Database, mock_async_client, mock_inventory
 ):
     """
     Dedicated factory fixture for portfolio crash recovery testing.

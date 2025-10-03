@@ -29,7 +29,7 @@ from src.identifiers import (
 from src.portfolio.portfolio import PortfolioManager
 from src.gui.hp_manager.hpfront import HpFront
 from src.portfolio.portfolio_gui import PortfolioUI
-from src.database import TradingDatabase
+from src.database import Database
 from src.broker import BrokerSpot
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.strategy_executor import StrategyExecutor
@@ -60,7 +60,7 @@ class AsyncApp(App):
     def __init__(
         self,
         client: BinanceClient,
-        db: TradingDatabase,
+        db: Database,
         price_resolver: UsdPriceResolver,
         **kwargs,
     ):
@@ -93,7 +93,7 @@ class AsyncApp(App):
         # Set the minimum size of the application window
         Window.minimum_width = 920  # Minimum width in pixels
         Window.minimum_height = 600  # Minimum height in pixels
-        self.root = Builder.load_file("src/gui/asyncapp.kv")
+        self.root = Builder.load_file("src/gui/app/asyncapp.kv")
         return self.root
 
     def on_start(self) -> None:

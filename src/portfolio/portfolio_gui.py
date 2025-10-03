@@ -26,12 +26,12 @@ from src.identifiers import (
     HPBuyPositionPartiallyFilled,
     HPBuyOrdersPlaced,
     HPPositionCancelled,
-    HPSellData,
+    HPSell,
     HPSellConfig,
     StateInfo,
     PositionSide,
 )
-from src.database import TradingDatabase
+from src.database import Database
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 
 logger = logging.getLogger("portfolio_gui_handler")
@@ -52,7 +52,7 @@ class PortfolioUI(BoxLayout):
         ui_queue: queue.Queue,
         strategy_config_queue: queue.Queue,
         price_resolver: UsdPriceResolver,
-        db: TradingDatabase,
+        db: Database,
         test_mode: bool = False,
         **kwargs,
     ) -> None:
@@ -369,7 +369,7 @@ class PortfolioUI(BoxLayout):
                             return
 
                     # Create HP sell configuration
-                    sell_config = HPSellData(
+                    sell_config = HPSell(
                         config=HPSellConfig(
                             symbol=self.price_resolver.symbols[symbol_key],
                             hp_id="",  # Empty HP ID for new position

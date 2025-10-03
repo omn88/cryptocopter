@@ -16,15 +16,15 @@ from kivy.uix.popup import Popup
 from kivy.uix.textinput import TextInput
 from kivy.graphics import Color, Rectangle, Line
 from kivy.uix.widget import Widget
-from src.database import TradingDatabase
+from src.database import Database
 from src.identifiers import (
     HPBuyConfig,
-    HPBuyData,
+    HPBuy,
     HPSellConfig,
     AllTickers,
     Event,
     EventName,
-    HPSellData,
+    HPSell,
     RemoveRecord,
     State,
     StateInfo,
@@ -33,7 +33,7 @@ from src.identifiers import (
     Mode,
     PositionSide,
 )
-from src.gui.identifiers.spot import (
+from src.gui.identifiers import (
     HPGuiDataBuy,
     HPGuiDataSell,
     HPUpdate,
@@ -77,7 +77,7 @@ class HpFront(BoxLayout):
         client: BinanceClient,
         config_queue: queue.Queue,
         ui_queue: queue.Queue,
-        db: TradingDatabase,
+        db: Database,
         price_resolver: UsdPriceResolver,
         portfolio_queue: queue.Queue,
         test_mode=False,
@@ -285,7 +285,7 @@ Side: {side}"""
             logger.error(f"Symbol info not found for {config.symbol}")
             return
 
-        new_hp = HPBuyData(
+        new_hp = HPBuy(
             config=HPBuyConfig(
                 coin=config.coin,
                 symbol=self.price_resolver.symbols[config.symbol],
@@ -1638,7 +1638,7 @@ Enter sell price to create sell order:"""
                     )
                     return
 
-            sell_config = HPSellData(
+            sell_config = HPSell(
                 config=HPSellConfig(
                     hp_id=hp_id,  # Use the same HP ID to create sell child
                     coin=coin_symbol,

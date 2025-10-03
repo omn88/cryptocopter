@@ -6,7 +6,7 @@ for multihop trading strategies. The design prioritizes simplicity, reliability,
 and cross-platform compatibility.
 """
 
-from .trading_database import TradingDatabase
+from .trading_database import Database
 from .models import (
     Position,
     Trade,
@@ -26,7 +26,7 @@ from .recovery_service import RecoveryService
 from .position_manager import PositionManager
 
 __all__ = [
-    "TradingDatabase",
+    "Database",
     "Position",
     "Trade",
     "Order",

@@ -1,7 +1,7 @@
 import asyncio
 import queue
 import logging
-from typing import Optional, Callable
+from typing import Any, Optional, Callable
 from transitions.extensions.asyncio import AsyncMachine
 from binance.enums import (
     ORDER_STATUS_NEW,
@@ -13,21 +13,20 @@ from binance.enums import (
     ORDER_TYPE_MARKET,
 )
 from src.common.symbol import Symbol
-from src.database import TradingDatabase
+from src.database import Database
 from src.identifiers import (
     AccountPosition,
     Event,
     EventName,
     ExecutionReport,
     HPBuyConfig,
-    HPBuyData,
+    HPBuy,
     HPBuyOrdersPlaced,
     HPBuyPositionFilled,
     HPBuyPositionPartiallyFilled,
     HPPositionCancelled,
     HPSellConfig,
-    HPSellData,
-    HPSellPositionCreated,
+    HPSell,
     HPSellPositionPartiallyFilled,
     SellPosition,
     SellType,
@@ -41,7 +40,7 @@ from src.identifiers import (
     PositionSide,
     HPSellPositionCompleted,
 )
-from src.gui.identifiers.spot import HPClose, HPGuiDataBuy, HPGuiDataSell, HPUpdate
+from src.gui.identifiers import HPClose, HPGuiDataBuy, HPGuiDataSell, HPUpdate
 from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
 
@@ -56,13 +55,13 @@ class HpStrategy:
         client: BinanceClient,
         balance: float,
         ui_queue: queue.Queue,
+        portfolio_ui_queue: Optional[queue.Queue],
         worker_queue: queue.Queue,
         config_queue: queue.Queue,
-        db: TradingDatabase,
+        db: Database,
         buy_position: HPPositionBuy,
         sell_position: HPPositionSell,
         initial_state: State = State.NEW,
-        portfolio_event_callback: Optional[Callable] = None,
     ):
         self.client = client
         self.balance = balance
@@ -71,11 +70,13 @@ class HpStrategy:
         self.worker_queue = worker_queue
         self.config_queue = config_queue
         self.ui_queue = ui_queue
+        self.portfolio_ui_queue = portfolio_ui_queue
         self.buy = buy_position
         self.sell = sell_position
-        self.portfolio_event_callback = (
-            portfolio_event_callback  # Callback to send HP events to portfolio
-        )
+        # Initialize callback - this can be None in test scenarios
+        self.portfolio_event_callback: Optional[Callable[[EventName, Any], None]] = None
+        if self.portfolio_ui_queue is not None:
+            self.portfolio_event_callback = self.send_hp_event_to_portfolio
 
         # Initialize any other common attributes
         self.signal_update: SignalUpdate = SignalUpdate()
@@ -111,13 +112,38 @@ class HpStrategy:
             None  # Track the worker task for cleanup
         )
 
+    def send_hp_event_to_portfolio(
+        self, event_name: EventName, event_data: Any
+    ) -> None:
+        """Send HP events to portfolio for quantity management."""
+        if self.portfolio_ui_queue is None:
+            logger.warning(
+                "[STRATEGY EXECUTOR] Portfolio UI queue is None - cannot send HP event"
+            )
+            return
+
+        try:
+            event = Event(name=event_name, content=event_data)
+            self.portfolio_ui_queue.put_nowait(event)
+            logger.info(
+                "[STRATEGY EXECUTOR] Sent HP event to portfolio: %s", event_name.value
+            )
+            if event_name == EventName.HP_POSITION_CANCELLED:
+                logger.info(
+                    "[STRATEGY EXECUTOR] Cancellation event details: %s", event_data
+                )
+        except Exception as e:
+            logger.error(
+                "[STRATEGY EXECUTOR] Failed to send HP event to portfolio: %s", e
+            )
+
     def _send_portfolio_event(self, event_name, event_data):
         """Send HP events to portfolio via callback."""
         if self.portfolio_event_callback:
             try:
                 self.portfolio_event_callback(event_name, event_data)
             except Exception as e:
-                logger.error(f"Failed to send portfolio event: {e}")
+                logger.error("Failed to send portfolio event: %s", e)
 
     def _get_transitions(self):
         return [
@@ -158,7 +184,9 @@ class HpStrategy:
                 "trigger": "process_ticker",
                 "source": State.PARTIALLY_BOUGHT,
                 "dest": State.SELLING,
-                "conditions": "conditions_for_sending_sell_orders_for_partially_bought_position",
+                "conditions": (
+                    "conditions_for_sending_sell_orders_for_partially_bought_position"
+                ),
                 "after": "send_sell_order",
             },
             {
@@ -166,7 +194,9 @@ class HpStrategy:
                 "trigger": "process_ticker",
                 "source": State.SELLING,
                 "dest": State.PARTIALLY_BOUGHT,
-                "conditions": "conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position",
+                "conditions": (
+                    "conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position"
+                ),
                 "after": "cancel_unfilled_sell_orders",
             },
             {
@@ -237,7 +267,9 @@ class HpStrategy:
                 "trigger": "process_ticker",
                 "source": State.SELLING,
                 "dest": State.PART_SOLD_PART_BOUGHT,
-                "conditions": "conditions_for_cancelling_partially_sold_and_bought_orders_sell_position",
+                "conditions": (
+                    "conditions_for_cancelling_partially_sold_and_bought_orders_sell_position"
+                ),
                 "after": "cancel_partially_sold_orders",
             },
             {
@@ -245,7 +277,9 @@ class HpStrategy:
                 "trigger": "process_ticker",
                 "source": State.PART_SOLD_PART_BOUGHT,
                 "dest": State.SELLING,
-                "conditions": "conditions_for_resending_sell_orders_from_part_sold_and_bought_orders",
+                "conditions": (
+                    "conditions_for_resending_sell_orders_from_part_sold_and_bought_orders"
+                ),
                 "before": "resend_sell_order",
             },
             {
@@ -253,7 +287,9 @@ class HpStrategy:
                 "trigger": "process_ticker",
                 "source": State.PART_SOLD_PART_BOUGHT,
                 "dest": State.BUYING,
-                "conditions": "conditions_for_resending_buy_orders_from_part_sold_and_bought_orders",
+                "conditions": (
+                    "conditions_for_resending_buy_orders_from_part_sold_and_bought_orders"
+                ),
                 "after": "resend_buy_orders",
             },
             {
@@ -261,7 +297,9 @@ class HpStrategy:
                 "trigger": "process_ticker",
                 "source": State.BUYING,
                 "dest": State.PART_SOLD_PART_BOUGHT,
-                "conditions": "conditions_for_cancelling_partially_sold_and_bought_orders_buy_position",
+                "conditions": (
+                    "conditions_for_cancelling_partially_sold_and_bought_orders_buy_position"
+                ),
                 "after": "cancel_partially_bought_orders",
             },
             {
@@ -538,7 +576,7 @@ class HpStrategy:
         hp_update.buy_operation_state = buy_state
 
         buy_data = HPGuiDataBuy(
-            data=HPBuyData(
+            data=HPBuy(
                 config=self.buy.data.config, state_info=self.buy.data.state_info
             ),
             hp_update=hp_update,
@@ -574,7 +612,7 @@ class HpStrategy:
         hp_update.sell_state = self.sell.current_position.state_info.state.value
 
         sell_data = HPGuiDataSell(
-            data=HPSellData(
+            data=HPSell(
                 config=self.sell.current_position.config,
                 state_info=self.sell.current_position.state_info,
             ),
@@ -690,7 +728,9 @@ class HpStrategy:
         )
         self._send_portfolio_event(EventName.HP_BUY_ORDERS_PLACED, hp_orders_placed)
         logger.info(
-            f"Sent HP buy orders placed event to lock {budget_amount} USDC budget for position {self.buy.data.config.hp_id}"
+            "Sent HP buy orders placed event to lock %s USDC budget for position %s",
+            budget_amount,
+            self.buy.data.config.hp_id,
         )
 
         self.send_buy_position_to_ui()
@@ -705,7 +745,8 @@ class HpStrategy:
         )
         if condition:
             logger.info(
-                "[Cancel Unfilled BUY] %s, last price: %s, trig price: %s, state: %s, buy state: %s",
+                "[Cancel Unfilled BUY] %s, last price: %s, trig price: %s, "
+                "state: %s, buy state: %s",
                 self.buy.data.config.symbol.name,
                 self.ticker_update.last_price,
                 self.buy.orders_cancel_price,
@@ -732,7 +773,9 @@ class HpStrategy:
         )
         self._send_portfolio_event(EventName.HP_POSITION_CANCELLED, hp_cancelled)
         logger.info(
-            f"Sent HP buy cancellation event to unlock {budget_amount} USDC budget for position {self.buy.data.config.hp_id}"
+            "Sent HP buy cancellation event to unlock %s USDC budget for position %s",
+            budget_amount,
+            self.buy.data.config.hp_id,
         )
 
         self.buy.data.state_info.state = State.NEW
@@ -988,7 +1031,6 @@ class HpStrategy:
                     )
 
             # Send HP sell position completed event to portfolio
-            end_currency_received = quoted_amount  # Already calculated from convert API
             hp_sell_completed = HPSellPositionCompleted(
                 hp_id=self.sell.current_position.config.hp_id,
                 coin=self.sell.current_position.config.coin,
@@ -996,7 +1038,6 @@ class HpStrategy:
                 buy_price=self.sell.current_position.config.buy_price,  # Add missing buy price
                 sell_price=self.sell.current_position.config.sell_price,  # Add missing sell price
                 end_currency=to_asset,  # Use the actual to_asset from convert
-                end_currency_received=end_currency_received,
             )
             logger.info(
                 "Sending HP sell position completed from CONVERT POSITION: %s",
@@ -1191,13 +1232,15 @@ class HpStrategy:
             self.sell.current_position.state_info.state == State.PARTIALLY_SOLD
         ), "sell state is wrong"
         assert self.buy.data.state_info.state == State.BOUGHT, "buy state is wrong"
-        assert (
-            self.ticker_update.last_price >= trigger_send_orders_price
-        ), f"price condition is wrong, last price: {self.ticker_update.last_price}, trigger: {trigger_send_orders_price}"
+        assert self.ticker_update.last_price >= trigger_send_orders_price, (
+            f"price condition is wrong, last price: {self.ticker_update.last_price}, "
+            f"trigger: {trigger_send_orders_price}"
+        )
         assert condition
         if condition:
             logger.info(
-                "[Resend sell] %s, sell state: %s, state: %s, balance: %s, price trig: %s last price: %s",
+                "[Resend sell] %s, sell state: %s, state: %s, balance: %s, "
+                "price trig: %s last price: %s",
                 self.sell.current_position.config.symbol.name,
                 self.sell.current_position.state_info.state.value,
                 self.state.value,
@@ -1280,12 +1323,6 @@ class HpStrategy:
         self.sell.current_position.state_info.get_completeness(
             self.sell.current_position.sell_order
         )
-
-        # Send HP sell position completed event to portfolio
-        end_currency_received = (
-            self.sell.current_position.sell_order.realized_quantity
-            * self.sell.current_position.config.sell_price
-        )
         hp_sell_completed = HPSellPositionCompleted(
             hp_id=self.sell.current_position.config.hp_id,
             coin=self.sell.current_position.config.coin,
@@ -1293,13 +1330,12 @@ class HpStrategy:
             buy_price=self.sell.current_position.config.buy_price,  # Add missing buy price
             sell_price=self.sell.current_position.config.sell_price,  # Add missing sell price
             end_currency=self.sell.current_position.config.end_currency,  # Use actual end_currency from config
-            end_currency_received=end_currency_received,
         )
-
         await self.db.upsert_sell_price_level(
             data=self.sell.current_position, strategy_state=self.state
         )
         self.send_sell_position_to_ui()
+
         if len(self.sell.sell_positions) == 1:
             # Check if this is a convert operation - if so, completion event was already sent
             is_convert_operation = (
@@ -1313,7 +1349,8 @@ class HpStrategy:
             else:
                 # For direct sell (single position), send completion event instead of HPClose
                 logger.info(
-                    "Sending HP sell position completed from CLOSE FILLED POSITION SELL (direct): %s",
+                    "Sending HP sell position completed from CLOSE FILLED POSITION SELL "
+                    "(direct): %s",
                     hp_sell_completed,
                 )
                 self._send_portfolio_event(
@@ -1341,7 +1378,7 @@ class HpStrategy:
                 state_info=self.sell.original_position.state_info,
             )
             data = HPGuiDataSell(
-                data=HPSellData(
+                data=HPSell(
                     config=self.sell.original_position.config,
                     state_info=self.sell.original_position.state_info,
                 ),
@@ -1370,7 +1407,6 @@ class HpStrategy:
                 buy_price=self.sell.original_position.config.buy_price,
                 sell_price=self.sell.original_position.config.sell_price,
                 end_currency=self.sell.original_position.config.end_currency,
-                end_currency_received=end_currency_received,  # Use same end_currency_received as child
             )
             logger.info(
                 "Sending HP sell position completed for PARENT multihop position: %s",
@@ -1386,7 +1422,8 @@ class HpStrategy:
         ):
             self.send_sell_position_to_ui()
             logger.info(
-                "First sell position from two hop trade closed, assigning second one as current one."
+                "First sell position from two hop trade closed, "
+                "assigning second one as current one."
             )
             self.sell.current_position = self.sell.sell_positions[1]
             assert isinstance(self.sell.current_position, SellPosition)
@@ -1535,19 +1572,14 @@ class HpStrategy:
 
         self.sell.current_position.state_info.state = State.SOLD
 
-        # Send HP sell position completed event to portfolio
-        end_currency_received = (
-            self.sell.current_position.sell_order.realized_quantity
-            * self.sell.current_position.config.sell_price
-        )
         hp_sell_completed = HPSellPositionCompleted(
             hp_id=self.sell.current_position.config.hp_id,
             coin=self.sell.current_position.config.coin,
             quantity_sold=self.sell.current_position.sell_order.realized_quantity,
             buy_price=self.sell.current_position.config.buy_price,  # Add missing buy price
             sell_price=self.sell.current_position.config.sell_price,  # Add missing sell price
-            end_currency=self.sell.current_position.config.end_currency,  # Use actual end_currency from config
-            end_currency_received=end_currency_received,
+            # Use actual end_currency from config
+            end_currency=self.sell.current_position.config.end_currency,
         )
         logger.info(
             "Sending HP sell position completed from SOLD POSITION WHICH IS PART BOUGHT: %s",
@@ -1633,7 +1665,8 @@ class HpStrategy:
         )
 
         # Send fill event to portfolio for inventory updates
-        # Only send PARTIALLY_FILLED if not all orders are filled (to avoid duplicate with FILLED event)
+        # Only send PARTIALLY_FILLED if not all orders are filled
+        # (to avoid duplicate with FILLED event)
         all_orders_filled = all(
             order.status == ORDER_STATUS_FILLED for order in self.buy.orders
         )
@@ -1946,7 +1979,7 @@ class HpStrategy:
                     assert isinstance(event.content, SignalUpdate)
                     self.signal_update = event.content
                     logger.info(
-                        f"[WORKER QUEUE] Processing signal: {self.signal_update}"
+                        "[WORKER QUEUE] Processing signal: %s", self.signal_update
                     )
                     await self.process_signal()  # pylint: disable=no-member
 
