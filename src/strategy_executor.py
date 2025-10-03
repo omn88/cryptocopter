@@ -3,20 +3,17 @@ import logging
 import os
 import queue
 import threading
-import time  # Add time import for WebSocket error handling
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional
 from decouple import Config, RepositoryEnv
 from binance.enums import (
     ORDER_STATUS_CANCELED,
     ORDER_STATUS_FILLED,
-    ORDER_STATUS_NEW,
 )
 from src.common.helpers import determine_sell_strategy, generate_hp_id
 from src.database import Database
 from src.identifiers import (
     Event,
     EventName,
-    ExecutionReport,
     HPBuyConfig,
     HPBuy,
     HPSellConfig,
@@ -82,7 +79,7 @@ class StrategyExecutor:
         portfolio_ui_queue: Optional[queue.Queue] = None,
         test_mode: bool = False,
     ):
-        self.client: Optional[BinanceClient] = None
+        self._client: Optional[BinanceClient] = None
         self.db = db
         self.broker = broker
         self.ui_queue = ui_queue
@@ -95,26 +92,20 @@ class StrategyExecutor:
         self.price_resolver = price_resolver
         self.recovery_service: Optional[RecoveryService] = None
 
-        # WebSocket error handling attributes
-        self._websocket_error_count = 0
-        self._last_websocket_error_time = 0.0
-        self._websocket_error_suppression_time = 600  # 10 minutes
-
-        # BinanceClient restart tracking for circuit breaker pattern
-        self._restart_count = 0
-        self._last_restart_time = 0.0
-        self._restart_base_delay = 60  # Start with 1 minute delay
-        self._max_restart_delay = 3600  # Maximum 1 hour delay
-
-        # Ticker timeout monitoring for backup circuit breaker
-        self._max_ticker_silence_duration = 300  # 5 minutes max silence before restart
-        self._ticker_timeout_check_interval = 60  # Check every minute
-        self._ticker_timeout_task: Optional[asyncio.Task[None]] = None
-
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self.start_loop)
         self.thread.start()
+
+    @property
+    def client(self) -> Optional[BinanceClient]:
+        """Access the StrategyExecutor's own BinanceClient for REST API operations."""
+        return self._client
+
+    @client.setter
+    def client(self, value: Optional[BinanceClient]) -> None:
+        """Set the StrategyExecutor's BinanceClient (primarily for testing)."""
+        self._client = value
 
     def start_loop(self) -> None:
         """Starts the asyncio loop in a new thread."""
@@ -124,12 +115,11 @@ class StrategyExecutor:
 
     async def run(self) -> None:
         logger.info("Strategy executor ready to retrieve the first config")
-        if not self.test_mode:
-            self.client = BinanceClient(
+
+        # Create client if not in test mode and not already set
+        if not self.test_mode and self._client is None:
+            self._client = BinanceClient(
                 api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
-            )
-            self._ticker_timeout_task = asyncio.create_task(
-                self._monitor_ticker_timeout()
             )
 
         self.recovery_service = RecoveryService(
@@ -138,10 +128,6 @@ class StrategyExecutor:
             broker=self.broker,
         )
         await self.recover_positions_from_crash()
-
-        # Set up WebSocket error handling (for both test and real mode)
-        if hasattr(self.broker, "set_error_handler"):
-            self.broker.set_error_handler(self._handle_websocket_error)
 
         while not self.stop_event.is_set():
             try:
@@ -190,18 +176,14 @@ class StrategyExecutor:
         logger.info("Stopping strategy executor, stop event SET.")
         self.stop_event.set()
 
-        # Cancel ticker timeout monitoring task if it exists
-        if self._ticker_timeout_task and not self._ticker_timeout_task.done():
-            self._ticker_timeout_task.cancel()
-            logger.info("Cancelled ticker timeout monitoring task")
-
-        if self.client:
+        # Close client connection if it exists
+        if self._client:
             try:
-                asyncio.run(self.client.close_connection())
-            except RuntimeError:
-                logger.warning("No running event loop, skipping async close.")
+                asyncio.run(self._client.close_connection())
+            except Exception as e:
+                logger.error("Error closing client connection: %s", e)
 
-        logger.info("Client connection closed.")
+        logger.info("Strategy executor stopped.")
         self.thread.join()
         logger.info("Strategy executor thread finished")
 
@@ -1216,267 +1198,3 @@ class StrategyExecutor:
         except Exception as e:
             logger.error("Unexpected error during crash recovery: %s", e, exc_info=True)
             # Don't raise - let the system continue with empty state
-
-    async def _handle_websocket_error(
-        self, error_msg: Union[str, Dict[str, Any]]
-    ) -> None:
-        """Handle WebSocket errors, especially keepalive timeouts and
-        unrecoverable failures."""
-        current_time = time.time()
-
-        # Check for unrecoverable errors
-        unrecoverable_types = [
-            "BinanceWebsocketUnableToConnect",
-            "BinanceWebsocketClosed",
-            "ConnectionClosedError",
-            "ConnectionClosedOK",  # Server-initiated disconnections (e.g., "going away")
-            "ConnectionClosed",  # Generic connection closed errors
-            "TickerTimeoutError",  # Backup circuit breaker for silent ticker streams
-        ]
-        unrecoverable_msgs = [
-            "Max reconnections",
-            "timed out during opening handshake",
-            "Cannot connect to host",
-            "Temporary failure in name resolution",
-            "getaddrinfo failed",
-            "going away",  # WebSocket close code 1001
-            "abnormal closure",  # WebSocket close code 1006
-            "received 1001",  # Explicit check for going away code
-            "received 1006",  # Explicit check for abnormal closure
-        ]
-
-        is_unrecoverable = False
-        if isinstance(error_msg, dict):
-            error_type = error_msg.get("type", "")
-            error_message = error_msg.get("m", "")
-
-            # Check direct error type and message first
-            if any(t in error_type for t in unrecoverable_types) or any(
-                m in error_message for m in unrecoverable_msgs
-            ):
-                is_unrecoverable = True
-
-            # Check for nested error messages (common with TickerStreamError)
-            if not is_unrecoverable and error_type == "TickerStreamError":
-                try:
-
-                    # Handle malfoqrmed JSON by extracting key info
-                    if "'e': 'error'" in error_message and "'type':" in error_message:
-                        # Extract nested error type using string parsing
-                        start_idx = error_message.find("'type': '") + 9
-                        if start_idx > 8:  # Found the pattern
-                            end_idx = error_message.find("'", start_idx)
-                            if end_idx > start_idx:
-                                nested_error_type = error_message[start_idx:end_idx]
-                                if any(
-                                    t in nested_error_type for t in unrecoverable_types
-                                ):
-                                    logger.warning(
-                                        "Detected unrecoverable error in nested "
-                                        "TickerStreamError: %s",
-                                        nested_error_type,
-                                    )
-                                    is_unrecoverable = True
-                except Exception as e:
-                    logger.debug("Error parsing nested error message: %s", e)
-
-        # If unrecoverable, restart websocket client with circuit breaker pattern
-        if is_unrecoverable:
-            # Calculate delay using circuit breaker pattern
-            self._restart_count += 1
-            time_since_last_restart = current_time - self._last_restart_time
-
-            # If it's been more than 10 minutes since last restart, reset counter
-            if time_since_last_restart > 600:
-                self._restart_count = 1
-
-            # Calculate progressive delay: base_delay * (restart_count ^ 1.5), capped at max
-            restart_delay = min(
-                self._restart_base_delay * (self._restart_count**1.5),
-                self._max_restart_delay,
-            )
-
-            logger.error(
-                "Unrecoverable websocket error detected: %s. Restart #%d. "
-                "Waiting %.1f seconds before restarting to allow network to stabilize...",
-                error_msg,
-                self._restart_count,
-                restart_delay,
-            )
-
-            # Wait before attempting restart to let network stabilize
-            await asyncio.sleep(restart_delay)
-            self._last_restart_time = time.time()  # Update after the delay
-
-            retry_count = 0
-            while True:
-                try:
-                    # Stop current client if exists
-                    logger.info(
-                        "Attempting to restart BinanceClient (restart #%d)...",
-                        self._restart_count,
-                    )
-                    if self.client:
-                        try:
-                            await self.client.close_connection()
-                        except Exception as e:
-                            logger.warning("Error closing client: %s", e)
-                        self.client = None
-                    # Recreate client
-                    logger.info("Recreating BinanceClient...")
-                    if self.test_mode:
-                        logger.info(
-                            "Test mode - using injected client, crash recovery will be "
-                            "triggered manually when client is assigned"
-                        )
-                    else:
-                        self.client = BinanceClient(
-                            api_key=config_env("API_KEY"),
-                            api_secret=config_env("API_SECRET"),
-                        )
-                    logger.info("BinanceClient restarted successfully.")
-                    # Resubscribe all strategies
-                    await self._resubscribe_all_strategies()
-                    logger.info("Resubscription after restart complete.")
-
-                    # Reset restart count on successful restart
-                    if retry_count == 0:  # Only reset if first attempt succeeded
-                        logger.info(
-                            "WebSocket client restart successful. Circuit breaker reset."
-                        )
-                        # Don't reset _restart_count here - keep it for progressive delay
-                    break
-                except Exception as e:
-                    retry_count += 1
-                    restart_retry_delay = min(30, 2**retry_count)
-                    logger.error(
-                        "Websocket restart attempt #%d failed: %s. Retrying in %d seconds...",
-                        retry_count,
-                        e,
-                        restart_retry_delay,
-                    )
-                    await asyncio.sleep(restart_retry_delay)
-            return
-
-        # Check if this is a keepalive timeout error (legacy logic)
-        if isinstance(error_msg, dict):
-            error_type = error_msg.get("type", "")
-            error_message = error_msg.get("m", "")
-            if (
-                "keepalive ping timeout" in error_message
-                or "ConnectionClosedError" in error_type
-            ):
-                # Suppress frequent logging of the same error
-                if (
-                    current_time - self._last_websocket_error_time
-                    > self._websocket_error_suppression_time
-                ):
-                    logger.warning(
-                        "WebSocket keepalive timeout detected. This is a known issue with "
-                        "python-binance + Python 3.12. Connection will auto-reconnect."
-                    )
-                    self._last_websocket_error_time = current_time
-                    self._websocket_error_count = 1
-                else:
-                    self._websocket_error_count += 1
-                if self._websocket_error_count > 20:
-                    logger.warning(
-                        "Excessive WebSocket reconnections detected (%d errors), "
-                        "will resubscribe all streams",
-                        self._websocket_error_count,
-                    )
-                    await self._resubscribe_all_strategies()
-                    self._websocket_error_count = 0
-                return
-
-        # Handle other WebSocket errors normally
-        logger.error("WebSocket error: %s", error_msg)
-
-    async def _monitor_ticker_timeout(self) -> None:
-        """Monitor for ticker timeout and trigger circuit breaker if no
-        ticker data for too long."""
-        logger.info(
-            "Starting ticker timeout monitoring (max silence: %d seconds)",
-            self._max_ticker_silence_duration,
-        )
-
-        while not self.stop_event.is_set():
-            try:
-                await asyncio.sleep(self._ticker_timeout_check_interval)
-
-                if self.stop_event.is_set():
-                    break
-
-                # Check if broker reports ticker timeout
-                if hasattr(self.broker, "_last_ticker_time") and hasattr(
-                    self.broker, "_ticker_timeout_threshold"
-                ):
-                    time_since_ticker = time.time() - self.broker._last_ticker_time
-                    if time_since_ticker > self._max_ticker_silence_duration:
-                        logger.error(
-                            "Backup circuit breaker triggered: ticker silent for %.1f seconds "
-                            "(max: %d seconds). Forcing WebSocket restart...",
-                            time_since_ticker,
-                            self._max_ticker_silence_duration,
-                        )
-
-                        # Trigger circuit breaker by simulating an unrecoverable error
-                        timeout_error = {
-                            "type": "TickerTimeoutError",
-                            "m": (
-                                f"Ticker silent for {time_since_ticker:.1f} seconds - "
-                                "backup circuit breaker activated"
-                            ),
-                        }
-                        await self._handle_websocket_error(timeout_error)
-                        return  # Exit monitoring after triggering restart
-
-            except asyncio.CancelledError:
-                logger.info("Ticker timeout monitoring task cancelled")
-                break
-            except Exception as e:
-                logger.error("Error in ticker timeout monitoring: %s", e)
-                await asyncio.sleep(10)  # Wait before retrying
-
-        logger.info("Ticker timeout monitoring stopped")
-
-    async def _resubscribe_all_strategies(self) -> None:
-        """Resubscribe all active strategies after excessive reconnections"""
-        logger.info("Resubscribing all active strategy WebSocket streams...")
-
-        for strategy_id, strategy in self.strategies.items():
-            try:
-                worker_queue = strategy.worker_queue
-
-                # Unsubscribe first
-                self.broker.unsubscribe(system_id=str(strategy_id))
-
-                # Wait a bit
-                await asyncio.sleep(1)
-
-                # Resubscribe to user data stream
-                self.broker.subscribe(
-                    system_id=str(strategy_id),
-                    subscription_info=SubscriptionInfo(
-                        data_type=SubscriptionType.USER,
-                        symbol=strategy.buy.data.config.symbol.name,
-                        target=SubscriptionTarget.BACKEND,
-                        queue=worker_queue,
-                    ),
-                )
-
-                # Resubscribe to price stream
-                self.broker.subscribe(
-                    system_id=str(strategy_id),
-                    subscription_info=SubscriptionInfo(
-                        data_type=SubscriptionType.PRICE,
-                        symbol=strategy.buy.data.config.symbol.name,
-                        target=SubscriptionTarget.BACKEND,
-                        queue=worker_queue,
-                    ),
-                )
-
-            except Exception as e:
-                logger.error("Failed to resubscribe strategy %s: %s", strategy_id, e)
-
-        logger.info("Finished resubscribing all strategies")

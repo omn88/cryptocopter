@@ -8,7 +8,7 @@ without requiring external error handlers.
 import asyncio
 import logging
 
-logger = logging.getLogger("test_websocket_fix")
+logger = logging.getLogger("test_new_websocket_architecture")
 
 
 class MockBroker:
@@ -131,23 +131,43 @@ async def test_strategy_executor_independence():
     """Test that StrategyExecutor no longer needs to handle WebSocket errors."""
     logger.info("Testing StrategyExecutor independence from WebSocket errors...")
 
-    # This test verifies that StrategyExecutor no longer has WebSocket-related methods
-    from src.strategy_executor import StrategyExecutor
+    # Check if the StrategyExecutor file no longer contains WebSocket-related methods
+    import os
 
-    # Verify that these methods/attributes no longer exist
+    strategy_executor_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "src",
+        "strategy_executor.py",
+    )
+
+    with open(strategy_executor_path, "r") as f:
+        content = f.read()
+
+    # Verify that these methods no longer exist in the file
     websocket_methods = [
         "_handle_websocket_error",
         "_monitor_ticker_timeout",
         "_resubscribe_all_strategies",
-        "_websocket_error_count",
-        "_restart_count",
         "set_error_handler",
     ]
 
     for method_name in websocket_methods:
-        assert not hasattr(
-            StrategyExecutor, method_name
-        ), f"StrategyExecutor should not have {method_name} - WebSocket handling moved to Broker"
+        assert (
+            method_name not in content
+        ), f"StrategyExecutor should not contain {method_name} - WebSocket handling moved to Broker"
+
+    # Verify WebSocket-related attributes are removed
+    websocket_attributes = [
+        "_websocket_error_count",
+        "_restart_count",
+        "_last_restart_time",
+        "_ticker_timeout_task",
+    ]
+
+    for attr_name in websocket_attributes:
+        assert (
+            attr_name not in content
+        ), f"StrategyExecutor should not contain {attr_name} - WebSocket state moved to Broker"
 
     logger.info("✓ StrategyExecutor is now independent of WebSocket error handling")
     logger.info("✓ All WebSocket-related methods successfully removed")

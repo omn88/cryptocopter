@@ -129,6 +129,7 @@ def strategy_executor_fixture(test_db: Database, mock_async_client, mock_invento
         price_resolver=price_resolver,
         portfolio_ui_queue=queue.Queue(),
     )
+    # Set the mock client directly on the executor for testing
     executor.client = mock_async_client
 
     yield executor  # Provide the instance for the test
