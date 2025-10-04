@@ -463,7 +463,7 @@ class BrokerSpot:
         worker_queue: queue.Queue,
     ) -> None:
         """Setup USER and PRICE subscriptions for a strategy.
-        
+
         Args:
             hp_id: The unique identifier for the holding pattern/strategy
             symbol: The main trading symbol (e.g., 'BTCUSDC')
