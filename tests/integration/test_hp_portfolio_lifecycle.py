@@ -4,13 +4,10 @@ import logging
 import pytest
 
 from src.identifiers import (
-    Event,
-    EventName,
     HPSellPositionCreated,
     HPSellPositionCompleted,
     HPSellPositionPartiallyFilled,
     HPBuyPositionFilled,
-    HPPositionCancelled,
 )
 from src.portfolio.portfolio_gui import PortfolioUI
 
