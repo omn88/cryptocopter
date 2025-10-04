@@ -703,9 +703,14 @@ class BrokerSpot:
                 if self.client:
                     try:
                         await self.client.close_connection()
+                        # Wait briefly for WebSocket keepalive tasks to detect closure and exit gracefully
+                        # This prevents "Session is closed" errors from orphaned tasks
+                        await asyncio.sleep(0.5)
+                        logger.info("BinanceClient connection closed successfully")
                     except Exception as e:
-                        logger.warning("Error closing client: %s", e)
-                    self.client = None
+                        logger.warning("Error closing client (non-critical): %s", e)
+                    finally:
+                        self.client = None
 
                 # Recreate client
                 logger.info("Recreating BinanceClient...")
