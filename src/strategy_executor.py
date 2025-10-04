@@ -649,9 +649,7 @@ class StrategyExecutor:
                         sell.current_position.sell_order.quantity,
                         "SELL",
                     )
-                    await self._close_sell_position(
-                        sell.current_position, State.CLOSED
-                    )
+                    await self._close_sell_position(sell.current_position, State.CLOSED)
                     logger.info("Successfully cancelled NEW sell position: %s", hp_id)
 
                 return
