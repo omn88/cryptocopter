@@ -223,6 +223,36 @@ async def hp_gui(mock_async_client) -> AsyncGenerator:
 
 
 @pytest.fixture
+def mock_broker():
+    """Create a mock broker instance for WebSocket architecture testing"""
+    with patch("src.broker.BinanceClient"):
+        # Patch the thread.start() to prevent background thread from starting
+        with patch("threading.Thread.start"):
+            broker = BrokerSpot()
+            # Manually set loop without starting the thread
+            broker.loop = asyncio.new_event_loop()
+            yield broker
+            # Graceful teardown - cancel tasks if they were created
+            try:
+                if (
+                    hasattr(broker, "_ticker_timeout_task")
+                    and broker._ticker_timeout_task
+                    and not broker._ticker_timeout_task.done()
+                ):
+                    broker._ticker_timeout_task.cancel()
+                if (
+                    hasattr(broker, "_connection_health_task")
+                    and broker._connection_health_task
+                    and not broker._connection_health_task.done()
+                ):
+                    broker._connection_health_task.cancel()
+                if broker.loop and not broker.loop.is_closed():
+                    broker.loop.close()
+            except Exception:
+                pass  # Ignore teardown errors
+
+
+@pytest.fixture
 async def frontend_backend_setup(
     hp_gui: HpFront, strategy_executor_fixture: StrategyExecutor
 ):
