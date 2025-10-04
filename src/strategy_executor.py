@@ -23,9 +23,6 @@ from src.identifiers import (
     SellType,
     State,
     StateInfo,
-    SubscriptionInfo,
-    SubscriptionTarget,
-    SubscriptionType,
     UiState,
     BinanceClient,
     PositionSide,
@@ -242,7 +239,7 @@ class StrategyExecutor:
             buy_orders=strategy.buy.orders,
         )
 
-        self._setup_broker_subscriptions(
+        self.broker.setup_subscriptions(
             hp_id=str(new_hp.config.hp_id),
             symbol=new_hp.config.symbol.name,
             additional_symbols=None,
@@ -514,7 +511,7 @@ class StrategyExecutor:
         additional_symbols = (
             [s.name for s in sell_strategy[1:]] if len(sell_strategy) > 1 else None
         )
-        self._setup_broker_subscriptions(
+        self.broker.setup_subscriptions(
             hp_id=str(parent_hp_id),
             symbol=config.symbol.name,
             additional_symbols=additional_symbols,
@@ -987,46 +984,3 @@ class StrategyExecutor:
                     await self.db.upsert_sell_price_level(
                         data=position, strategy_state=strategy_state
                     )
-
-    def _setup_broker_subscriptions(
-        self,
-        hp_id: str,
-        symbol: str,
-        additional_symbols: Optional[List[str]],
-        worker_queue: queue.Queue,
-    ) -> None:
-        """Setup USER and PRICE subscriptions for a strategy."""
-        # User data subscription
-        self.broker.subscribe(
-            system_id=hp_id,
-            subscription_info=SubscriptionInfo(
-                data_type=SubscriptionType.USER,
-                symbol=symbol,
-                target=SubscriptionTarget.BACKEND,
-                queue=worker_queue,
-            ),
-        )
-
-        # Price subscription for main symbol
-        self.broker.subscribe(
-            system_id=hp_id,
-            subscription_info=SubscriptionInfo(
-                data_type=SubscriptionType.PRICE,
-                symbol=symbol,
-                target=SubscriptionTarget.BACKEND,
-                queue=worker_queue,
-            ),
-        )
-
-        # Additional price subscriptions (for multihop sell strategies)
-        if additional_symbols:
-            for add_symbol in additional_symbols:
-                self.broker.subscribe(
-                    system_id=hp_id,
-                    subscription_info=SubscriptionInfo(
-                        data_type=SubscriptionType.PRICE,
-                        symbol=add_symbol,
-                        target=SubscriptionTarget.BACKEND,
-                        queue=worker_queue,
-                    ),
-                )
