@@ -35,10 +35,18 @@ if os.path.exists(DOTENV_FILE):
     config_env = Config(RepositoryEnv(DOTENV_FILE))
 else:
     print("Warning: .env file not found! Using default values.")
-    config_env = {
-        "API_KEY": "key",
-        "API_SECRET": "secret",
-    }
+    # Create a Config-like object that behaves the same way
+    class DefaultConfig:
+        def __init__(self):
+            self._defaults = {
+                "API_KEY": "key",
+                "API_SECRET": "secret",
+            }
+        
+        def __call__(self, key, default=None):
+            return self._defaults.get(key, default)
+    
+    config_env = DefaultConfig()
 
 
 class BrokerSpot:
