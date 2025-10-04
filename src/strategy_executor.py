@@ -650,7 +650,7 @@ class StrategyExecutor:
                         "SELL",
                     )
                     await self._close_sell_position(
-                        strategy, sell.current_position, State.CLOSED
+                        sell.current_position, State.CLOSED
                     )
                     logger.info("Successfully cancelled NEW sell position: %s", hp_id)
 
@@ -857,7 +857,7 @@ class StrategyExecutor:
         )
 
     async def _close_sell_position(
-        self, strategy: HpStrategy, sell_position: SellPosition, strategy_state: State
+        self, sell_position: SellPosition, strategy_state: State
     ) -> None:
         """Close sell position and update database/UI."""
         sell_position.state_info.state = State.CLOSED

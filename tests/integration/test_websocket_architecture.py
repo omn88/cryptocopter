@@ -11,10 +11,9 @@ Tests the self-healing WebSocket architecture in the Broker to ensure:
 7. Separation of concerns (StrategyExecutor has no WebSocket error handling)
 """
 
-import pytest
-import asyncio
 import time
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+import queue
+from unittest.mock import Mock, AsyncMock, patch
 from src.broker import BrokerSpot
 from src.strategy_executor import StrategyExecutor
 from src.identifiers import (
@@ -22,7 +21,6 @@ from src.identifiers import (
     SubscriptionType,
     SubscriptionTarget,
 )
-import queue
 
 
 # WebSocket Self-Healing Tests
@@ -71,7 +69,7 @@ async def test_handle_websocket_error_detects_unrecoverable(mock_broker):
     for error in unrecoverable_errors:
         initial_count = mock_broker._restart_count
         # Mock both asyncio.sleep and _restart_websocket_client
-        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        with patch("asyncio.sleep", new_callable=AsyncMock):
             with patch.object(
                 mock_broker, "_restart_websocket_client", new_callable=AsyncMock
             ) as mock_restart:
