@@ -1,6 +1,7 @@
 import logging
 from typing import Dict, Optional
 from src.gui.identifiers import HPUpdate
+from src.identifiers import State
 
 logger = logging.getLogger(__name__)
 
@@ -122,9 +123,6 @@ class HPChildCreator:
         parent["quantity_usd"] = convert_sell_child["quantity_usd"]
         parent["sell_price"] = convert_sell_child["sell_price"]
         parent["expected_return"] = convert_sell_child["expected_return"]
-
-        # For convert positions, handle realized_quantity based on state
-        from src.identifiers import State
 
         if update.state.value == State.SOLD.value:
             parent["realized_quantity"] = convert_sell_child["realized_quantity"]

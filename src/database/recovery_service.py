@@ -381,12 +381,7 @@ class RecoveryService:
 
         # For restored positions, extract parent ID for strategy registration
         full_hp_id = sell_position.config.hp_id
-        if "_CONVERT" in full_hp_id:
-            parent_hp_id = full_hp_id.split("_CONVERT")[0]
-        elif "_SELL" in full_hp_id:
-            parent_hp_id = full_hp_id.split("_SELL")[0]
-        else:
-            parent_hp_id = full_hp_id
+        parent_hp_id = full_hp_id[:4]
         logger.info(
             "Setting up NEW SELL position with config: %s", sell_position.config
         )

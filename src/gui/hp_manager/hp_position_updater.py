@@ -17,7 +17,7 @@ class HPPositionUpdater:
         operation_side: str,
         quantity_usd: str,
     ) -> None:
-        position_type = self._detect_position_type(hp_id, update)
+        position_type = self.detect_position_type(hp_id, update)
         logger.debug("Processing position %s as type: %s", hp_id, position_type)
 
         if position_type == "parent":
@@ -34,7 +34,7 @@ class HPPositionUpdater:
                 hp_map, update, hp_id, operation_side, quantity_usd
             )
 
-    def _detect_position_type(self, hp_id: str, update: HPUpdate) -> str:
+    def detect_position_type(self, hp_id: str, update: HPUpdate) -> str:
         if "_CONVERT" in hp_id:
             parts = hp_id.split("_CONVERT")
             if len(parts) == 2 and parts[0].isdigit() and parts[1] == "":

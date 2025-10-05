@@ -901,12 +901,6 @@ Enter sell price to create sell order:"""
         # Trigger UI re-render to show/hide children
         self._render_hp_list_ui()
 
-    def _get_sorted_hp_list(self):
-        """Get sorted HP list. Delegates to list filter."""
-        return self.list_filter.get_sorted_hp_list(
-            self.hp_list_data, self.hp_state_filter
-        )
-
     def _render_hp_list_ui(self, *args):
         """Render the HP list UI widgets from current hp_list_data.
 
@@ -916,18 +910,18 @@ Enter sell price to create sell order:"""
         2. Manually for visual-only updates (expand/collapse, filter changes, price updates)
         """
 
-        # Check if we have the KV layout elements
         if not hasattr(self, "ids") or not hasattr(self.ids, "hp_list_container"):
             logger.warning("HP list container not available, skipping update")
             # In test environments, the KV container may not be available
             # but we should still allow the data to be processed
             return
 
-        # Clear existing rows
         self.ids.hp_list_container.clear_widgets()
 
         # Get sorted HP list data
-        sorted_hp_data = self._get_sorted_hp_list()
+        sorted_hp_data = self.list_filter.get_sorted_hp_list(
+            self.hp_list_data, self.hp_state_filter
+        )
 
         if not sorted_hp_data:
             empty_label = Label(
@@ -943,12 +937,8 @@ Enter sell price to create sell order:"""
         else:
             # Add HP rows
             for hp_data in sorted_hp_data:
-                row_widget = self._create_hp_row_widget(hp_data)
+                row_widget = self.row_renderer.create_hp_row_widget(hp_data)
                 self.ids.hp_list_container.add_widget(row_widget)
-
-    def _create_hp_row_widget(self, hp_data: Dict) -> Widget:
-        """Create a widget for an HP row. Delegates to row renderer."""
-        return self.row_renderer.create_hp_row_widget(hp_data)
 
     def on_hp_state_filter_change(self, filter_text):
         """Handle HP state filter dropdown selection. Delegates to list filter."""

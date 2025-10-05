@@ -6,7 +6,7 @@ encapsulating the specialized helper classes and providing a clean API for the G
 """
 
 import logging
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Callable
 from src.gui.identifiers import HPUpdate
 from src.gui.hp_manager.hp_position_updater import HPPositionUpdater
 from src.gui.hp_manager.hp_child_creator import HPChildCreator
@@ -71,9 +71,9 @@ class HPDataManager:
             quantity_usd: The USD quantity as formatted string
         """
         # Detect position type
-        position_type = self._detect_position_type(hp_id, update)
+        position_type = self.position_updater.detect_position_type(hp_id, update)
 
-        logger.debug(f"Routing position {hp_id} as type: {position_type}")
+        logger.debug("Routing position %s as type: %s", hp_id, position_type)
 
         # Route to appropriate handler
         if position_type == "parent":
@@ -85,26 +85,18 @@ class HPDataManager:
                 hp_map, update, hp_id, operation_side, quantity_usd
             )
         elif position_type == "multihop":
-            self._handle_multihop_position(
-                hp_map, update, hp_id, operation_side, quantity_usd
-            )
+            self._handle_multihop_position(hp_map, update, hp_id)
         elif position_type == "regular":
             self._handle_regular_position(
                 hp_map, update, hp_id, operation_side, quantity_usd
             )
         elif position_type == "convert":
-            self._handle_convert_position(
-                hp_map, update, hp_id, operation_side, quantity_usd
-            )
+            self._handle_convert_position(hp_map, update, hp_id, quantity_usd)
         else:
-            logger.warning(f"Unknown position type for {hp_id}, treating as parent")
+            logger.warning("Unknown position type for %s, treating as parent", hp_id)
             self._handle_parent_position(
                 hp_map, update, hp_id, operation_side, quantity_usd
             )
-
-    def _detect_position_type(self, hp_id: str, update: HPUpdate) -> str:
-        """Detect the type of position based on HP ID pattern."""
-        return self.position_updater._detect_position_type(hp_id, update)
 
     def _handle_parent_position(
         self,
@@ -173,8 +165,6 @@ class HPDataManager:
         hp_map: Dict[str, Dict],
         update: HPUpdate,
         hp_id: str,
-        operation_side: str,
-        quantity_usd: str,
     ) -> None:
         """Handle multihop position updates (e.g., '1000a', '1000b')."""
         parent_hp_id = hp_id[:-1]  # Remove letter suffix
@@ -220,13 +210,12 @@ class HPDataManager:
         hp_map: Dict[str, Dict],
         update: HPUpdate,
         hp_id: str,
-        operation_side: str,
         quantity_usd: str,
     ) -> None:
         """Handle convert position updates (e.g., '1000_CONVERT')."""
         parent_hp_id = hp_id.split("_CONVERT")[0]
 
-        logger.info(f"Handling convert position for HP ID: {hp_id}")
+        logger.info("Handling convert position for HP ID: %s", hp_id)
 
         # Ensure parent exists
         self.position_updater.ensure_parent_container(hp_map, update, parent_hp_id)
@@ -236,7 +225,7 @@ class HPDataManager:
             hp_map, update, hp_id, parent_hp_id, None, quantity_usd
         )
 
-        logger.info(f"Convert sell child created for HP ID: {hp_id}")
+        logger.info("Convert sell child created for HP ID: %s", hp_id)
 
     def _handle_regular_parent_position(
         self,
