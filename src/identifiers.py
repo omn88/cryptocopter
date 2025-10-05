@@ -167,16 +167,6 @@ class EventName(Enum):
     HP_POSITION_CANCELLED = "HP_POSITION_CANCELLED"
 
 
-class CsvConfig(NamedTuple):
-    symbol: str
-    side: str
-    price_low: float
-    price_high: float
-    budget: float
-    order_trigger: float
-    mode: str
-
-
 class UiState(Enum):
     NEW = "NEW"
     OPEN = "OPEN"

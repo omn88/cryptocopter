@@ -102,19 +102,6 @@ class HPStateCalculator:
                     return False
         return False
 
-    def get_parent_realized_quantity(self, hp_id: str) -> float:
-        if not self.hp_list_data_getter:
-            logger.warning(
-                "hp_list_data_getter not set, cannot get parent realized quantity"
-            )
-            return 0.0
-
-        hp_list_data = self.hp_list_data_getter()
-        for item in hp_list_data:
-            if item.get("hp_id") == hp_id and item.get("side") == "PARENT":
-                return float(item.get("quantity", "0.0"))
-        return 0.0
-
     def get_sell_child_realized_quantity(self, hp_id: str) -> float:
         if not self.hp_list_data_getter:
             logger.warning(

@@ -1278,10 +1278,6 @@ Enter sell price to create sell order:"""
         """Check if HP has an active sell child. Delegates to state_calculator."""
         return self.state_calculator.has_sell_child(hp_id)
 
-    def _get_parent_realized_quantity(self, hp_id: str) -> float:
-        """Get the realized buy quantity from parent HP. Delegates to state_calculator."""
-        return self.state_calculator.get_parent_realized_quantity(hp_id)
-
     def _get_sell_child_realized_quantity(self, hp_id: str) -> float:
         """Get the realized sell quantity from sell child. Delegates to state_calculator."""
         return self.state_calculator.get_sell_child_realized_quantity(hp_id)
@@ -1452,10 +1448,6 @@ Enter sell price to create sell order:"""
     def _create_hp_row_widget(self, hp_data: Dict) -> Widget:
         """Create a widget for an HP row. Delegates to row renderer."""
         return self.row_renderer.create_hp_row_widget(hp_data)
-
-    def _create_column_label(self, text: str, width_hint: float) -> Label:
-        """Create a standardized column label. Delegates to row renderer."""
-        return self.row_renderer.create_column_label(text, width_hint)
 
     def on_hp_state_filter_change(self, filter_text):
         """Handle HP state filter dropdown selection. Delegates to list filter."""

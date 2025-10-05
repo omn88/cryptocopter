@@ -41,10 +41,10 @@ def format_currency(value: float, symbol: str = "$") -> str:
     """Format currency value for display."""
     if value == 0:
         return f"{symbol}0.00"
-    elif abs(value) >= 1000:
+    if abs(value) >= 1000:
         return f"{symbol}{value:,.0f}"
-    else:
-        return f"{symbol}{value:.2f}"
+
+    return f"{symbol}{value:.2f}"
 
 
 def format_percentage(value: float) -> str:
@@ -58,7 +58,6 @@ def format_quantity(value: float, precision: int = 5) -> str:
     """Format quantity for display."""
     if value == 0:
         return "0.0"
-    elif value < 0.001:
+    if value < 0.001:
         return f"{value:.8f}".rstrip("0").rstrip(".")
-    else:
-        return f"{value:.{precision}f}".rstrip("0").rstrip(".")
+    return f"{value:.{precision}f}".rstrip("0").rstrip(".")
