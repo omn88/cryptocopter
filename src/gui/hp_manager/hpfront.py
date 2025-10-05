@@ -872,19 +872,19 @@ Enter sell price to create sell order:"""
         self, hp_id: str, symbol: str, side_value: str
     ) -> None:
         """Handle cancel button click - delegates to position_updater"""
-        cancellation_target = self.data_manager.position_updater.determine_cancellation_target(
-            hp_id,
-            has_sell_child_callback=self._has_sell_child,
-            get_realized_quantity_callback=self._get_sell_child_realized_quantity,
-            get_position_side_callback=self._get_position_side_from_hp_id,
+        cancellation_target = (
+            self.data_manager.position_updater.determine_cancellation_target(
+                hp_id,
+                has_sell_child_callback=self._has_sell_child,
+                get_realized_quantity_callback=self._get_sell_child_realized_quantity,
+                get_position_side_callback=self._get_position_side_from_hp_id,
+            )
         )
-        
+
         if cancellation_target["should_cancel"]:
             target_side = cancellation_target["target_side"] or side_value
             self.show_cancel_confirmation(
-                cancellation_target["target_hp_id"],
-                symbol,
-                target_side
+                cancellation_target["target_hp_id"], symbol, target_side
             )
         else:
             logger.warning(f"Cancellation not allowed for {hp_id}")

@@ -1,5 +1,5 @@
 import logging
-from typing import Dict
+from typing import Any, Dict
 from src.gui.identifiers import HPUpdate
 
 logger = logging.getLogger("HPPositionUpdater")
@@ -204,10 +204,10 @@ class HPPositionUpdater:
         has_sell_child_callback,
         get_realized_quantity_callback,
         get_position_side_callback,
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """
         Determine what to cancel based on HP structure.
-        
+
         Returns dict with:
         - target_hp_id: The HP ID to cancel
         - target_side: The side to use for cancellation
@@ -241,7 +241,7 @@ class HPPositionUpdater:
 
     def _determine_parent_cancellation(
         self, hp_id: str, has_sell_child_callback, get_position_side_callback
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """Determine cancellation for parent HP"""
         has_sell_child = has_sell_child_callback(hp_id)
 
@@ -256,9 +256,7 @@ class HPPositionUpdater:
             # Cancel parent - determine actual position side
             actual_side = get_position_side_callback(hp_id)
             side_str = (
-                "SHORT"
-                if actual_side and actual_side.name == "SHORT"
-                else "LONG"
+                "SHORT" if actual_side and actual_side.name == "SHORT" else "LONG"
             )
             return {
                 "target_hp_id": hp_id,
@@ -268,7 +266,7 @@ class HPPositionUpdater:
 
     def _determine_buy_child_cancellation(
         self, base_hp_id: str, has_sell_child_callback
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """Determine cancellation for buy child"""
         has_sell_child = has_sell_child_callback(base_hp_id)
 
@@ -289,7 +287,7 @@ class HPPositionUpdater:
 
     def _determine_sell_child_cancellation(
         self, hp_id: str, base_hp_id: str, get_realized_quantity_callback
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """Determine cancellation for sell child"""
         sell_realized_qty = get_realized_quantity_callback(base_hp_id)
 
