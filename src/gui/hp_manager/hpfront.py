@@ -1,5 +1,4 @@
 import asyncio
-import csv
 import os
 import queue
 import logging
@@ -14,9 +13,9 @@ from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
 from kivy.uix.textinput import TextInput
-from kivy.graphics import Color, Rectangle, Line
 from kivy.uix.widget import Widget
 from src.database import Database
+from src.gui.hp_manager.modal_configurators import BuyHPModal
 from src.identifiers import (
     HPBuyConfig,
     HPBuy,
@@ -70,12 +69,7 @@ class HpFront(BoxLayout):
             "NONE",
         ]
     )
-
-    log_display = ObjectProperty(None)
-    file_name_input = ObjectProperty(None)
     available_symbols = ListProperty()
-
-    config_dir = os.path.join("src", "strategies", "spot")
 
     def __init__(
         self,
@@ -124,11 +118,6 @@ class HpFront(BoxLayout):
         )
         self.list_filter = HPListFilter(expanded_hp_ids=self.expanded_hp_ids)
 
-        # Suppress GUI initialization when in test mode
-        if not self.test_mode:
-            # Initialize Unified HP Manager (will be set by KV file)
-            self.hp_manager = None
-
     def initialize(self):
         self.queue_task = asyncio.create_task(self.process_ui_queue())
 
@@ -139,9 +128,6 @@ class HpFront(BoxLayout):
 
         # Setup filter dropdown values
         self._setup_filter_dropdown()
-
-        # Setup the unified HP manager
-        self.setup_hp_manager()
 
     def _setup_filter_dropdown(self):
         """Setup the HP state filter dropdown with available options."""
@@ -158,11 +144,22 @@ class HpFront(BoxLayout):
             ]
 
     def show_buy_modal(self):
-        """Show Buy HP modal - delegates to HP manager."""
-        if hasattr(self, "hp_manager") and self.hp_manager:
-            self.hp_manager.show_buy_modal()
-        else:
-            logger.warning("HP manager not available for buy modal")
+        """Show Buy HP modal - directly instantiate and show modal."""
+
+        if self.test_mode:
+            logger.warning("Buy modal not available in test mode")
+            return
+
+        available_symbols = [
+            symbol for symbol, _ in self.price_resolver.symbols.items()
+        ]
+        modal = BuyHPModal(
+            callback=lambda config: self.create_hp("BUY", config),
+            available_symbols=available_symbols,
+            symbols=self.price_resolver.symbols,
+            client=self.client,
+        )
+        modal.open()
 
     def show_cancel_confirmation(self, hp_id: str, symbol: str, side: str) -> None:
         """Show confirmation dialog for canceling HP position."""
@@ -265,29 +262,6 @@ Side: {side}"""
         self.config_queue.put_nowait(record)
         logger.info("Remove record added to the queue. %s", record)
 
-    # Unified HP Manager callback methods
-    def setup_hp_manager(self):
-        """Setup the unified HP manager with callbacks."""
-        # Get the unified HP manager from the KV file
-        if hasattr(self, "ids") and hasattr(self.ids, "hp_manager"):
-            self.hp_manager = self.ids.hp_manager
-
-            # Set up callbacks
-            self.hp_manager.create_hp_callback = self.create_hp
-            self.hp_manager.cancel_hp_callback = self.cancel_hp
-            self.hp_manager.remove_hp_callback = self.remove_hp
-
-            # Set symbols and client for HP manager integration
-            self.hp_manager.symbols = self.price_resolver.symbols
-            self.hp_manager.client = self.client
-
-            # Update with current data
-            self.hp_manager.available_symbols = [
-                symbol for symbol, _ in self.price_resolver.symbols.items()
-            ]
-        else:
-            logger.warning("HP manager not found in KV file")
-
     def create_hp(self, hp_type: str, config: HPConfiguration):
         """Handle HP creation from unified manager."""
         try:
@@ -319,31 +293,28 @@ Side: {side}"""
             state_info=StateInfo(),
         )
         self.config_queue.put_nowait(new_hp)
-        logger.info("Buy HP created from unified manager: %s", new_hp)
+        logger.info("Buy HP created from modal: %s", new_hp)
 
-    def cancel_hp(self, hp_id: str, hp_type: str):
-        """Handle HP cancellation from unified manager."""
-        try:
-            # Get actual position side from HP data instead of relying on hp_type parameter
-            side = self._get_position_side_from_hp_id(hp_id)
-            symbol = self._get_symbol_from_hp_id(hp_id)
+    def cancel_hp(self, hp_id: str, hp_type: str = "BUY"):
+        """Cancel HP position - convenience method for tests and programmatic cancellation.
 
-            if side and symbol:
-                logger.info(f"Cancelling HP {hp_id} with actual side: {side.value}")
-                # Convert PositionSide to the string format expected by trigger_remove_record
-                side_str = "SHORT" if side == PositionSide.SHORT else "LONG"
-                self.trigger_remove_record(hp_id, symbol, side_str)
-            elif not side:
-                logger.error(f"Could not determine position side for HP ID: {hp_id}")
-            elif not symbol:
-                logger.error(f"Could not find symbol for HP ID: {hp_id}")
-        except Exception as e:
-            logger.error(f"Error cancelling HP {hp_id}: {e}")
+        Args:
+            hp_id: The HP ID to cancel
+            hp_type: "BUY" or "SELL" - used to determine position side
+        """
+        # Get actual position side from HP data
+        side = self._get_position_side_from_hp_id(hp_id)
+        symbol = self._get_symbol_from_hp_id(hp_id)
 
-    def remove_hp(self, hp_id: str, hp_type: str):
-        """Handle HP removal from unified manager."""
-        # For now, use same logic as cancel
-        self.cancel_hp(hp_id, hp_type)
+        if side and symbol:
+            # Convert PositionSide to string format
+            side_str = "SHORT" if side == PositionSide.SHORT else "LONG"
+            logger.info(f"Cancelling HP {hp_id} with side: {side_str}")
+            self.trigger_remove_record(hp_id, symbol, side_str)
+        elif not side:
+            logger.error(f"Could not determine position side for HP ID: {hp_id}")
+        elif not symbol:
+            logger.error(f"Could not find symbol for HP ID: {hp_id}")
 
     def _get_symbol_from_hp_id(self, hp_id: str) -> Optional[str]:
         """Get symbol from HP ID by searching HP list data."""
