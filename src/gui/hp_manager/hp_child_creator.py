@@ -6,7 +6,12 @@ logger = logging.getLogger(__name__)
 
 
 class HPChildCreator:
-    def __init__(self, buy_state_getter_callback=None, sell_state_getter_callback=None, position_updater=None):
+    def __init__(
+        self,
+        buy_state_getter_callback=None,
+        sell_state_getter_callback=None,
+        position_updater=None,
+    ):
         self.buy_state_getter_callback = buy_state_getter_callback
         self.sell_state_getter_callback = sell_state_getter_callback
         self.position_updater = position_updater
@@ -22,8 +27,10 @@ class HPChildCreator:
     ) -> None:
         """Create buy child and update parent with buy data."""
         # Create the child
-        self.create_buy_child(hp_map, update, hp_id, parent_hp_id, _operation_side, _quantity_usd)
-        
+        self.create_buy_child(
+            hp_map, update, hp_id, parent_hp_id, _operation_side, _quantity_usd
+        )
+
         # Update parent with buy data
         parent = hp_map[parent_hp_id]
         buy_child = hp_map[hp_id]
@@ -56,8 +63,10 @@ class HPChildCreator:
     ) -> None:
         """Create sell child and update parent with sell data."""
         # Create the child
-        self.create_sell_child(hp_map, update, hp_id, parent_hp_id, _operation_side, _quantity_usd)
-        
+        self.create_sell_child(
+            hp_map, update, hp_id, parent_hp_id, _operation_side, _quantity_usd
+        )
+
         # Update parent with sell data
         parent = hp_map[parent_hp_id]
         sell_child = hp_map[hp_id]
@@ -102,8 +111,10 @@ class HPChildCreator:
     ) -> None:
         """Create convert sell child and update parent."""
         # Create the child
-        self.create_convert_child(hp_map, update, hp_id, parent_hp_id, _operation_side, _quantity_usd)
-        
+        self.create_convert_child(
+            hp_map, update, hp_id, parent_hp_id, _operation_side, _quantity_usd
+        )
+
         # Update parent with convert sell data
         parent = hp_map[parent_hp_id]
         convert_sell_child = hp_map[hp_id]
@@ -114,6 +125,7 @@ class HPChildCreator:
 
         # For convert positions, handle realized_quantity based on state
         from src.identifiers import State
+
         if update.state.value == State.SOLD.value:
             parent["realized_quantity"] = convert_sell_child["realized_quantity"]
 

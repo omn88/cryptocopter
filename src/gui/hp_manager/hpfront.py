@@ -39,9 +39,7 @@ from src.gui.identifiers import (
 )
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.gui.hp_manager import HPConfiguration
-from src.gui.hp_manager.hp_position_updater import HPPositionUpdater
-from src.gui.hp_manager.hp_child_creator import HPChildCreator
-from src.gui.hp_manager.hp_state_calculator import HPStateCalculator
+from src.gui.hp_manager.hp_data_manager import HPDataManager
 from src.gui.hp_manager.hp_row_renderer import HPRowRenderer
 from src.gui.hp_manager.hp_list_filter import HPListFilter
 
@@ -89,7 +87,7 @@ class HpFront(BoxLayout):
         self.db = db
         self.price_resolver = price_resolver
         self.portfolio_queue = portfolio_queue
-        self.bind(hp_list_data=self._update_hp_list_view)
+        self.bind(hp_list_data=self._render_hp_list_ui)
         self.test_mode = test_mode
         self.stop_event: asyncio.Event = asyncio.Event()
         self.ui_queue_closed = False
@@ -102,16 +100,10 @@ class HpFront(BoxLayout):
         self._last_ui_queue_log_time = 0.0
         self._last_view_update_time = 0.0
 
-        # Initialize refactored components
-        self.position_updater = HPPositionUpdater()
-        self.state_calculator = HPStateCalculator(
-            hp_list_data_getter=lambda: self.hp_list_data
-        )
-        self.child_creator = HPChildCreator(
-            buy_state_getter_callback=self.state_calculator.get_buy_child_state,
-            sell_state_getter_callback=self.state_calculator.get_sell_child_state_from_update,
-            position_updater=self.position_updater,
-        )
+        # Initialize main data manager (encapsulates position_updater, state_calculator, child_creator)
+        self.data_manager = HPDataManager(hp_list_data_getter=lambda: self.hp_list_data)
+
+        # Initialize UI rendering components
         self.row_renderer = HPRowRenderer(
             toggle_expansion_callback=self.toggle_hp_expansion,
             sell_callback=self.sell_hp_button,
@@ -124,8 +116,8 @@ class HpFront(BoxLayout):
 
         # Initialize the HP list view
         if hasattr(self, "ids") and hasattr(self.ids, "hp_list_container"):
-            # Trigger initial HP list update
-            self._update_hp_list_view()
+            # Trigger initial HP list rendering
+            self._render_hp_list_ui()
 
         # Setup filter dropdown values
         self._setup_filter_dropdown()
@@ -443,15 +435,19 @@ Side: {side}"""
 
     def _get_buy_child_state(self, update: HPUpdate) -> str:
         """Get appropriate state for buy child. Delegates to state_calculator."""
-        return self.state_calculator.get_buy_child_state(update)
+        return self.data_manager.state_calculator.get_buy_child_state(update)
 
     def _get_sell_child_state_from_update(self, update: HPUpdate) -> str:
         """Get sell child state. Delegates to state_calculator."""
-        return self.state_calculator.get_sell_child_state_from_update(update)
+        return self.data_manager.state_calculator.get_sell_child_state_from_update(
+            update
+        )
 
     def _get_sell_child_state(self, update: HPUpdate, sell_data=None) -> str:
         """Get appropriate state for sell child. Delegates to state_calculator."""
-        return self.state_calculator.get_sell_child_state(update, sell_data)
+        return self.data_manager.state_calculator.get_sell_child_state(
+            update, sell_data
+        )
 
     async def process_ui_queue(self) -> None:
         logger.info("Ready to process UI queue")
@@ -561,8 +557,8 @@ Side: {side}"""
             f"Processing HP update: {hp_id}, side: {operation_side}, state: {update.state.value}"
         )
 
-        # Handle position using the new refactored approach
-        self._handle_container_position(
+        # Handle position update through the data manager
+        self.data_manager.handle_position_update(
             hp_map,
             update,
             hp_id,
@@ -609,284 +605,10 @@ Side: {side}"""
             hp_item["action_buttons"] = button_config["buttons"]
             hp_item["button_states"] = button_config["states"]
 
-        # Trigger visual refresh
-        self._update_hp_list_view()
+        # Note: No need to call _render_hp_list_ui() here - it's automatically triggered
+        # by the Kivy binding when process_ui_queue() assigns to self.hp_list_data
 
         return self.hp_list
-
-    def _handle_container_position(
-        self,
-        hp_map: Dict[str, Dict],
-        update: HPUpdate,
-        hp_id: str,
-        operation_side: str,
-        quantity_usd: str,
-    ) -> None:
-        """Handle new runtime positions with container structure using clean position type detection."""
-
-        # Determine position type
-        position_type = self._detect_position_type(hp_id, update)
-
-        logger.debug(f"Processing position {hp_id} as type: {position_type}")
-
-        # Route to appropriate handler based on position type
-        if position_type == "parent":
-            self._handle_parent_position(
-                hp_map, update, hp_id, operation_side, quantity_usd
-            )
-        elif position_type == "regular_parent":
-            # For regular operations: create parent + child
-            self._handle_regular_parent_position(
-                hp_map, update, hp_id, operation_side, quantity_usd
-            )
-        elif position_type == "multihop":
-            self._handle_multihop_position(
-                hp_map, update, hp_id, operation_side, quantity_usd
-            )
-        elif position_type == "regular":
-            self._handle_regular_position(
-                hp_map, update, hp_id, operation_side, quantity_usd
-            )
-        elif position_type == "convert":
-            self._handle_convert_position(
-                hp_map, update, hp_id, operation_side, quantity_usd
-            )
-        else:
-            logger.warning(f"Unknown position type for {hp_id}, treating as parent")
-            self._handle_parent_position(
-                hp_map, update, hp_id, operation_side, quantity_usd
-            )
-
-    def _detect_position_type(self, hp_id: str, update: HPUpdate) -> str:
-        """Detect the type of position. Delegates to position updater."""
-        return self.position_updater._detect_position_type(hp_id, update)
-
-    def _handle_parent_position(
-        self,
-        hp_map: Dict[str, Dict],
-        update: HPUpdate,
-        hp_id: str,
-        operation_side: str,
-        quantity_usd: str,
-    ) -> None:
-        """Handle parent position updates."""
-        # Ensure parent container exists
-        self._ensure_parent_container(hp_map, update, hp_id)
-
-        # Update parent data based on operation
-        parent = hp_map[hp_id]
-        parent["state"] = update.state.value
-
-        # Update core price data from the update
-        if update.buy_price is not None:
-            parent["buy_price"] = (
-                str(update.symbol.format_price(update.buy_price))
-                if update.symbol
-                else str(update.buy_price)
-            )
-        if update.sell_price is not None:
-            parent["sell_price"] = (
-                str(update.symbol.format_price(update.sell_price))
-                if update.symbol
-                else str(update.sell_price)
-            )
-        if update.expected_return is not None:
-            parent["expected_return"] = (
-                str(update.symbol.format_price(update.expected_return))
-                if update.symbol
-                else str(update.expected_return)
-            )
-
-        # Update quantity from update data
-        if update.quantity is not None:
-            # For parent positions, use total_quantity if available, otherwise use quantity
-            quantity_to_use = (
-                update.total_quantity
-                if update.total_quantity is not None
-                else update.quantity
-            )
-            formatted_quantity = (
-                str(update.symbol.format_quantity(float(quantity_to_use)))
-                if update.symbol
-                else str(quantity_to_use)
-            )
-            parent["quantity"] = formatted_quantity
-            print(
-                f"HP Manager Frontend: [_handle_regular_parent_position] Set parent quantity to {formatted_quantity} (from {'total_quantity' if update.total_quantity is not None else 'quantity'}) for HP {update.hp_id}"
-            )
-            parent["realized_quantity"] = (
-                formatted_quantity  # For parent, both are the same initially
-            )
-
-        # Update quantity_usd if provided
-        if quantity_usd and quantity_usd != "0.0":
-            parent["quantity_usd"] = quantity_usd
-
-        # Determine operation type
-        is_sell_operation = self._is_sell_operation(update, operation_side)
-
-        if is_sell_operation:
-            # Update parent quantities for sell operations
-            self._update_parent_sell_quantities(parent, update)
-        else:
-            # Update parent quantities for buy operations
-            self._update_parent_buy_quantities(parent, update)
-
-    def _handle_multihop_position(
-        self,
-        hp_map: Dict[str, Dict],
-        update: HPUpdate,
-        hp_id: str,
-        operation_side: str,
-        quantity_usd: str,
-    ) -> None:
-        """Handle multihop position updates (e.g., '1000a', '1000b')."""
-        # Extract parent ID
-        parent_hp_id = hp_id[:-1]  # Remove letter suffix
-
-        # Ensure parent container exists
-        self._ensure_parent_container(hp_map, update, parent_hp_id)
-
-        # Multihop positions are always sell operations (never buy)
-        self.child_creator.create_multihop_child_with_parent_update(hp_map, update, hp_id, parent_hp_id)
-
-    def _handle_regular_position(
-        self,
-        hp_map: Dict[str, Dict],
-        update: HPUpdate,
-        hp_id: str,
-        operation_side: str,
-        quantity_usd: str,
-    ) -> None:
-        """Handle regular position updates (e.g., '1000_BUY', '1000_SELL')."""
-        # Extract parent ID and operation type
-        parent_hp_id, child_operation = hp_id.split("_")
-
-        # Ensure parent container exists
-        self._ensure_parent_container(hp_map, update, parent_hp_id)
-
-        # Update parent state for sell operations to reflect overall operation state
-        if child_operation == "SELL":
-            hp_map[parent_hp_id]["state"] = update.state.value
-
-        if child_operation == "BUY":
-            self.child_creator.create_buy_child_with_parent_update(
-                hp_map, update, hp_id, parent_hp_id, operation_side, quantity_usd
-            )
-        elif child_operation == "SELL":
-            self.child_creator.create_sell_child_with_parent_update(
-                hp_map, update, hp_id, parent_hp_id, operation_side, quantity_usd
-            )
-
-    def _handle_convert_position(
-        self,
-        hp_map: Dict[str, Dict],
-        update: HPUpdate,
-        hp_id: str,
-        operation_side: str,
-        quantity_usd: str,
-    ) -> None:
-        """Handle convert position updates (e.g., '1000_CONVERT')."""
-        # Extract parent ID
-        parent_hp_id = hp_id.split("_CONVERT")[0]
-
-        logger.info("Handling convert position for HP ID: %s", hp_id)
-
-        # Ensure parent container exists
-        self._ensure_parent_container(hp_map, update, parent_hp_id)
-
-        logger.info("Parent container ensured for convert position: %s", parent_hp_id)
-
-        # Convert positions create a single sell row (like regular sell but without prior buy)
-        self.child_creator.create_convert_child_with_parent_update(
-            hp_map, update, hp_id, parent_hp_id, None, quantity_usd
-        )
-
-        logger.info("Convert sell child created for HP ID: %s", hp_id)
-
-    def _handle_regular_parent_position(
-        self,
-        hp_map: Dict[str, Dict],
-        update: HPUpdate,
-        hp_id: str,
-        operation_side: str,
-        quantity_usd: str,
-    ) -> None:
-        """Handle regular parent position that needs both parent container and child position."""
-        # Create parent container
-        self._ensure_parent_container(hp_map, update, hp_id)
-
-        # Update parent data based on operation
-        parent = hp_map[hp_id]
-        parent["state"] = update.state.value
-
-        # Update core price data from the update
-        if update.buy_price is not None:
-            parent["buy_price"] = (
-                str(update.symbol.format_price(update.buy_price))
-                if update.symbol
-                else str(update.buy_price)
-            )
-        if update.sell_price is not None:
-            parent["sell_price"] = (
-                str(update.symbol.format_price(update.sell_price))
-                if update.symbol
-                else str(update.sell_price)
-            )
-        if update.expected_return is not None:
-            parent["expected_return"] = (
-                str(update.symbol.format_price(update.expected_return))
-                if update.symbol
-                else str(update.expected_return)
-            )
-
-        # Update quantity_usd if provided
-        if quantity_usd and quantity_usd != "0.0":
-            parent["quantity_usd"] = quantity_usd
-
-        # Determine operation type and update parent quantities
-        is_sell_operation = self._is_sell_operation(update, operation_side)
-
-        if is_sell_operation:
-            # Update parent quantities for sell operations
-            self._update_parent_sell_quantities(parent, update)
-            # Also update parent quantity_usd from the HPUpdate
-            if hasattr(update, "quantity_usd") and update.quantity_usd:
-                parent["quantity_usd"] = str(update.quantity_usd)
-        else:
-            # Update parent quantities for buy operations
-            self._update_parent_buy_quantities(parent, update)
-
-        # Determine child HP ID and create child position
-        # Note: We use the non-updating version here because parent quantities are already updated above
-        if is_sell_operation:
-            child_hp_id = f"{hp_id}_SELL"
-            self.child_creator.create_sell_child(
-                hp_map, update, child_hp_id, hp_id, operation_side, quantity_usd
-            )
-        else:
-            child_hp_id = f"{hp_id}_BUY"
-            self.child_creator.create_buy_child(
-                hp_map, update, child_hp_id, hp_id, operation_side, quantity_usd
-            )
-
-    def _is_sell_operation(self, update: HPUpdate, operation_side: str) -> bool:
-        """Determine if this is a sell operation. Delegates to position updater."""
-        return self.position_updater.is_sell_operation(update, operation_side)
-
-    def _ensure_parent_container(
-        self, hp_map: Dict[str, Dict], update: HPUpdate, parent_hp_id: str
-    ) -> None:
-        """Ensure parent container exists. Delegates to position updater."""
-        self.position_updater.ensure_parent_container(hp_map, update, parent_hp_id)
-
-    def _update_parent_buy_quantities(self, parent: Dict, update: HPUpdate) -> None:
-        """Update parent quantities for buy operations. Delegates to position updater."""
-        self.position_updater.update_parent_buy_quantities(parent, update)
-
-    def _update_parent_sell_quantities(self, parent: Dict, update: HPUpdate) -> None:
-        """Update parent quantities for sell operations. Delegates to position updater."""
-        self.position_updater.update_parent_sell_quantities(parent, update)
 
     def _process_all_tickers(self, tickers: AllTickers) -> None:
         # Update HP list data with current prices
@@ -952,12 +674,12 @@ Side: {side}"""
         # Only trigger visual refresh if significant changes occurred
         # Use throttling to ensure 1-second refresh interval for prices
         if getattr(self, "test_mode", False):
-            self._update_hp_list_view()
+            self._render_hp_list_ui()
         else:
             # Throttle HP list view updates to 1 second maximum frequency
             current_time = time.time()
             if current_time - self._last_view_update_time > 1.0:
-                self._update_hp_list_view()
+                self._render_hp_list_ui()
                 self._last_view_update_time = current_time
 
     def sell_hp_button(self, hp_id, coin, quantity, buy_price):
@@ -1137,15 +859,17 @@ Enter sell price to create sell order:"""
 
     def _has_sell_child(self, hp_id: str) -> bool:
         """Check if HP has an active sell child. Delegates to state_calculator."""
-        return self.state_calculator.has_sell_child(hp_id)
+        return self.data_manager.state_calculator.has_sell_child(hp_id)
 
     def _get_sell_child_realized_quantity(self, hp_id: str) -> float:
         """Get the realized sell quantity from sell child. Delegates to state_calculator."""
-        return self.state_calculator.get_sell_child_realized_quantity(hp_id)
+        return self.data_manager.state_calculator.get_sell_child_realized_quantity(
+            hp_id
+        )
 
     def _determine_action_buttons(self, hp_data: dict) -> dict:
         """Determine which action buttons to show and their states. Delegates to state_calculator."""
-        return self.state_calculator.determine_action_buttons(hp_data)
+        return self.data_manager.state_calculator.determine_action_buttons(hp_data)
 
     def _handle_cancel_button_click(
         self, hp_id: str, symbol: str, side_value: str
@@ -1255,8 +979,8 @@ Enter sell price to create sell order:"""
                 f"[EXPANSION] List child {child.get('hp_id')}: side={child.get('side')}, state={child.get('state')}, is_child={child.get('is_child')}"
             )
 
-        # Trigger UI update
-        self._update_hp_list_view()
+        # Trigger UI re-render to show/hide children
+        self._render_hp_list_ui()
 
         # Count rows after expansion change
         total_rows_after = (
@@ -1273,8 +997,14 @@ Enter sell price to create sell order:"""
             self.hp_list_data, self.hp_state_filter
         )
 
-    def _update_hp_list_view(self, *args):
-        """Update the HP list view with current data."""
+    def _render_hp_list_ui(self, *args):
+        """Render the HP list UI widgets from current hp_list_data.
+
+        This method rebuilds all UI widgets (rows, buttons, labels) from the hp_list_data.
+        It's called:
+        1. Automatically via Kivy binding when hp_list_data changes (in process_ui_queue)
+        2. Manually for visual-only updates (expand/collapse, filter changes, price updates)
+        """
 
         # Check if we have the KV layout elements
         if not hasattr(self, "ids") or not hasattr(self.ids, "hp_list_container"):
@@ -1328,7 +1058,7 @@ Enter sell price to create sell order:"""
             # For "Custom..." or other cases, keep current filter
             return
 
-        self._update_hp_list_view()
+        self._render_hp_list_ui()
         if (
             not self.test_mode
             and hasattr(self, "ids")
@@ -1355,7 +1085,7 @@ Enter sell price to create sell order:"""
                 "WAITING_CHILD",
                 "NONE",
             ]
-            self._update_hp_list_view()
+            self._render_hp_list_ui()
             if not self.test_mode and hasattr(self, "ids"):
                 if hasattr(self.ids, "hp_state_filter_spinner"):
                     self.ids.hp_state_filter_spinner.text = "Active States (11)"
@@ -1379,7 +1109,7 @@ Enter sell price to create sell order:"""
                 "WAITING_CHILD",
                 "NONE",
             ]
-            self._update_hp_list_view()
+            self._render_hp_list_ui()
         logger.info("HP state filter reset to default")
 
     def auto_remove_closed_sold_states(self):
@@ -1395,7 +1125,7 @@ Enter sell price to create sell order:"""
 
         if removed_any:
             self.hp_state_filter = current_filter
-            self._update_hp_list_view()
+            self._render_hp_list_ui()
             # Update the spinner and display to reflect the change
             if not self.test_mode and hasattr(self, "ids"):
                 try:
