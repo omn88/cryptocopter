@@ -3,11 +3,8 @@ import os
 import queue
 import logging
 import time
-from typing import Any, Dict, List, Set, Optional
-from kivy.properties import (
-    ListProperty,
-    ObjectProperty,
-)
+from typing import Dict, List, Set, Optional
+from kivy.properties import ListProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
@@ -874,122 +871,35 @@ Enter sell price to create sell order:"""
     def _handle_cancel_button_click(
         self, hp_id: str, symbol: str, side_value: str
     ) -> None:
-        """Handle cancel button click with enhanced logic"""
-        # Determine if this is a parent, buy child, or sell child
-        if "_" not in hp_id:
-            # This is a parent HP
-            self._cancel_parent_hp(hp_id, symbol)
-        elif hp_id.endswith("_BUY"):
-            # This is a buy child
-            base_hp_id = hp_id.replace("_BUY", "")
-            self._cancel_buy_child(base_hp_id, symbol, side_value)
-        elif hp_id.endswith("_SELL"):
-            # This is a sell child
-            base_hp_id = hp_id.replace("_SELL", "")
-            self._cancel_sell_child(base_hp_id, symbol)
+        """Handle cancel button click - delegates to position_updater"""
+        cancellation_target = self.data_manager.position_updater.determine_cancellation_target(
+            hp_id,
+            has_sell_child_callback=self._has_sell_child,
+            get_realized_quantity_callback=self._get_sell_child_realized_quantity,
+            get_position_side_callback=self._get_position_side_from_hp_id,
+        )
+        
+        if cancellation_target["should_cancel"]:
+            target_side = cancellation_target["target_side"] or side_value
+            self.show_cancel_confirmation(
+                cancellation_target["target_hp_id"],
+                symbol,
+                target_side
+            )
         else:
-            # Fallback to original logic
-            self.show_cancel_confirmation(hp_id, symbol, side_value)
-
-    def _cancel_parent_hp(self, hp_id: str, symbol: str) -> None:
-        """Cancel parent HP - determine actual position side instead of assuming BUY"""
-        has_sell_child = self._has_sell_child(hp_id)
-
-        if has_sell_child:
-            # First cancel the sell child
-            self._cancel_sell_child(hp_id, symbol)
-            # Note: After sell child is cancelled, user can click cancel again to cancel buy
-        else:
-            # No sell child, determine the actual position side from HP data
-            actual_side = self._get_position_side_from_hp_id(hp_id)
-            if actual_side:
-                side_str = "SHORT" if actual_side == PositionSide.SHORT else "LONG"
-                logger.info(
-                    f"Cancelling parent HP {hp_id} with determined side: {side_str}"
-                )
-                self.show_cancel_confirmation(hp_id, symbol, side_str)
-            else:
-                # Fallback to LONG if we can't determine the side
-                logger.warning(
-                    f"Could not determine side for HP {hp_id}, defaulting to LONG"
-                )
-                self.show_cancel_confirmation(hp_id, symbol, "LONG")
-
-    def _cancel_buy_child(self, base_hp_id: str, symbol: str, side_value: str) -> None:
-        """Cancel buy child - same as parent cancel for buy position"""
-        has_sell_child = self._has_sell_child(base_hp_id)
-
-        if not has_sell_child:
-            # Only allow buy cancellation if no sell child exists
-            self.show_cancel_confirmation(base_hp_id, symbol, side_value)
-        # If sell child exists, button should be disabled, so this shouldn't be called
-
-    def _cancel_sell_child(self, base_hp_id: str, symbol: str) -> None:
-        """Cancel sell child"""
-        sell_realized_qty = self._get_sell_child_realized_quantity(base_hp_id)
-
-        if sell_realized_qty == 0:
-            # Only allow sell cancellation if no realized quantity
-            # Use SHORT side for sell position cancellation
-            self.show_cancel_confirmation(f"{base_hp_id}_SELL", symbol, "SHORT")
-        # If realized quantity > 0, button should be disabled, so this shouldn't be called
+            logger.warning(f"Cancellation not allowed for {hp_id}")
 
     def toggle_hp_expansion(self, hp_id: str):
         """Toggle the expansion state of a parent HP position"""
-        logger.info(f"[EXPANSION] Toggling expansion for HP {hp_id}")
-
-        # Count rows before expansion change
-        total_rows_before = (
-            len(self.hp_list_data) if hasattr(self, "hp_list_data") else 0
-        )
-        logger.info(f"[EXPANSION] Total rows BEFORE toggle: {total_rows_before}")
-
         if hp_id in self.expanded_hp_ids:
-            logger.info(f"[EXPANSION] Collapsing HP {hp_id}")
             self.expanded_hp_ids.remove(hp_id)
+            logger.debug(f"Collapsed HP {hp_id}")
         else:
-            logger.info(f"[EXPANSION] Expanding HP {hp_id}")
             self.expanded_hp_ids.add(hp_id)
-
-        logger.info(f"[EXPANSION] Current expanded HPs: {self.expanded_hp_ids}")
-
-        # Check what children exist for this HP in hp_list_data
-        children_for_hp = []
-        for item in self.hp_list_data:
-            if item.get("hp_id", "").startswith(f"{hp_id}_") and item.get(
-                "is_child", False
-            ):
-                children_for_hp.append(item.get("hp_id"))
-                logger.info(
-                    f"[EXPANSION] Found child {item.get('hp_id')} with data: coin={item.get('coin', 'N/A')}, side={item.get('side', 'N/A')}, state={item.get('state', 'N/A')}"
-                )
-        logger.info(f"[EXPANSION] HP {hp_id} has children: {children_for_hp}")
-
-        # Also check hp_list_data for children
-        list_children = [
-            item
-            for item in self.hp_list_data
-            if item.get("hp_id", "").startswith(f"{hp_id}_")
-        ]
-        logger.info(
-            f"[EXPANSION] HP {hp_id} children in hp_list_data: {[c.get('hp_id') for c in list_children]}"
-        )
-        for child in list_children:
-            logger.info(
-                f"[EXPANSION] List child {child.get('hp_id')}: side={child.get('side')}, state={child.get('state')}, is_child={child.get('is_child')}"
-            )
+            logger.debug(f"Expanded HP {hp_id}")
 
         # Trigger UI re-render to show/hide children
         self._render_hp_list_ui()
-
-        # Count rows after expansion change
-        total_rows_after = (
-            len(self.hp_list_data) if hasattr(self, "hp_list_data") else 0
-        )
-        logger.info(f"[EXPANSION] Total rows AFTER toggle: {total_rows_after}")
-        logger.info(
-            f"[EXPANSION] Row difference: {total_rows_after - total_rows_before}"
-        )
 
     def _get_sorted_hp_list(self):
         """Get sorted HP list. Delegates to list filter."""

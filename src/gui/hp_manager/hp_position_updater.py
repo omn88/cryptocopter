@@ -195,3 +195,115 @@ class HPPositionUpdater:
             or update.state.value in ["SELLING", "SOLD", "SOLD_PART_BOUGHT"]
             or "SELL" in update.state.value
         )
+
+    # ========== Cancellation Logic ==========
+
+    def determine_cancellation_target(
+        self,
+        hp_id: str,
+        has_sell_child_callback,
+        get_realized_quantity_callback,
+        get_position_side_callback,
+    ) -> Dict[str, any]:
+        """
+        Determine what to cancel based on HP structure.
+        
+        Returns dict with:
+        - target_hp_id: The HP ID to cancel
+        - target_side: The side to use for cancellation
+        - should_cancel: Whether cancellation is allowed
+        """
+        # Determine if this is a parent, buy child, or sell child
+        if "_" not in hp_id:
+            # This is a parent HP
+            return self._determine_parent_cancellation(
+                hp_id, has_sell_child_callback, get_position_side_callback
+            )
+        elif hp_id.endswith("_BUY"):
+            # This is a buy child
+            base_hp_id = hp_id.replace("_BUY", "")
+            return self._determine_buy_child_cancellation(
+                base_hp_id, has_sell_child_callback
+            )
+        elif hp_id.endswith("_SELL"):
+            # This is a sell child
+            base_hp_id = hp_id.replace("_SELL", "")
+            return self._determine_sell_child_cancellation(
+                hp_id, base_hp_id, get_realized_quantity_callback
+            )
+        else:
+            # Fallback - allow direct cancellation
+            return {
+                "target_hp_id": hp_id,
+                "target_side": None,  # Let caller determine
+                "should_cancel": True,
+            }
+
+    def _determine_parent_cancellation(
+        self, hp_id: str, has_sell_child_callback, get_position_side_callback
+    ) -> Dict[str, any]:
+        """Determine cancellation for parent HP"""
+        has_sell_child = has_sell_child_callback(hp_id)
+
+        if has_sell_child:
+            # Cancel the sell child instead
+            return {
+                "target_hp_id": f"{hp_id}_SELL",
+                "target_side": "SHORT",
+                "should_cancel": True,
+            }
+        else:
+            # Cancel parent - determine actual position side
+            actual_side = get_position_side_callback(hp_id)
+            side_str = (
+                "SHORT"
+                if actual_side and actual_side.name == "SHORT"
+                else "LONG"
+            )
+            return {
+                "target_hp_id": hp_id,
+                "target_side": side_str,
+                "should_cancel": True,
+            }
+
+    def _determine_buy_child_cancellation(
+        self, base_hp_id: str, has_sell_child_callback
+    ) -> Dict[str, any]:
+        """Determine cancellation for buy child"""
+        has_sell_child = has_sell_child_callback(base_hp_id)
+
+        if not has_sell_child:
+            # Only allow buy cancellation if no sell child exists
+            return {
+                "target_hp_id": base_hp_id,
+                "target_side": "LONG",
+                "should_cancel": True,
+            }
+        else:
+            # Don't allow cancellation if sell child exists
+            return {
+                "target_hp_id": base_hp_id,
+                "target_side": "LONG",
+                "should_cancel": False,
+            }
+
+    def _determine_sell_child_cancellation(
+        self, hp_id: str, base_hp_id: str, get_realized_quantity_callback
+    ) -> Dict[str, any]:
+        """Determine cancellation for sell child"""
+        sell_realized_qty = get_realized_quantity_callback(base_hp_id)
+
+        if sell_realized_qty == 0:
+            # Only allow sell cancellation if no realized quantity
+            return {
+                "target_hp_id": hp_id,
+                "target_side": "SHORT",
+                "should_cancel": True,
+            }
+        else:
+            # Don't allow cancellation if there's realized quantity
+            return {
+                "target_hp_id": hp_id,
+                "target_side": "SHORT",
+                "should_cancel": False,
+            }
