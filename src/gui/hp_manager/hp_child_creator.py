@@ -6,9 +6,118 @@ logger = logging.getLogger(__name__)
 
 
 class HPChildCreator:
-    def __init__(self, buy_state_getter_callback=None, sell_state_getter_callback=None):
+    def __init__(self, buy_state_getter_callback=None, sell_state_getter_callback=None, position_updater=None):
         self.buy_state_getter_callback = buy_state_getter_callback
         self.sell_state_getter_callback = sell_state_getter_callback
+        self.position_updater = position_updater
+
+    def create_buy_child_with_parent_update(
+        self,
+        hp_map: Dict[str, Dict],
+        update: HPUpdate,
+        hp_id: str,
+        parent_hp_id: str,
+        _operation_side: Optional[str] = None,
+        _quantity_usd: Optional[str] = None,
+    ) -> None:
+        """Create buy child and update parent with buy data."""
+        # Create the child
+        self.create_buy_child(hp_map, update, hp_id, parent_hp_id, _operation_side, _quantity_usd)
+        
+        # Update parent with buy data
+        parent = hp_map[parent_hp_id]
+        buy_child = hp_map[hp_id]
+        parent["buy_price"] = buy_child["buy_price"]
+        parent["quantity_usd"] = buy_child["quantity_usd"]
+        parent["net"] = buy_child["net"]
+        parent["net_percent"] = buy_child["net_percent"]
+        parent["state"] = update.state.value
+
+        # Update parent expected_return if available in the update
+        if update.expected_return is not None:
+            parent["expected_return"] = (
+                str(update.symbol.format_price(update.expected_return))
+                if update.symbol
+                else str(update.expected_return)
+            )
+
+        # Update parent quantities
+        if self.position_updater:
+            self.position_updater.update_parent_buy_quantities(parent, update)
+
+    def create_sell_child_with_parent_update(
+        self,
+        hp_map: Dict[str, Dict],
+        update: HPUpdate,
+        hp_id: str,
+        parent_hp_id: str,
+        _operation_side: Optional[str] = None,
+        _quantity_usd: Optional[str] = None,
+    ) -> None:
+        """Create sell child and update parent with sell data."""
+        # Create the child
+        self.create_sell_child(hp_map, update, hp_id, parent_hp_id, _operation_side, _quantity_usd)
+        
+        # Update parent with sell data
+        parent = hp_map[parent_hp_id]
+        sell_child = hp_map[hp_id]
+        parent["buy_price"] = sell_child["buy_price"]
+        parent["sell_price"] = sell_child["sell_price"]
+        parent["expected_return"] = sell_child["expected_return"]
+
+        # Update parent quantities for sell operations
+        if self.position_updater:
+            self.position_updater.update_parent_sell_quantities(parent, update)
+
+    def create_multihop_child_with_parent_update(
+        self,
+        hp_map: Dict[str, Dict],
+        update: HPUpdate,
+        hp_id: str,
+        parent_hp_id: str,
+    ) -> None:
+        """Create multihop sell child and update parent."""
+        # Store the parent's quantity_usd before child creation
+        parent = hp_map[parent_hp_id]
+        parent_quantity_usd_saved = parent.get("quantity_usd", "0.0")
+
+        # Create the child
+        self.create_multihop_child(hp_map, update, hp_id, parent_hp_id)
+
+        # Update parent quantities
+        if self.position_updater:
+            self.position_updater.update_parent_sell_quantities(parent, update)
+
+        # Restore the parent's quantity_usd after update
+        parent["quantity_usd"] = parent_quantity_usd_saved
+
+    def create_convert_child_with_parent_update(
+        self,
+        hp_map: Dict[str, Dict],
+        update: HPUpdate,
+        hp_id: str,
+        parent_hp_id: str,
+        _operation_side: Optional[str] = None,
+        _quantity_usd: Optional[str] = None,
+    ) -> None:
+        """Create convert sell child and update parent."""
+        # Create the child
+        self.create_convert_child(hp_map, update, hp_id, parent_hp_id, _operation_side, _quantity_usd)
+        
+        # Update parent with convert sell data
+        parent = hp_map[parent_hp_id]
+        convert_sell_child = hp_map[hp_id]
+        parent["buy_price"] = convert_sell_child["buy_price"]
+        parent["quantity_usd"] = convert_sell_child["quantity_usd"]
+        parent["sell_price"] = convert_sell_child["sell_price"]
+        parent["expected_return"] = convert_sell_child["expected_return"]
+
+        # For convert positions, handle realized_quantity based on state
+        from src.identifiers import State
+        if update.state.value == State.SOLD.value:
+            parent["realized_quantity"] = convert_sell_child["realized_quantity"]
+
+        parent["state"] = update.state.value
 
     def create_buy_child(
         self,

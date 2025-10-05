@@ -110,6 +110,7 @@ class HpFront(BoxLayout):
         self.child_creator = HPChildCreator(
             buy_state_getter_callback=self.state_calculator.get_buy_child_state,
             sell_state_getter_callback=self.state_calculator.get_sell_child_state_from_update,
+            position_updater=self.position_updater,
         )
         self.row_renderer = HPRowRenderer(
             toggle_expansion_callback=self.toggle_hp_expansion,
@@ -747,7 +748,7 @@ Side: {side}"""
         self._ensure_parent_container(hp_map, update, parent_hp_id)
 
         # Multihop positions are always sell operations (never buy)
-        self._create_multihop_sell_child(hp_map, update, hp_id, parent_hp_id)
+        self.child_creator.create_multihop_child_with_parent_update(hp_map, update, hp_id, parent_hp_id)
 
     def _handle_regular_position(
         self,
@@ -769,11 +770,11 @@ Side: {side}"""
             hp_map[parent_hp_id]["state"] = update.state.value
 
         if child_operation == "BUY":
-            self._create_buy_child(
+            self.child_creator.create_buy_child_with_parent_update(
                 hp_map, update, hp_id, parent_hp_id, operation_side, quantity_usd
             )
         elif child_operation == "SELL":
-            self._create_sell_child(
+            self.child_creator.create_sell_child_with_parent_update(
                 hp_map, update, hp_id, parent_hp_id, operation_side, quantity_usd
             )
 
@@ -797,8 +798,8 @@ Side: {side}"""
         logger.info("Parent container ensured for convert position: %s", parent_hp_id)
 
         # Convert positions create a single sell row (like regular sell but without prior buy)
-        self._create_convert_sell_child(
-            hp_map, update, hp_id, parent_hp_id, quantity_usd
+        self.child_creator.create_convert_child_with_parent_update(
+            hp_map, update, hp_id, parent_hp_id, None, quantity_usd
         )
 
         logger.info("Convert sell child created for HP ID: %s", hp_id)
@@ -857,14 +858,15 @@ Side: {side}"""
             self._update_parent_buy_quantities(parent, update)
 
         # Determine child HP ID and create child position
+        # Note: We use the non-updating version here because parent quantities are already updated above
         if is_sell_operation:
             child_hp_id = f"{hp_id}_SELL"
-            self._create_sell_child(
+            self.child_creator.create_sell_child(
                 hp_map, update, child_hp_id, hp_id, operation_side, quantity_usd
             )
         else:
             child_hp_id = f"{hp_id}_BUY"
-            self._create_buy_child(
+            self.child_creator.create_buy_child(
                 hp_map, update, child_hp_id, hp_id, operation_side, quantity_usd
             )
 
@@ -885,118 +887,6 @@ Side: {side}"""
     def _update_parent_sell_quantities(self, parent: Dict, update: HPUpdate) -> None:
         """Update parent quantities for sell operations. Delegates to position updater."""
         self.position_updater.update_parent_sell_quantities(parent, update)
-
-    def _create_multihop_sell_child(
-        self,
-        hp_map: Dict[str, Dict],
-        update: HPUpdate,
-        hp_id: str,
-        parent_hp_id: str,
-    ) -> None:
-        """Create multihop sell child. Delegates to child_creator."""
-        # Store the parent's quantity_usd before child creation
-        parent = hp_map[parent_hp_id]
-        parent_quantity_usd_saved = parent.get("quantity_usd", "0.0")
-
-        # Delegate child creation to child_creator
-        self.child_creator.create_multihop_child(hp_map, update, hp_id, parent_hp_id)
-
-        # Update parent quantities
-        self._update_parent_sell_quantities(parent, update)
-
-        # Restore the parent's quantity_usd after _update_parent_sell_quantities
-        # to prevent it from being overwritten by child processing
-        parent["quantity_usd"] = parent_quantity_usd_saved
-
-    def _create_buy_child(
-        self,
-        hp_map: Dict[str, Dict],
-        update: HPUpdate,
-        hp_id: str,
-        parent_hp_id: str,
-        operation_side: str,
-        quantity_usd: str,
-    ) -> None:
-        """Create regular buy child (e.g., '1000_BUY'). Delegates to child_creator."""
-        # Delegate child creation to child_creator
-        self.child_creator.create_buy_child(
-            hp_map, update, hp_id, parent_hp_id, operation_side, quantity_usd
-        )
-
-        # Update parent with buy data
-        parent = hp_map[parent_hp_id]
-        buy_child = hp_map[hp_id]
-        parent["buy_price"] = buy_child["buy_price"]
-        parent["quantity_usd"] = buy_child["quantity_usd"]
-        parent["net"] = buy_child["net"]
-        parent["net_percent"] = buy_child["net_percent"]
-        parent["state"] = update.state.value
-
-        # Update parent expected_return if available in the update
-        if update.expected_return is not None:
-            parent["expected_return"] = (
-                str(update.symbol.format_price(update.expected_return))
-                if update.symbol
-                else str(update.expected_return)
-            )
-
-        # Update parent quantities
-        self._update_parent_buy_quantities(parent, update)
-
-    def _create_sell_child(
-        self,
-        hp_map: Dict[str, Dict],
-        update: HPUpdate,
-        hp_id: str,
-        parent_hp_id: str,
-        operation_side: str,
-        quantity_usd: str,
-    ) -> None:
-        """Create regular sell child (e.g., '1000_SELL'). Delegates to child_creator."""
-        # Delegate child creation to child_creator
-        self.child_creator.create_sell_child(
-            hp_map, update, hp_id, parent_hp_id, operation_side, quantity_usd
-        )
-
-        # Update parent with sell data
-        parent = hp_map[parent_hp_id]
-        sell_child = hp_map[hp_id]
-        parent["buy_price"] = sell_child["buy_price"]
-        parent["sell_price"] = sell_child["sell_price"]
-        parent["expected_return"] = sell_child["expected_return"]
-
-        # Update parent quantities for sell operations
-        self._update_parent_sell_quantities(parent, update)
-
-    def _create_convert_sell_child(
-        self,
-        hp_map: Dict[str, Dict],
-        update: HPUpdate,
-        hp_id: str,
-        parent_hp_id: str,
-        quantity_usd: str,
-    ) -> None:
-        """Create convert sell child (e.g., '1000_CONVERT'). Delegates to child_creator."""
-        # Delegate child creation to child_creator
-        self.child_creator.create_convert_child(
-            hp_map, update, hp_id, parent_hp_id, None, quantity_usd
-        )
-
-        # Update parent with convert sell data
-        parent = hp_map[parent_hp_id]
-        convert_sell_child = hp_map[hp_id]
-        parent["buy_price"] = convert_sell_child["buy_price"]
-        parent["quantity_usd"] = convert_sell_child["quantity_usd"]
-        parent["sell_price"] = convert_sell_child["sell_price"]
-        parent["expected_return"] = convert_sell_child["expected_return"]
-
-        # For convert positions, handle realized_quantity based on state
-        if update.state.value == State.SOLD.value:
-            # After completion, parent should show the actual realized quantity
-            parent["realized_quantity"] = convert_sell_child["realized_quantity"]
-        # else: During initialization and processing, keep parent realized_quantity as is (0.0)
-
-        parent["state"] = update.state.value
 
     def _process_all_tickers(self, tickers: AllTickers) -> None:
         # Update HP list data with current prices
