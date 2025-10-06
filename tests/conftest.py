@@ -47,6 +47,7 @@ from src.common.identifiers import (
 )
 from src.strategies.hp_manager.hp_manager import HpStrategy
 from src.portfolio.portfolio_gui import PortfolioUI
+from src.portfolio.portfolio_event_helper import PortfolioEventHelper
 
 logger = logging.getLogger("conftest")
 
@@ -576,19 +577,29 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
             price_resolver=strategy_executor_fixture.price_resolver,
             broker=strategy_executor_fixture.broker,
             worker_queue=worker_queue,
-        )  # Create strategy with balance higher than budget to allow trading
+        )
+
+        # Create temporary portfolio event helper (will be updated after strategy creation)
+        portfolio_ui_queue: queue.Queue = queue.Queue()
+        portfolio_event_helper = PortfolioEventHelper(None)
+
+        # Create strategy with balance higher than budget to allow trading
         strategy = HpStrategy(
             client=mock_async_client,
             balance=10000.0,  # Set balance higher than budget (1000.0) to allow trading
             ui_queue=queue.Queue(),
-            portfolio_ui_queue=queue.Queue(),  # Add missing parameter
+            portfolio_ui_queue=portfolio_ui_queue,
             worker_queue=worker_queue,
             config_queue=queue.Queue(),
             db=test_db,
             buy_position=buy_position,
             sell_position=sell_position,
+            portfolio_event_helper=portfolio_event_helper,
             initial_state=State.NEW,
         )
+
+        # Update portfolio event helper with the strategy's callback
+        portfolio_event_helper._callback = strategy.send_hp_event_to_portfolio
 
         # Prepare orders first (this is needed for proper hp_id resolution)
         strategy.buy.prepare_orders()

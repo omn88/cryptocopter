@@ -35,6 +35,7 @@ from src.strategies.hp_manager.position_sell import HPPositionSell
 from src.strategies.hp_manager.hp_manager import HpStrategy
 from src.database.models import Position, PositionType, TradeType
 from src.database.exceptions import RecoveryError
+from src.portfolio.portfolio_event_helper import PortfolioEventHelper
 from .position_converter import PositionConverter
 from .order_restorer import OrderRestorer
 from .multihop_recovery_handler import MultihopRecoveryHandler
@@ -134,6 +135,9 @@ class RecoveryService:
         worker_queue: queue.Queue = queue.Queue()
         assert client is not None
 
+        # Create temporary portfolio event helper (will be updated after strategy creation)
+        portfolio_event_helper = PortfolioEventHelper(None)
+
         logger.info("Creating HpStrategy for HP %s", buy_data.config.hp_id)
         strategy = HpStrategy(
             client=client,
@@ -142,6 +146,7 @@ class RecoveryService:
             db=self.db,
             worker_queue=worker_queue,
             config_queue=config_queue,
+            portfolio_event_helper=portfolio_event_helper,
             buy_position=HPPositionBuy(
                 client=client,
                 data=buy_data,
@@ -170,6 +175,10 @@ class RecoveryService:
 
         assert isinstance(strategy.buy.data.config, HPBuyConfig)
         logger.info("HpStrategy created successfully for HP %s", buy_data.config.hp_id)
+
+        # Update portfolio event helper with the strategy's callback
+        if portfolio_ui_queue is not None:
+            portfolio_event_helper._callback = strategy.send_hp_event_to_portfolio
 
         # Restore existing buy orders from database instead of creating new ones
         strategy.buy.orders = await self.order_restorer.restore_buy_orders(
@@ -292,9 +301,13 @@ class RecoveryService:
 
         worker_queue: queue.Queue = queue.Queue()
 
+        # Create temporary portfolio event helper (will be updated after strategy creation)
+        portfolio_event_helper = PortfolioEventHelper(None)
+
         strategy = HpStrategy(
             client=client,
             ui_queue=ui_queue,
+            portfolio_event_helper=portfolio_event_helper,
             buy_position=HPPositionBuy(
                 client=client,
                 data=HPBuy(
@@ -339,6 +352,10 @@ class RecoveryService:
         )
 
         config = strategy.sell.current_position.config
+
+        # Update portfolio event helper with the strategy's callback
+        if portfolio_ui_queue is not None:
+            portfolio_event_helper._callback = strategy.send_hp_event_to_portfolio
 
         # Restore existing sell orders from database
         sell_order = await self.order_restorer.restore_sell_orders(
