@@ -1,5 +1,5 @@
 from typing import Dict, List, Optional
-from src.identifiers import InventoryItem
+from src.common.identifiers import InventoryItem
 
 
 class InventoryManager:

@@ -14,7 +14,7 @@ from binance.enums import (
 )
 from src.common.symbol import Symbol
 from src.database import Database
-from src.identifiers import (
+from src.common.identifiers import (
     AccountPosition,
     Event,
     EventName,

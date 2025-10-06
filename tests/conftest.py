@@ -34,7 +34,7 @@ from decouple import Config, RepositoryEnv
 from src.common.helpers import generate_hp_id
 from src.common.symbol import Symbol
 from src.database.trading_database import Database
-from src.identifiers import (
+from src.common.identifiers import (
     HPBuyConfig,
     HPBuy,
     HPSellConfig,

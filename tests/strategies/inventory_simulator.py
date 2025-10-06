@@ -14,7 +14,7 @@ from typing import List, Optional
 from src.gui.hp_manager.hpfront import HpFront
 from src.strategy_executor import StrategyExecutor
 from src.portfolio.portfolio_gui import PortfolioUI
-from src.identifiers import (
+from src.common.identifiers import (
     HPSellConfig,
     HPSell,
     InventoryItem,
@@ -220,7 +220,7 @@ class InventorySellSimulator:
     async def simulate_sell_order_execution(self, hp_id: str):
         """Simulate the execution of the sell order to complete the sell flow."""
         from binance.enums import ORDER_TYPE_LIMIT, ORDER_STATUS_FILLED
-        from src.identifiers import (
+        from src.common.identifiers import (
             Event,
             EventName,
             ExecutionReport,

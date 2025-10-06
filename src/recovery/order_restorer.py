@@ -12,7 +12,7 @@ from typing import List, Optional
 
 from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED, ORDER_STATUS_NEW
 
-from src.identifiers import (
+from src.common.identifiers import (
     BinanceClient,
     Event,
     EventName,

@@ -8,7 +8,7 @@ data structures used by the trading system.
 import logging
 from typing import Optional, Dict
 
-from src.identifiers import (
+from src.common.identifiers import (
     HPBuyConfig,
     HPBuy,
     HPSellConfig,

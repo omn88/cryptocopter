@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, Optional
 from src.gui.identifiers import HPUpdate
-from src.identifiers import State
+from src.common.identifiers import State
 
 logger = logging.getLogger(__name__)
 

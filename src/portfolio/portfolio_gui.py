@@ -13,7 +13,7 @@ from kivy.uix.popup import Popup
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.label import Label
-from src.identifiers import (
+from src.common.identifiers import (
     AccountPosition,
     Event,
     EventName,

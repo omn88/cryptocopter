@@ -18,7 +18,7 @@ import kivy_config  # noinspection PyUnresolvedReferences
 import logging_config  # noinspection PyUnresolvedReferences
 import logging
 from decouple import Config, RepositoryEnv
-from src.identifiers import BinanceClient
+from src.common.identifiers import BinanceClient
 from src.common.symbol import fetch_symbols
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 

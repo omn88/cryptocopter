@@ -9,7 +9,7 @@ from binance.enums import (
 )
 from src.common.symbol import Symbol
 from src.gui.hp_manager.hpfront import HpFront
-from src.identifiers import (
+from src.common.identifiers import (
     Event,
     EventName,
     ExecutionReport,

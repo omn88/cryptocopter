@@ -6,7 +6,7 @@ from typing import Dict, List
 import pytz
 
 from src.common.symbol import Symbol
-from src.identifiers import HPSellConfig
+from src.common.identifiers import HPSellConfig
 
 logger = logging.getLogger("common")
 

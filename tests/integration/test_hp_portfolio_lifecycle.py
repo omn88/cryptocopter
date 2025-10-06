@@ -3,7 +3,7 @@
 import logging
 import pytest
 
-from src.identifiers import (
+from src.common.identifiers import (
     HPSellPositionCreated,
     HPSellPositionCompleted,
     HPSellPositionPartiallyFilled,

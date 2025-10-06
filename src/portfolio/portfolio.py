@@ -10,7 +10,7 @@ from typing import Dict, List, Optional
 import uuid
 from decouple import Config, RepositoryEnv
 from src.database.trading_database import Database
-from src.identifiers import (
+from src.common.identifiers import (
     AccountPosition,
     AllTickers,
     Event,

@@ -20,7 +20,7 @@ from src.broker import BrokerSpot
 from src.common.symbol import Symbol
 
 from src.database import Database
-from src.identifiers import (
+from src.common.identifiers import (
     ExecutionReport,
     HPSellConfig,
     Order,

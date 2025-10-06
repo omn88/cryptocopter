@@ -9,7 +9,7 @@ This reduces code duplication and keeps event handling consistent across the app
 """
 
 import logging
-from src.identifiers import (
+from src.common.identifiers import (
     EventName,
     HPBuyPositionCreated,
     HPSellPositionCreated,
