@@ -10,7 +10,7 @@ from binance.enums import (
     ORDER_STATUS_EXPIRED,
 )
 from src.gui.identifiers import HPGuiDataBuy, HPGuiDataSell
-from src.identifiers import (
+from src.common.identifiers import (
     Event,
     EventName,
     ExecutionReport,

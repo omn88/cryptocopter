@@ -11,7 +11,7 @@ from binance.enums import (
 )
 from src.common.helpers import determine_sell_strategy, generate_hp_id
 from src.database import Database
-from src.identifiers import (
+from src.common.identifiers import (
     HPBuyConfig,
     HPBuy,
     HPSellConfig,

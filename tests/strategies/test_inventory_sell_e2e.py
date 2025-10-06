@@ -26,7 +26,7 @@ from binance.enums import (
 from src.gui.hp_manager.hpfront import HpFront
 from src.portfolio.portfolio_gui import PortfolioUI
 from src.strategy_executor import StrategyExecutor
-from src.identifiers import (
+from src.common.identifiers import (
     PositionSide,
     RemoveRecord,
     State,

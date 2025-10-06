@@ -16,7 +16,7 @@ from src.common.symbol import Symbol
 from src.strategies.hp_manager.position_sell import HPPositionSell
 from src.strategies.hp_manager.hp_manager import HpStrategy
 from src.gui.hp_manager.hpfront import HpFront
-from src.identifiers import (
+from src.common.identifiers import (
     Event,
     EventName,
     ExecutionReport,

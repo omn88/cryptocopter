@@ -10,7 +10,7 @@ import time
 from decouple import Config, RepositoryEnv
 
 from binance import BinanceSocketManager
-from src.identifiers import (
+from src.common.identifiers import (
     AccountPosition,
     AllTickers,
     Balance,
