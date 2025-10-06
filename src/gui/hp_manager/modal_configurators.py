@@ -16,7 +16,7 @@ import uuid
 
 from src.common.symbol import Symbol
 from src.gui.searchable_drop_down import SearchableDropDown
-from .models import HPConfiguration
+from .hp_config import HPConfiguration
 
 logger = logging.getLogger(__name__)
 

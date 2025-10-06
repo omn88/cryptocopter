@@ -455,6 +455,56 @@ class BrokerSpot:
                 "New subscription for ID: %s: %s", system_id, subscription_info.symbol
             )
 
+    def setup_subscriptions(
+        self,
+        hp_id: str,
+        symbol: str,
+        additional_symbols: Optional[List[str]],
+        worker_queue: queue.Queue,
+    ) -> None:
+        """Setup USER and PRICE subscriptions for a strategy.
+
+        Args:
+            hp_id: The unique identifier for the holding pattern/strategy
+            symbol: The main trading symbol (e.g., 'BTCUSDC')
+            additional_symbols: Optional list of additional symbols for multihop strategies
+            worker_queue: Queue for receiving subscription data
+        """
+        # User data subscription
+        self.subscribe(
+            system_id=hp_id,
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.USER,
+                symbol=symbol,
+                target=SubscriptionTarget.BACKEND,
+                queue=worker_queue,
+            ),
+        )
+
+        # Price subscription for main symbol
+        self.subscribe(
+            system_id=hp_id,
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.PRICE,
+                symbol=symbol,
+                target=SubscriptionTarget.BACKEND,
+                queue=worker_queue,
+            ),
+        )
+
+        # Additional price subscriptions (for multihop sell strategies)
+        if additional_symbols:
+            for add_symbol in additional_symbols:
+                self.subscribe(
+                    system_id=hp_id,
+                    subscription_info=SubscriptionInfo(
+                        data_type=SubscriptionType.PRICE,
+                        symbol=add_symbol,
+                        target=SubscriptionTarget.BACKEND,
+                        queue=worker_queue,
+                    ),
+                )
+
     def unsubscribe(self, system_id: str) -> None:
         """Allows a strategy to unsubscribe from a user or price feed."""
 

@@ -32,9 +32,6 @@ from src.identifiers import (
     State,
     PositionSide,
     Mode,
-    SubscriptionInfo,
-    SubscriptionTarget,
-    SubscriptionType,
     UiState,
 )
 from src.common.symbol import Symbol
@@ -246,23 +243,11 @@ class RecoveryService:
 
         # Strategy management should be handled by StrategyExecutor
         # Return the strategy so StrategyExecutor can manage it
-        self.broker.subscribe(
-            system_id=str(buy_data.config.hp_id),
-            subscription_info=SubscriptionInfo(
-                data_type=SubscriptionType.USER,
-                symbol=buy_data.config.symbol.name,
-                target=SubscriptionTarget.BACKEND,
-                queue=worker_queue,
-            ),
-        )
-        self.broker.subscribe(
-            system_id=str(buy_data.config.hp_id),
-            subscription_info=SubscriptionInfo(
-                data_type=SubscriptionType.PRICE,
-                symbol=buy_data.config.symbol.name,
-                target=SubscriptionTarget.BACKEND,
-                queue=worker_queue,
-            ),
+        self.broker.setup_subscriptions(
+            hp_id=str(buy_data.config.hp_id),
+            symbol=buy_data.config.symbol.name,
+            additional_symbols=None,
+            worker_queue=worker_queue,
         )
 
         await self.db.upsert_buy_price_level(
@@ -396,12 +381,7 @@ class RecoveryService:
 
         # For restored positions, extract parent ID for strategy registration
         full_hp_id = sell_position.config.hp_id
-        if "_CONVERT" in full_hp_id:
-            parent_hp_id = full_hp_id.split("_CONVERT")[0]
-        elif "_SELL" in full_hp_id:
-            parent_hp_id = full_hp_id.split("_SELL")[0]
-        else:
-            parent_hp_id = full_hp_id
+        parent_hp_id = full_hp_id[:4]
         logger.info(
             "Setting up NEW SELL position with config: %s", sell_position.config
         )
@@ -504,25 +484,16 @@ class RecoveryService:
 
         logger.info("Current position: %s", strategy.sell.current_position)
 
-        self.broker.subscribe(
-            system_id=str(parent_hp_id),
-            subscription_info=SubscriptionInfo(
-                data_type=SubscriptionType.USER,
-                symbol=config.symbol.name,
-                target=SubscriptionTarget.BACKEND,
-                queue=worker_queue,
-            ),
+        # Setup broker subscriptions (main symbol + additional symbols for multihop)
+        additional_symbols = (
+            [s.name for s in sell_strategy[1:]] if len(sell_strategy) > 1 else None
         )
-        for symbol in sell_strategy:
-            self.broker.subscribe(
-                system_id=str(parent_hp_id),
-                subscription_info=SubscriptionInfo(
-                    data_type=SubscriptionType.PRICE,
-                    symbol=symbol.name,
-                    target=SubscriptionTarget.BACKEND,
-                    queue=worker_queue,
-                ),
-            )
+        self.broker.setup_subscriptions(
+            hp_id=str(parent_hp_id),
+            symbol=config.symbol.name,
+            additional_symbols=additional_symbols,
+            worker_queue=worker_queue,
+        )
 
         await self.db.upsert_sell_price_level(
             data=strategy.sell.current_position, strategy_state=strategy.state

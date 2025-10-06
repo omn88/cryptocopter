@@ -1,31 +1,23 @@
-"""Unified HP Manager components.
+"""HP Manager components.
 
-This package contains the unified HP interface components that replace
-the overengineered tabbed Buy/Sell interface with a streamlined
-hierarchical view and modal configurators.
-
-Key components:
-- models.py: Data structures for unified HP display
+This package contains HP interface components with clear separation of concerns:
+- hp_config.py: Configuration data structures and formatting helpers
 - modal_configurators.py: Modal dialogs for HP creation
-- unified_hp_manager.py: Main widget replacing tabbed interface
+- hpfront.py: Main HP display and coordination
 """
 
-from .models import (
-    UnifiedPosition,
-    UnifiedHPData,
+from .hp_config import (
     HPConfiguration,
-    PositionType,
-    PositionState,
+    format_currency,
+    format_percentage,
+    format_quantity,
 )
 from .modal_configurators import BuyHPModal
-from .hp_manager import HPManager
 
 __all__ = [
-    "UnifiedPosition",
-    "UnifiedHPData",
     "HPConfiguration",
-    "PositionType",
-    "PositionState",
+    "format_currency",
+    "format_percentage",
+    "format_quantity",
     "BuyHPModal",
-    "HPManager",
 ]
