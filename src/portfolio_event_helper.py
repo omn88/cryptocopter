@@ -18,7 +18,7 @@ from src.identifiers import (
     State,
 )
 from src.gui.identifiers import HPClose
-from src.strategies.hp_manager import HpStrategy
+from src.strategies.hp_manager.hp_manager import HpStrategy
 
 logger = logging.getLogger(__name__)
 

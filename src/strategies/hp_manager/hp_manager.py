@@ -41,8 +41,8 @@ from src.identifiers import (
     HPSellPositionCompleted,
 )
 from src.gui.identifiers import HPClose, HPGuiDataBuy, HPGuiDataSell, HPUpdate
-from src.position_buy import HPPositionBuy
-from src.position_sell import HPPositionSell
+from src.strategies.hp_manager.position_buy import HPPositionBuy
+from src.strategies.hp_manager.position_sell import HPPositionSell
 
 logger = logging.getLogger("HPStrategy")
 

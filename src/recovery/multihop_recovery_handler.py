@@ -9,7 +9,7 @@ import logging
 from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_NEW
 
 from src.identifiers import PositionSide
-from src.strategies.hp_manager import HpStrategy
+from src.strategies.hp_manager.hp_manager import HpStrategy
 from src.database.trading_database import Database
 
 
