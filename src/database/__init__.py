@@ -22,7 +22,6 @@ from .exceptions import (
     DatabaseConnectionError,
     IntegrityError,
 )
-from .recovery_service import RecoveryService
 from .position_manager import PositionManager
 
 __all__ = [
@@ -39,6 +38,5 @@ __all__ = [
     "RecoveryError",
     "DatabaseConnectionError",
     "IntegrityError",
-    "RecoveryService",
     "PositionManager",
 ]

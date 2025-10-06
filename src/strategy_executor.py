@@ -40,7 +40,7 @@ from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
 from src.strategies.hp_manager import HpStrategy
 from src.broker import BrokerSpot
-from src.database.recovery_service import RecoveryService
+from src.recovery import RecoveryService
 from src.database.exceptions import RecoveryError
 from src.portfolio_event_helper import PortfolioEventHelper
 

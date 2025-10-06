@@ -33,8 +33,8 @@ from src.common.symbol import Symbol
 from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
 from src.strategies.hp_manager import HpStrategy
-from .models import Position, PositionType, TradeType
-from .exceptions import RecoveryError
+from src.database.models import Position, PositionType, TradeType
+from src.database.exceptions import RecoveryError
 from .position_converter import PositionConverter
 from .order_restorer import OrderRestorer
 from .multihop_recovery_handler import MultihopRecoveryHandler

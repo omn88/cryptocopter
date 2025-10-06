@@ -10,7 +10,12 @@ from typing import List
 
 from src.identifiers import BinanceClient
 from src.database.trading_database import Database
-from .models import Position, PositionType, PositionStatus, Order as DatabaseOrder
+from src.database.models import (
+    Position,
+    PositionType,
+    PositionStatus,
+    Order as DatabaseOrder,
+)
 from .position_converter import PositionConverter
 
 

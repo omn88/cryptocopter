@@ -19,7 +19,7 @@ from src.identifiers import (
     Mode,
 )
 from src.common.symbol import Symbol
-from .models import Position, PositionStatus, OrderStatus
+from src.database.models import Position, PositionStatus, OrderStatus
 
 
 logger = logging.getLogger("PositionConverter")
