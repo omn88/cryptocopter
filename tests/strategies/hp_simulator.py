@@ -9,7 +9,7 @@ from binance.enums import (
 )
 from src.common.symbol import Symbol
 from src.gui.hp_manager.hpfront import HpFront
-from src.identifiers import (
+from src.common.identifiers import (
     Event,
     EventName,
     ExecutionReport,
@@ -24,7 +24,7 @@ from src.identifiers import (
     Mode,
     PositionSide,
 )
-from src.strategies.hp_manager import HpStrategy
+from src.strategies.hp_manager.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor
 from tests.helpers import get_new_orders
 from tests.strategies.hp_manager_helpers import (

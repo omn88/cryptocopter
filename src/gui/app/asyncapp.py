@@ -20,7 +20,7 @@ from kivy.lang import Builder
 from kivy.properties import ListProperty
 from kivy.uix.tabbedpanel import TabbedPanelItem
 from kivy.uix.widget import Widget
-from src.identifiers import (
+from src.common.identifiers import (
     SubscriptionInfo,
     SubscriptionTarget,
     SubscriptionType,

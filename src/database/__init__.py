@@ -29,7 +29,6 @@ __all__ = [
     "Position",
     "Trade",
     "Order",
-    "Strategy",
     "PositionType",
     "PositionStatus",
     "TradeType",

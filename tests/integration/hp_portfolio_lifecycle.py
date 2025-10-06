@@ -5,7 +5,7 @@ import logging
 import pytest
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 
-from src.identifiers import (
+from src.common.identifiers import (
     Event,
     EventName,
     HPSellPositionCreated,

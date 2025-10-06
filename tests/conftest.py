@@ -14,8 +14,8 @@ logging.getLogger("aiosqlite").setLevel(logging.WARNING)
 from src.gui.hp_manager.hpfront import HpFront
 from src.broker import BrokerSpot
 from src.portfolio.usd_price_resolver import UsdPriceResolver
-from src.position_buy import HPPositionBuy
-from src.position_sell import HPPositionSell
+from src.strategies.hp_manager.position_buy import HPPositionBuy
+from src.strategies.hp_manager.position_sell import HPPositionSell
 from src.strategy_executor import StrategyExecutor
 from src.recovery import RecoveryService
 from tests.strategies.hp_manager_helpers import wait_for_condition
@@ -34,7 +34,7 @@ from decouple import Config, RepositoryEnv
 from src.common.helpers import generate_hp_id
 from src.common.symbol import Symbol
 from src.database.trading_database import Database
-from src.identifiers import (
+from src.common.identifiers import (
     HPBuyConfig,
     HPBuy,
     HPSellConfig,
@@ -45,7 +45,7 @@ from src.identifiers import (
     StateInfo,
     InventoryItem,
 )
-from src.strategies.hp_manager import HpStrategy
+from src.strategies.hp_manager.hp_manager import HpStrategy
 from src.portfolio.portfolio_gui import PortfolioUI
 
 logger = logging.getLogger("conftest")

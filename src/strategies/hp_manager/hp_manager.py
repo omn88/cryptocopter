@@ -14,7 +14,7 @@ from binance.enums import (
 )
 from src.common.symbol import Symbol
 from src.database import Database
-from src.identifiers import (
+from src.common.identifiers import (
     AccountPosition,
     Event,
     EventName,
@@ -41,8 +41,8 @@ from src.identifiers import (
     HPSellPositionCompleted,
 )
 from src.gui.identifiers import HPClose, HPGuiDataBuy, HPGuiDataSell, HPUpdate
-from src.position_buy import HPPositionBuy
-from src.position_sell import HPPositionSell
+from src.strategies.hp_manager.position_buy import HPPositionBuy
+from src.strategies.hp_manager.position_sell import HPPositionSell
 
 logger = logging.getLogger("HPStrategy")
 

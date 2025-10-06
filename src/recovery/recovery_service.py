@@ -15,7 +15,7 @@ from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_NEW
 from src.broker import BrokerSpot
 from src.common.helpers import determine_sell_strategy
 from src.database.trading_database import Database
-from src.identifiers import (
+from src.common.identifiers import (
     BinanceClient,
     HPBuyConfig,
     HPBuy,
@@ -30,9 +30,9 @@ from src.identifiers import (
     UiState,
 )
 from src.common.symbol import Symbol
-from src.position_buy import HPPositionBuy
-from src.position_sell import HPPositionSell
-from src.strategies.hp_manager import HpStrategy
+from src.strategies.hp_manager.position_buy import HPPositionBuy
+from src.strategies.hp_manager.position_sell import HPPositionSell
+from src.strategies.hp_manager.hp_manager import HpStrategy
 from src.database.models import Position, PositionType, TradeType
 from src.database.exceptions import RecoveryError
 from .position_converter import PositionConverter

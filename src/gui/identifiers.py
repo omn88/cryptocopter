@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional
 from src.common.symbol import Symbol
-from src.identifiers import HPBuy, HPSellConfig, HPSell, State, StateInfo
+from src.common.identifiers import HPBuy, HPSellConfig, HPSell, State, StateInfo
 
 
 @dataclass

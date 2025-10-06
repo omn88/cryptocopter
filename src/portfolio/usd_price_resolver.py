@@ -2,7 +2,7 @@
 from typing import Dict
 import logging
 from src.common.symbol import Symbol
-from src.identifiers import BinanceClient
+from src.common.identifiers import BinanceClient
 
 logger = logging.getLogger("price_resolver")
 

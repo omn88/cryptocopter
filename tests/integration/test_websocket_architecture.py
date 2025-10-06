@@ -16,7 +16,7 @@ import queue
 from unittest.mock import Mock, AsyncMock, patch
 from src.broker import BrokerSpot
 from src.strategy_executor import StrategyExecutor
-from src.identifiers import (
+from src.common.identifiers import (
     SubscriptionInfo,
     SubscriptionType,
     SubscriptionTarget,

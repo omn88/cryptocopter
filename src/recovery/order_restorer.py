@@ -12,7 +12,7 @@ from typing import List, Optional
 
 from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED, ORDER_STATUS_NEW
 
-from src.identifiers import (
+from src.common.identifiers import (
     BinanceClient,
     Event,
     EventName,
@@ -22,7 +22,7 @@ from src.identifiers import (
     Order,
     PositionSide,
 )
-from src.position_buy import HPPositionBuy
+from src.strategies.hp_manager.position_buy import HPPositionBuy
 from src.database.trading_database import Database
 
 

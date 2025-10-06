@@ -10,7 +10,7 @@ from binance.enums import (
     ORDER_STATUS_EXPIRED,
 )
 from src.gui.identifiers import HPGuiDataBuy, HPGuiDataSell
-from src.identifiers import (
+from src.common.identifiers import (
     Event,
     EventName,
     ExecutionReport,
@@ -22,7 +22,7 @@ from src.identifiers import (
     UiState,
     PositionSide,
 )
-from src.strategies.hp_manager import HpStrategy
+from src.strategies.hp_manager.hp_manager import HpStrategy
 from src.gui.hp_manager.hpfront import HpFront
 from tests.helpers import get_new_orders
 from tests.strategies.hp_manager_helpers import (

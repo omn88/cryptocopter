@@ -9,7 +9,7 @@ This reduces code duplication and keeps event handling consistent across the app
 """
 
 import logging
-from src.identifiers import (
+from src.common.identifiers import (
     EventName,
     HPBuyPositionCreated,
     HPSellPositionCreated,
@@ -18,7 +18,7 @@ from src.identifiers import (
     State,
 )
 from src.gui.identifiers import HPClose
-from src.strategies.hp_manager import HpStrategy
+from src.strategies.hp_manager.hp_manager import HpStrategy
 
 logger = logging.getLogger(__name__)
 

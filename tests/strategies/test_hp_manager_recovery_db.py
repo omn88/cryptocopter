@@ -9,7 +9,7 @@ from binance.enums import (
     ORDER_STATUS_PARTIALLY_FILLED,
 )
 from src.database.models import OrderStatus
-from src.identifiers import Order, State
+from src.common.identifiers import Order, State
 from src.strategy_executor import StrategyExecutor
 from src.gui.hp_manager.hpfront import HpFront
 from tests.helpers import get_new_orders

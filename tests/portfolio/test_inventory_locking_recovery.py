@@ -4,7 +4,7 @@ import asyncio
 import pytest
 import logging
 
-from src.identifiers import HPSellPositionCreated
+from src.common.identifiers import HPSellPositionCreated
 from tests.strategies.hp_manager_helpers import wait_for_condition
 from tests.strategies.hp_simulator import HPSimulator
 

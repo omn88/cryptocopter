@@ -11,7 +11,7 @@ from binance.enums import (
 )
 from src.common.helpers import determine_sell_strategy, generate_hp_id
 from src.database import Database
-from src.identifiers import (
+from src.common.identifiers import (
     HPBuyConfig,
     HPBuy,
     HPSellConfig,
@@ -36,9 +36,9 @@ from src.gui.identifiers import (
 )
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.portfolio.inventory_manager import InventoryManager
-from src.position_buy import HPPositionBuy
-from src.position_sell import HPPositionSell
-from src.strategies.hp_manager import HpStrategy
+from src.strategies.hp_manager.position_buy import HPPositionBuy
+from src.strategies.hp_manager.position_sell import HPPositionSell
+from src.strategies.hp_manager.hp_manager import HpStrategy
 from src.broker import BrokerSpot
 from src.recovery import RecoveryService
 from src.database.exceptions import RecoveryError
