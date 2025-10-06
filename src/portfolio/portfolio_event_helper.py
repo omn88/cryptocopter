@@ -48,12 +48,30 @@ class PortfolioEventHelper:
         Args:
             event_name: The name/type of the event to send.
             event_data: The event data payload.
+
+        Raises:
+            RuntimeError: If callback fails to process the event.
         """
         if self._callback:
             try:
                 self._callback(event_name, event_data)
-            except Exception as e:
-                logger.error("Failed to send portfolio event: %s", e)
+            except (TypeError, ValueError, AttributeError) as exc:
+                # Catch specific exceptions related to invalid event data or callback issues
+                logger.error(
+                    "Failed to send portfolio event %s: %s",
+                    event_name,
+                    exc,
+                    exc_info=True,
+                )
+                raise RuntimeError(
+                    f"Portfolio event {event_name} delivery failed"
+                ) from exc
+            except Exception:
+                # Unexpected exceptions - log with full traceback and re-raise
+                logger.exception(
+                    "Unexpected error sending portfolio event %s", event_name
+                )
+                raise
 
     def send_buy_creation_event(
         self,
