@@ -797,9 +797,19 @@ Enter sell price to create sell order:"""
             coin_symbol = coin[:-3] if coin.endswith("USD") else coin
             symbol = f"{coin_symbol}USDC"
 
-            logger.info(
-                f"Creating sell order for HP {hp_id}: {quantity} {coin_symbol} at {sell_price}"
-            )
+            # Check if a sell child already exists
+            has_existing_sell = self._has_sell_child(hp_id)
+
+            if has_existing_sell:
+                logger.info(
+                    f"Updating existing sell order for HP {hp_id}: {quantity} {coin_symbol} at {sell_price}"
+                )
+                # Cancel existing sell order first
+                self.cancel_sell(hp_id, coin)
+            else:
+                logger.info(
+                    f"Creating new sell order for HP {hp_id}: {quantity} {coin_symbol} at {sell_price}"
+                )
 
             if symbol not in self.price_resolver.symbols:
                 fallback_symbol = f"{coin_symbol}USDT"

@@ -128,8 +128,8 @@ class HPStateCalculator:
             realized_quantity = float(hp_data.get("quantity", "0.0"))
             buttons["buttons"].append("SELL")
             buttons["states"]["SELL"] = {
-                "enabled": not has_sell_child and realized_quantity > 0,
-                "text": "Sell",
+                "enabled": realized_quantity > 0,
+                "text": "Update Sell" if has_sell_child else "Sell",
             }
             buttons["buttons"].append("CANCEL")
             buttons["states"]["CANCEL"] = {"enabled": True, "text": "Cancel"}
