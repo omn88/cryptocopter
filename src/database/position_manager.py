@@ -158,7 +158,7 @@ class PositionManager:
             for i, sell_pos in enumerate(sell_positions):
                 # Skip creating positions that are already completed
                 if await self._position_is_completed(sell_pos.config.hp_id):
-                    logger.info(f"Skipping completed position {sell_pos.config.hp_id}")
+                    logger.info("Skipping completed position %s", sell_pos.config.hp_id)
                     position_ids.append(sell_pos.config.hp_id)
                     continue
 
@@ -240,10 +240,10 @@ class PositionManager:
                 )
 
                 await self.database.save_position(parent_position)
-                logger.info(f"Created parent position {parent_hp_id}")
+                logger.info("Created parent position %s", parent_hp_id)
 
         except Exception as e:
-            logger.error(f"Failed to ensure parent position exists: {e}")
+            logger.error("Failed to ensure parent position exists: %s", e)
             raise
 
     async def _position_is_completed(self, hp_id: str) -> bool:
@@ -257,7 +257,7 @@ class PositionManager:
             return False
 
         except Exception as e:
-            logger.error(f"Failed to check if position is completed: {e}")
+            logger.error("Failed to check if position is completed: %s", e)
             return False
 
     async def save_order(

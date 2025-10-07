@@ -23,6 +23,12 @@ linting:
   stage: linting
   script:
     - mypy --ignore-missing-imports --exclude venv .
+    - pylint src/ --fail-under=8.0 --output-format=colorized
+  artifacts:
+    reports:
+      codequality: pylint-report.json
+    when: always
+  allow_failure: false
 
 testing:
   stage: testing

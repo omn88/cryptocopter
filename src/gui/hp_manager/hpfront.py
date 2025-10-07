@@ -261,13 +261,13 @@ Side: {side}"""
                 logger.error(
                     f"Unsupported HP type: {hp_type}. Only BUY operations are supported from HP list."
                 )
-        except Exception as e:
-            logger.error(f"Error creating {hp_type} HP: {e}")
+        except Exception:
+            logger.exception("Error creating %s HP", hp_type)
 
     def _create_buy_hp_from_config(self, config: HPConfiguration):
         """Create Buy HP from unified configuration."""
         if not self.price_resolver.symbols.get(config.symbol):
-            logger.error(f"Symbol info not found for {config.symbol}")
+            logger.error("Symbol info not found for %s", config.symbol)
             return
 
         new_hp = HPBuy(
@@ -299,30 +299,30 @@ Side: {side}"""
         if side and symbol:
             # Convert PositionSide to string format
             side_str = "SHORT" if side == PositionSide.SHORT else "LONG"
-            logger.info(f"Cancelling HP {hp_id} with side: {side_str}")
+            logger.info("Cancelling HP %s with side: {side_str}", hp_id)
             self.trigger_remove_record(hp_id, symbol, side_str)
         elif not side:
-            logger.error(f"Could not determine position side for HP ID: {hp_id}")
+            logger.error("Could not determine position side for HP ID: %s", hp_id)
         elif not symbol:
-            logger.error(f"Could not find symbol for HP ID: {hp_id}")
+            logger.error("Could not find symbol for HP ID: %s", hp_id)
 
     def _get_symbol_from_hp_id(self, hp_id: str) -> Optional[str]:
         """Get symbol from HP ID by searching HP list data."""
         for hp_data in self.hp_list_data:
             if hp_data.get("hp_id") == hp_id:
                 coin = hp_data.get("coin")
-                logger.debug(f"Found HP {hp_id}: coin='{coin}'")
+                logger.debug("Found HP %s: coin='{coin}'", hp_id)
                 return coin
         return None
 
     def _get_position_side_from_hp_id(self, hp_id: str) -> Optional[PositionSide]:
         """Get the position side for a given HP ID by analyzing HP data structure"""
-        logger.debug(f"Looking for position side for HP {hp_id}")
+        logger.debug("Looking for position side for HP %s", hp_id)
 
         # Look for the HP in hp_list_data
         for hp_data in self.hp_list_data:
             if hp_data.get("hp_id") == hp_id:
-                logger.debug(f"Found HP data for {hp_id}: {hp_data}")
+                logger.debug("Found HP data for %s: {hp_data}", hp_id)
 
                 # Check if this HP has multihop children (e.g., 1000a, 1000b) - these are SELL positions
                 children = hp_data.get("children", [])
@@ -369,7 +369,7 @@ Side: {side}"""
                     "SOLD",
                     "SOLD_PART_BOUGHT",
                 ]:
-                    logger.debug(f"Inferred SHORT position from state: {state}")
+                    logger.debug("Inferred SHORT position from state: %s", state)
                     return PositionSide.SHORT
 
                 # Check if HP ID indicates multihop (e.g., "1000a", "1000b")
@@ -380,10 +380,10 @@ Side: {side}"""
                     return PositionSide.SHORT
 
                 # Default to LONG for buy positions
-                logger.debug(f"HP {hp_id} appears to be BUY position, inferring LONG")
+                logger.debug("HP %s appears to be BUY position, inferring LONG", hp_id)
                 return PositionSide.LONG
 
-        logger.debug(f"HP {hp_id} not found in hp_list_data")
+        logger.debug("HP %s not found in hp_list_data", hp_id)
 
         return None
 
@@ -396,12 +396,12 @@ Side: {side}"""
         # Check if this is a multihop child (e.g., "1000a", "1000b")
         if len(hp_id) > 1 and hp_id[-1].isalpha() and hp_id[:-1].isdigit():
             parent_hp_id = hp_id[:-1]  # Extract parent ID (e.g., "1000")
-            logger.info(f"Child {hp_id} got CLOSED, checking parent {parent_hp_id}")
+            logger.info("Child %s got CLOSED, checking parent {parent_hp_id}", hp_id)
 
             if parent_hp_id in hp_map:
                 parent = hp_map[parent_hp_id]
                 children = parent.get("children", [])
-                logger.info(f"Parent {parent_hp_id} has children: {children}")
+                logger.info("Parent %s has children: {children}", parent_hp_id)
 
                 # Check if all children are in CLOSED or SOLD state
                 all_children_closed = True
@@ -573,7 +573,7 @@ Side: {side}"""
 
         # Calculate parent quantity_usd as total invested amount from all buy children
         # This happens at the very end to ensure all containers have been updated first
-        for parent_key, parent in hp_map.items():
+        for _parent_key, parent in hp_map.items():
             if not parent.get("is_child", False) and parent.get("side") == "PARENT":
                 total_invested_amount = 0.0
                 for child_key in parent.get("children", []):
@@ -837,7 +837,7 @@ Enter sell price to create sell order:"""
         except ValueError:
             print("Error: Invalid sell price")
         except Exception as e:
-            logger.error(f"Error creating sell order: {e}")
+            logger.error("Error creating sell order: %s", e)
 
     def cancel_sell(self, hp_id: str, coin: str):
         coin = coin[:-3] if coin.endswith("USD") else coin
@@ -887,16 +887,16 @@ Enter sell price to create sell order:"""
                 cancellation_target["target_hp_id"], symbol, target_side
             )
         else:
-            logger.warning(f"Cancellation not allowed for {hp_id}")
+            logger.warning("Cancellation not allowed for %s", hp_id)
 
     def toggle_hp_expansion(self, hp_id: str):
         """Toggle the expansion state of a parent HP position"""
         if hp_id in self.expanded_hp_ids:
             self.expanded_hp_ids.remove(hp_id)
-            logger.debug(f"Collapsed HP {hp_id}")
+            logger.debug("Collapsed HP %s", hp_id)
         else:
             self.expanded_hp_ids.add(hp_id)
-            logger.debug(f"Expanded HP {hp_id}")
+            logger.debug("Expanded HP %s", hp_id)
 
         # Trigger UI re-render to show/hide children
         self._render_hp_list_ui()
@@ -967,7 +967,7 @@ Enter sell price to create sell order:"""
             try:
                 self.ids.hp_state_filter_display.text = display_text
             except Exception as e:
-                logger.error(f"Error updating filter display text: {e}")
+                logger.error("Error updating filter display text: %s", e)
         logger.info("HP state filter changed to: %s", filter_text)
 
     def reset_hp_state_filter(self):
@@ -995,7 +995,7 @@ Enter sell price to create sell order:"""
                     )
             logger.info("HP state filter reset to default")
         except Exception as e:
-            logger.error(f"Error resetting HP state filter: {e}")
+            logger.error("Error resetting HP state filter: %s", e)
             # At minimum, update the filter data even if UI update fails
             self.hp_state_filter = [
                 "NEW",
@@ -1036,4 +1036,4 @@ Enter sell price to create sell order:"""
                             "Showing 11 states (excludes CLOSED, SOLD)"
                         )
                 except Exception as e:
-                    logger.error(f"Error updating filter UI after auto-remove: {e}")
+                    logger.error("Error updating filter UI after auto-remove: %s", e)

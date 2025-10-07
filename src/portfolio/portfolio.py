@@ -212,7 +212,7 @@ class PortfolioManager:
                     self.inventory = []
 
         except Exception as e:
-            logger.error(f"Failed to initialize portfolio source: {e}")
+            logger.error("Failed to initialize portfolio source: %s", e)
             self.inventory = []  # Fallback to empty inventory
 
         # Signal that initialization is complete
@@ -225,11 +225,11 @@ class PortfolioManager:
         # Look for inventory.csv in the src/portfolio directory
         filename = os.path.join(os.path.dirname(__file__), "inventory.csv")
         if not os.path.exists(filename):
-            logger.info(f"No inventory.csv file found at {filename}.")
+            logger.info("No inventory.csv file found at %s.", filename)
             return False
 
         try:
-            with open(filename, "r") as f:
+            with open(filename, "r", encoding="utf-8") as f:
                 reader = csv.DictReader(f)
                 parsed = [row for row in reader]
 
@@ -267,7 +267,7 @@ class PortfolioManager:
                         f"Successfully saved {len(inventory_items)} inventory items to database"
                     )
                 except Exception as e:
-                    logger.error(f"Failed to save CSV inventory to database: {e}")
+                    logger.error("Failed to save CSV inventory to database: %s", e)
                     # Don't fail the load, but warn about recovery issues
                     logger.warning(
                         "Inventory will need to be reloaded from CSV after restart"

@@ -43,6 +43,7 @@ from src.common.identifiers import (
 from src.gui.identifiers import HPClose, HPGuiDataBuy, HPGuiDataSell, HPUpdate
 from src.strategies.hp_manager.position_buy import HPPositionBuy
 from src.strategies.hp_manager.position_sell import HPPositionSell
+from src.portfolio.portfolio_event_helper import PortfolioEventHelper
 
 logger = logging.getLogger("HPStrategy")
 
@@ -61,6 +62,7 @@ class HpStrategy:
         db: Database,
         buy_position: HPPositionBuy,
         sell_position: HPPositionSell,
+        portfolio_event_helper: PortfolioEventHelper,
         initial_state: State = State.NEW,
     ):
         self.client = client
@@ -77,6 +79,9 @@ class HpStrategy:
         self.portfolio_event_callback: Optional[Callable[[EventName, Any], None]] = None
         if self.portfolio_ui_queue is not None:
             self.portfolio_event_callback = self.send_hp_event_to_portfolio
+
+        # Store the portfolio event helper passed from outside
+        self.portfolio_event_helper = portfolio_event_helper
 
         # Initialize any other common attributes
         self.signal_update: SignalUpdate = SignalUpdate()
@@ -136,14 +141,6 @@ class HpStrategy:
             logger.error(
                 "[STRATEGY EXECUTOR] Failed to send HP event to portfolio: %s", e
             )
-
-    def _send_portfolio_event(self, event_name, event_data):
-        """Send HP events to portfolio via callback."""
-        if self.portfolio_event_callback:
-            try:
-                self.portfolio_event_callback(event_name, event_data)
-            except Exception as e:
-                logger.error("Failed to send portfolio event: %s", e)
 
     def _get_transitions(self):
         return [
@@ -500,7 +497,6 @@ class HpStrategy:
         # For DCA mode, this is the total across all orders
         expected_qty = 0.0
         if self.buy.data.config.budget > 0:
-
             if self.buy.data.config.mode == "DCA":
                 # DCA calculation: sum of quantities across all price levels
                 num_orders = 3
@@ -621,7 +617,6 @@ class HpStrategy:
         self.ui_queue.put_nowait(sell_data)
 
     def calculate_trigger_send_orders_price_buy(self):
-
         # logger.info(self.buy.orders)
 
         price = (
@@ -720,17 +715,11 @@ class HpStrategy:
             data=self.buy.data, strategy_state=self.state
         )
 
-        hp_orders_placed = HPBuyOrdersPlaced(
+        self.portfolio_event_helper.send_buy_orders_placed_event(
             hp_id=str(self.buy.data.config.hp_id),
             coin=self.buy.data.config.coin,
             budget_amount=budget_amount,
-            end_currency="USDC",  # Default to USDC for budget locking
-        )
-        self._send_portfolio_event(EventName.HP_BUY_ORDERS_PLACED, hp_orders_placed)
-        logger.info(
-            "Sent HP buy orders placed event to lock %s USDC budget for position %s",
-            budget_amount,
-            self.buy.data.config.hp_id,
+            end_currency="USDC",
         )
 
         self.send_buy_position_to_ui()
@@ -765,17 +754,11 @@ class HpStrategy:
 
         # Send HP position cancelled event to portfolio (for buy cancellations)
         # For buy orders, we need to unlock the budget amount (USDC), not the coin quantity
-        hp_cancelled = HPPositionCancelled(
+        self.portfolio_event_helper.send_cancellation_event(
             hp_id=self.buy.data.config.hp_id,
             coin="USDC",  # The currency being unlocked (budget currency)
             quantity=budget_amount,  # Amount of USDC budget to unlock
             position_type="BUY",
-        )
-        self._send_portfolio_event(EventName.HP_POSITION_CANCELLED, hp_cancelled)
-        logger.info(
-            "Sent HP buy cancellation event to unlock %s USDC budget for position %s",
-            budget_amount,
-            self.buy.data.config.hp_id,
         )
 
         self.buy.data.state_info.state = State.NEW
@@ -1012,39 +995,32 @@ class HpStrategy:
 
             # Emit a partial fill event (treat full convert as a single fill) so portfolio can
             # reduce inventory immediately under the new "fills mutate inventory" rule.
-            if self.portfolio_event_callback:
-                try:
-                    self.portfolio_event_callback(
-                        EventName.HP_SELL_POSITION_PARTIALLY_FILLED,
-                        HPSellPositionPartiallyFilled(
-                            hp_id=self.sell.current_position.config.hp_id,
-                            coin=self.sell.current_position.config.coin,
-                            filled_quantity=float(quantity),
-                            total_filled=float(quantity),
-                        ),
-                    )
-                except Exception as e:
-                    logger.error(
-                        "Failed sending convert partial fill event for %s: %s",
-                        self.sell.current_position.config.hp_id,
-                        e,
-                    )
+            try:
+                self.portfolio_event_helper.send_sell_position_partially_filled_event(
+                    hp_id=self.sell.current_position.config.hp_id,
+                    coin=self.sell.current_position.config.coin,
+                    filled_quantity=float(quantity),
+                    total_filled=float(quantity),
+                )
+            except Exception as e:
+                logger.error(
+                    "Failed sending convert partial fill event for %s: %s",
+                    self.sell.current_position.config.hp_id,
+                    e,
+                )
 
             # Send HP sell position completed event to portfolio
-            hp_sell_completed = HPSellPositionCompleted(
+            self.portfolio_event_helper.send_sell_completion_event(
                 hp_id=self.sell.current_position.config.hp_id,
                 coin=self.sell.current_position.config.coin,
                 quantity_sold=float(quantity),
-                buy_price=self.sell.current_position.config.buy_price,  # Add missing buy price
-                sell_price=self.sell.current_position.config.sell_price,  # Add missing sell price
-                end_currency=to_asset,  # Use the actual to_asset from convert
+                buy_price=self.sell.current_position.config.buy_price,
+                sell_price=self.sell.current_position.config.sell_price,
+                end_currency=to_asset,
             )
             logger.info(
-                "Sending HP sell position completed from CONVERT POSITION: %s",
-                hp_sell_completed,
-            )
-            self._send_portfolio_event(
-                EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
+                "Sent HP sell position completed from CONVERT POSITION for: %s",
+                self.sell.current_position.config.hp_id,
             )
 
             signal = Signal.HP_ALL_ORDERS_FILLED
@@ -1092,7 +1068,7 @@ class HpStrategy:
             total_cost / total_quantity_bought if total_quantity_bought > 0 else 0
         )
 
-        hp_buy_filled = HPBuyPositionFilled(
+        self.portfolio_event_helper.send_buy_position_filled_event(
             hp_id=self.buy.data.config.hp_id,
             coin=self.buy.data.config.coin,
             symbol=self.buy.data.config.symbol.name,
@@ -1100,7 +1076,6 @@ class HpStrategy:
             buy_price=average_buy_price,
             total_cost=total_cost,
         )
-        self._send_portfolio_event(EventName.HP_BUY_POSITION_FILLED, hp_buy_filled)
 
         await self.db.upsert_buy_price_level(data=self.buy.data)
 
@@ -1136,13 +1111,12 @@ class HpStrategy:
         await self.sell.cancel_position()
 
         # Send HP position cancelled event to portfolio for quantity unlocking
-        hp_cancelled = HPPositionCancelled(
+        self.portfolio_event_helper.send_cancellation_event(
             hp_id=self.sell.current_position.config.hp_id,
             coin=self.sell.current_position.config.coin,
             quantity=self.sell.current_position.sell_order.quantity,
             position_type="SELL",
         )
-        self._send_portfolio_event(EventName.HP_POSITION_CANCELLED, hp_cancelled)
 
         self.state = (
             State.BOUGHT
@@ -1348,13 +1322,13 @@ class HpStrategy:
                 )
             else:
                 # For direct sell (single position), send completion event instead of HPClose
-                logger.info(
-                    "Sending HP sell position completed from CLOSE FILLED POSITION SELL "
-                    "(direct): %s",
-                    hp_sell_completed,
-                )
-                self._send_portfolio_event(
-                    EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
+                self.portfolio_event_helper.send_sell_completion_event(
+                    hp_id=hp_sell_completed.hp_id,
+                    coin=hp_sell_completed.coin,
+                    quantity_sold=hp_sell_completed.quantity_sold,
+                    buy_price=hp_sell_completed.buy_price,
+                    sell_price=hp_sell_completed.sell_price,
+                    end_currency=hp_sell_completed.end_currency,
                 )
 
             # Also send HPClose to complete the position lifecycle
@@ -1391,12 +1365,13 @@ class HpStrategy:
 
             # For successful multihop completion, send HPSellPositionCompleted but NOT HPClose
             # HPClose would trigger cancellation logic instead of completion
-            logger.info(
-                "Sending HP sell position completed from CLOSE FILLED POSITION SELL: %s",
-                hp_sell_completed,
-            )
-            self._send_portfolio_event(
-                EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
+            self.portfolio_event_helper.send_sell_completion_event(
+                hp_id=hp_sell_completed.hp_id,
+                coin=hp_sell_completed.coin,
+                quantity_sold=hp_sell_completed.quantity_sold,
+                buy_price=hp_sell_completed.buy_price,
+                sell_price=hp_sell_completed.sell_price,
+                end_currency=hp_sell_completed.end_currency,
             )
 
             # Also send completion event for parent position (original multihop position)
@@ -1408,12 +1383,17 @@ class HpStrategy:
                 sell_price=self.sell.original_position.config.sell_price,
                 end_currency=self.sell.original_position.config.end_currency,
             )
-            logger.info(
-                "Sending HP sell position completed for PARENT multihop position: %s",
-                parent_hp_sell_completed,
+            self.portfolio_event_helper.send_sell_completion_event(
+                hp_id=parent_hp_sell_completed.hp_id,
+                coin=parent_hp_sell_completed.coin,
+                quantity_sold=parent_hp_sell_completed.quantity_sold,
+                buy_price=parent_hp_sell_completed.buy_price,
+                sell_price=parent_hp_sell_completed.sell_price,
+                end_currency=parent_hp_sell_completed.end_currency,
             )
-            self._send_portfolio_event(
-                EventName.HP_SELL_POSITION_COMPLETED, parent_hp_sell_completed
+            logger.info(
+                "Sent HP sell position completed for PARENT multihop position: %s",
+                parent_hp_sell_completed.hp_id,
             )
 
         if (
@@ -1581,12 +1561,17 @@ class HpStrategy:
             # Use actual end_currency from config
             end_currency=self.sell.current_position.config.end_currency,
         )
-        logger.info(
-            "Sending HP sell position completed from SOLD POSITION WHICH IS PART BOUGHT: %s",
-            hp_sell_completed,
+        self.portfolio_event_helper.send_sell_completion_event(
+            hp_id=hp_sell_completed.hp_id,
+            coin=hp_sell_completed.coin,
+            quantity_sold=hp_sell_completed.quantity_sold,
+            buy_price=hp_sell_completed.buy_price,
+            sell_price=hp_sell_completed.sell_price,
+            end_currency=hp_sell_completed.end_currency,
         )
-        self._send_portfolio_event(
-            EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
+        logger.info(
+            "Sent HP sell position completed from SOLD POSITION WHICH IS PART BOUGHT: %s",
+            hp_sell_completed.hp_id,
         )
 
         self.sell.current_position.state_info.get_completeness(
@@ -1671,18 +1656,15 @@ class HpStrategy:
             order.status == ORDER_STATUS_FILLED for order in self.buy.orders
         )
 
-        if self.portfolio_event_callback and not all_orders_filled:
-            self.portfolio_event_callback(
-                EventName.HP_BUY_POSITION_PARTIALLY_FILLED,
-                HPBuyPositionPartiallyFilled(
-                    hp_id=self.buy.data.config.hp_id,
-                    coin=self.buy.data.config.coin,
-                    filled_quantity=self.execution_report.last_executed_quantity,
-                    total_filled=self.execution_report.cumulative_filled_quantity,
-                    buy_price=self.execution_report.price,
-                    partial_cost=self.execution_report.last_executed_quantity
-                    * self.execution_report.price,
-                ),
+        if not all_orders_filled:
+            self.portfolio_event_helper.send_buy_position_partially_filled_event(
+                hp_id=self.buy.data.config.hp_id,
+                coin=self.buy.data.config.coin,
+                filled_quantity=self.execution_report.last_executed_quantity,
+                total_filled=self.execution_report.cumulative_filled_quantity,
+                buy_price=self.execution_report.price,
+                partial_cost=self.execution_report.last_executed_quantity
+                * self.execution_report.price,
             )
 
         self.send_buy_position_to_ui()
@@ -1722,19 +1704,15 @@ class HpStrategy:
         await self.db.upsert_buy_price_level(data=self.buy.data)
 
         # Send partial fill event to portfolio for inventory updates
-        if self.portfolio_event_callback:
-            self.portfolio_event_callback(
-                EventName.HP_BUY_POSITION_PARTIALLY_FILLED,
-                HPBuyPositionPartiallyFilled(
-                    hp_id=self.buy.data.config.hp_id,
-                    coin=self.buy.data.config.coin,
-                    filled_quantity=self.execution_report.last_executed_quantity,
-                    total_filled=self.execution_report.cumulative_filled_quantity,
-                    buy_price=self.execution_report.price,
-                    partial_cost=self.execution_report.last_executed_quantity
-                    * self.execution_report.price,
-                ),
-            )
+        self.portfolio_event_helper.send_buy_position_partially_filled_event(
+            hp_id=self.buy.data.config.hp_id,
+            coin=self.buy.data.config.coin,
+            filled_quantity=self.execution_report.last_executed_quantity,
+            total_filled=self.execution_report.cumulative_filled_quantity,
+            buy_price=self.execution_report.price,
+            partial_cost=self.execution_report.last_executed_quantity
+            * self.execution_report.price,
+        )
 
         self.send_buy_position_to_ui()
 
@@ -1767,16 +1745,12 @@ class HpStrategy:
         )
 
         # Send fill event to portfolio for inventory updates
-        if self.portfolio_event_callback:
-            self.portfolio_event_callback(
-                EventName.HP_SELL_POSITION_PARTIALLY_FILLED,
-                HPSellPositionPartiallyFilled(
-                    hp_id=self.sell.current_position.config.hp_id,
-                    coin=self.sell.current_position.config.coin,
-                    filled_quantity=self.execution_report.last_executed_quantity,
-                    total_filled=self.execution_report.cumulative_filled_quantity,
-                ),
-            )
+        self.portfolio_event_helper.send_sell_position_partially_filled_event(
+            hp_id=self.sell.current_position.config.hp_id,
+            coin=self.sell.current_position.config.coin,
+            filled_quantity=self.execution_report.last_executed_quantity,
+            total_filled=self.execution_report.cumulative_filled_quantity,
+        )
 
         self.send_sell_position_to_ui()
 
@@ -1821,16 +1795,12 @@ class HpStrategy:
         )
 
         # Send partial fill event to portfolio for inventory updates
-        if self.portfolio_event_callback:
-            self.portfolio_event_callback(
-                EventName.HP_SELL_POSITION_PARTIALLY_FILLED,
-                HPSellPositionPartiallyFilled(
-                    hp_id=self.sell.current_position.config.hp_id,
-                    coin=self.sell.current_position.config.coin,
-                    filled_quantity=self.execution_report.last_executed_quantity,
-                    total_filled=self.execution_report.cumulative_filled_quantity,
-                ),
-            )
+        self.portfolio_event_helper.send_sell_position_partially_filled_event(
+            hp_id=self.sell.current_position.config.hp_id,
+            coin=self.sell.current_position.config.coin,
+            filled_quantity=self.execution_report.last_executed_quantity,
+            total_filled=self.execution_report.cumulative_filled_quantity,
+        )
 
         self.send_sell_position_to_ui()
 

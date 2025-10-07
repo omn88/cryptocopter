@@ -42,7 +42,7 @@ from src.strategies.hp_manager.hp_manager import HpStrategy
 from src.broker import BrokerSpot
 from src.recovery import RecoveryService
 from src.database.exceptions import RecoveryError
-from src.portfolio_event_helper import PortfolioEventHelper
+from src.portfolio.portfolio_event_helper import PortfolioEventHelper
 
 # Specify the path to the .env file
 DOTENV_FILE = "config/.env"
@@ -165,12 +165,18 @@ class StrategyExecutor:
                 and strategy.sell.current_position.sell_order.quantity > 0
             ):
                 if is_successful_completion:
-                    PortfolioEventHelper.handle_sell_completion(strategy, close_data)
+                    strategy.portfolio_event_helper.handle_sell_completion(close_data)
                 else:
-                    PortfolioEventHelper.handle_sell_cancellation(strategy, close_data)
+                    sell_quantity = strategy.sell.current_position.sell_order.quantity
+                    strategy.portfolio_event_helper.handle_sell_cancellation(
+                        close_data, sell_quantity
+                    )
             # Handle buy position cancellation
             elif hasattr(strategy, "buy") and strategy.buy.orders:
-                PortfolioEventHelper.handle_buy_cancellation(strategy, close_data)
+                remaining_budget = strategy.get_remaining_quantity_buy()
+                strategy.portfolio_event_helper.handle_buy_cancellation(
+                    close_data, strategy.state, remaining_budget
+                )
         except Exception as e:
             logger.error(
                 "Failed to send HP event for %s: %s", close_data.config.hp_id, e
@@ -182,13 +188,15 @@ class StrategyExecutor:
         self,
         new_hp: HPBuy,
     ) -> None:
-
         logger.info("Setting up new position with config: %s", new_hp.config)
 
         new_hp.config.hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
         new_hp.state_info.generate_open_time()
         worker_queue: queue.Queue = queue.Queue()
         assert self.client is not None
+
+        # Create temporary portfolio event helper (will be updated after strategy creation)
+        portfolio_event_helper = PortfolioEventHelper(None)
 
         logger.info("Creating HpStrategy for HP %s", new_hp.config.hp_id)
         strategy = HpStrategy(
@@ -199,6 +207,7 @@ class StrategyExecutor:
             worker_queue=worker_queue,
             config_queue=self.config_queue,
             portfolio_ui_queue=self.portfolio_ui_queue,
+            portfolio_event_helper=portfolio_event_helper,
             buy_position=HPPositionBuy(
                 client=self.client,
                 data=new_hp,
@@ -226,6 +235,10 @@ class StrategyExecutor:
         assert isinstance(strategy.buy.data.config, HPBuyConfig)
         logger.info("HpStrategy created successfully for HP %s", new_hp.config.hp_id)
 
+        # Update portfolio event helper with the strategy's callback
+        if self.portfolio_ui_queue is not None:
+            portfolio_event_helper._callback = strategy.send_hp_event_to_portfolio
+
         # Create new orders for normal setup
         strategy.buy.prepare_orders()
         strategy.buy.data.state_info.generate_open_time()
@@ -250,8 +263,7 @@ class StrategyExecutor:
             data=strategy.buy.data, strategy_state=strategy.state
         )
 
-        PortfolioEventHelper.send_buy_creation_event(
-            strategy=strategy,
+        strategy.portfolio_event_helper.send_buy_creation_event(
             hp_id=str(new_hp.config.hp_id),
             coin=new_hp.config.coin,
             budget=new_hp.config.budget,
@@ -438,9 +450,13 @@ class StrategyExecutor:
         assert self.recovery_service is not None
         worker_queue: queue.Queue = queue.Queue()
 
+        # Create temporary portfolio event helper (will be updated after strategy creation)
+        portfolio_event_helper = PortfolioEventHelper(None)
+
         strategy = HpStrategy(
             client=self.client,
             ui_queue=self.ui_queue,
+            portfolio_event_helper=portfolio_event_helper,
             buy_position=HPPositionBuy(
                 client=self.client,
                 data=HPBuy(
@@ -487,6 +503,10 @@ class StrategyExecutor:
 
         strategy.sell.current_position.state_info.generate_open_time()
 
+        # Update portfolio event helper with the strategy's callback
+        if self.portfolio_ui_queue is not None:
+            portfolio_event_helper._callback = strategy.send_hp_event_to_portfolio
+
         logger.info("Current position: %s", strategy.sell.current_position)
 
         self.strategies[parent_hp_id] = strategy
@@ -525,8 +545,7 @@ class StrategyExecutor:
         # For two-hop scenarios, save all sell positions to database
         await self._persist_multihop_sell_positions(strategy, strategy.state)
 
-        PortfolioEventHelper.send_sell_creation_event(
-            strategy=strategy,
+        strategy.portfolio_event_helper.send_sell_creation_event(
             hp_id=parent_hp_id,
             coin=config.coin,
             quantity=config.quantity,
@@ -564,8 +583,8 @@ class StrategyExecutor:
             # Send cancellation event if orders were sent to exchange
             if buy.orders and strategy.state != State.NEW:
                 budget_amount = strategy.get_remaining_quantity_buy()
-                PortfolioEventHelper.send_cancellation_event(
-                    strategy, hp_id, "USDC", budget_amount, "BUY"
+                strategy.portfolio_event_helper.send_cancellation_event(
+                    hp_id, "USDC", budget_amount, "BUY"
                 )
 
             self.broker.unsubscribe(system_id=hp_id)
@@ -583,8 +602,8 @@ class StrategyExecutor:
 
             if strategy.state == State.BUYING:
                 budget_amount = strategy.get_remaining_quantity_buy()
-                PortfolioEventHelper.send_cancellation_event(
-                    strategy, hp_id, "USDC", budget_amount, "BUY"
+                strategy.portfolio_event_helper.send_cancellation_event(
+                    hp_id, "USDC", budget_amount, "BUY"
                 )
 
                 buy.orders = await buy.cancel_remaining_limit_orders(
@@ -610,8 +629,8 @@ class StrategyExecutor:
             logger.info("Cancelling fully bought position: %s", hp_id)
 
             budget_amount = strategy.get_remaining_quantity_buy()
-            PortfolioEventHelper.send_cancellation_event(
-                strategy, hp_id, "USDC", budget_amount, "BUY"
+            strategy.portfolio_event_helper.send_cancellation_event(
+                hp_id, "USDC", budget_amount, "BUY"
             )
 
             strategy.state = State.CLOSED
@@ -639,8 +658,7 @@ class StrategyExecutor:
                     await self._cancel_multihop_sell(strategy, hp_id, base_hp_id)
                 else:
                     # Single sell position cancellation
-                    PortfolioEventHelper.send_cancellation_event(
-                        strategy,
+                    strategy.portfolio_event_helper.send_cancellation_event(
                         hp_id,
                         sell.current_position.config.coin,
                         sell.current_position.sell_order.quantity,
@@ -661,8 +679,7 @@ class StrategyExecutor:
             sell_rlzd_qty = sell.current_position.sell_order.realized_quantity
             sell_order_qty = sell.current_position.sell_order.quantity
 
-            PortfolioEventHelper.send_cancellation_event(
-                strategy,
+            strategy.portfolio_event_helper.send_cancellation_event(
                 hp_id,
                 sell.current_position.config.coin,
                 sell_order_qty,
@@ -679,8 +696,7 @@ class StrategyExecutor:
 
             # Send completion event if fully sold
             if final_state == State.SOLD:
-                PortfolioEventHelper.send_sell_completion_event(
-                    strategy=strategy,
+                strategy.portfolio_event_helper.send_sell_completion_event(
                     hp_id=hp_id,
                     coin=sell.current_position.config.coin,
                     quantity_sold=sell.current_position.sell_order.realized_quantity,
@@ -797,7 +813,6 @@ class StrategyExecutor:
                 )
 
                 for position in strategy.sell.sell_positions:
-
                     self.send_sell_position_to_ui(
                         config=position.config,
                         state_info=position.state_info,
@@ -906,8 +921,7 @@ class StrategyExecutor:
 
             await sell.cancel_position()
 
-            PortfolioEventHelper.send_cancellation_event(
-                strategy,
+            strategy.portfolio_event_helper.send_cancellation_event(
                 position.config.hp_id,
                 position.config.coin,
                 position.sell_order.quantity,

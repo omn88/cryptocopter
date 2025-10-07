@@ -137,7 +137,7 @@ class PortfolioUI(BoxLayout):
                 break
 
         if not parent_coin:
-            logger.error(f"Could not find parent coin data for {symbol}")
+            logger.error("Could not find parent coin data for %s", symbol)
             return
 
         # Show sell dialog to let user choose quantity
@@ -393,7 +393,7 @@ class PortfolioUI(BoxLayout):
                     )
 
                 except Exception as e:
-                    logger.error(f"Failed to create sell order: {e}")
+                    logger.error("Failed to create sell order: %s", e)
                     # Show user-friendly error popup
                     error_popup = Popup(
                         title="Sell Order Failed",
@@ -479,7 +479,7 @@ class PortfolioUI(BoxLayout):
                 break
 
         if not parent_coin or not parent_coin.get("lots"):
-            logger.warning(f"No lots found for {symbol}")
+            logger.warning("No lots found for %s", symbol)
             return
 
         # Sort lots by buy price (lowest first) for FIFO selling
@@ -519,7 +519,7 @@ class PortfolioUI(BoxLayout):
                 if hasattr(lot, "id"):
                     try:
                         await self.db.delete_inventory_item(lot.id)
-                        logger.info(f"Deleted lot {lot.id} from database")
+                        logger.info("Deleted lot %s from database", lot.id)
                     except Exception as e:
                         logger.error(
                             f"Failed to delete lot {lot.id} from database: {e}"
@@ -556,9 +556,11 @@ class PortfolioUI(BoxLayout):
                     # Update in database
                     try:
                         await self.db.update_inventory_item(lot)
-                        logger.info(f"Updated lot {lot.id} quantity to {new_quantity}")
-                    except Exception as e:
-                        logger.error(f"Failed to update lot {lot.id} in database: {e}")
+                        logger.info(
+                            "Updated lot %s quantity to %s", lot.id, new_quantity
+                        )
+                    except Exception:
+                        logger.exception("Failed to update lot %s in database", lot.id)
                 else:  # Dictionary
                     lot["quantity"] = new_quantity
 
@@ -602,7 +604,7 @@ class PortfolioUI(BoxLayout):
                 break
 
         if not parent_coin:
-            logger.warning(f"Parent coin {symbol} not found")
+            logger.warning("Parent coin %s not found", symbol)
             return
 
         # Update quantities
@@ -635,7 +637,7 @@ class PortfolioUI(BoxLayout):
                 break
 
         if not parent_coin or not parent_coin.get("lots"):
-            logger.warning(f"No lots found for {symbol} or parent coin not found")
+            logger.warning("No lots found for %s or parent coin not found", symbol)
             return
 
         # Extract parent HP ID for multihop and convert operations
@@ -649,7 +651,9 @@ class PortfolioUI(BoxLayout):
             )
         elif hp_id.endswith("_SELL"):  # Convert operations
             parent_hp_id = hp_id[:-5]  # Remove "_SELL"
-            logger.info(f"Convert operation detected: {hp_id} -> parent {parent_hp_id}")
+            logger.info(
+                "Convert operation detected: %s -> parent {parent_hp_id}", hp_id
+            )
 
         # Find the specific lot with the parent HP ID
         lot_to_update = None
@@ -677,7 +681,7 @@ class PortfolioUI(BoxLayout):
                 break
 
         if not inventory_item_to_update:
-            logger.warning(f"Could not find inventory item with ID {lot_id_to_find}")
+            logger.warning("Could not find inventory item with ID %s", lot_id_to_find)
             return
 
         # Check if this is a partial sell or complete sell
@@ -693,7 +697,7 @@ class PortfolioUI(BoxLayout):
                     f"Deleted inventory item from database: {inventory_item_to_update.id}"
                 )
             except Exception as e:
-                logger.error(f"Failed to delete inventory item from database: {e}")
+                logger.error("Failed to delete inventory item from database: %s", e)
 
             logger.info(
                 f"Removed HP lot {lot_id_to_find} completely (sold {quantity_sold})"
@@ -713,7 +717,7 @@ class PortfolioUI(BoxLayout):
                     f"Persisted partial sell update to database: {inventory_item_to_update.id}"
                 )
             except Exception as e:
-                logger.error(f"Failed to persist partial sell update to database: {e}")
+                logger.error("Failed to persist partial sell update to database: %s", e)
 
             logger.info(
                 f"Reduced HP lot {lot_id_to_find} from {inventory_item_to_update.quantity + quantity_sold} to {new_quantity}"
@@ -766,11 +770,11 @@ class PortfolioUI(BoxLayout):
 
     def toggle_expand_coin_item(self, symbol: str) -> None:
         """Toggle the expanded state for a coin, following HP list approach."""
-        logger.info(f"Toggling expand for {symbol}")
+        logger.info("Toggling expand for %s", symbol)
 
         # Skip if this is a lot row (shouldn't happen but safety check)
         if symbol.startswith("  └─"):
-            logger.warning(f"Attempted to toggle lot row: {symbol}")
+            logger.warning("Attempted to toggle lot row: %s", symbol)
             return
 
         # Find the parent coin and toggle its state
@@ -781,10 +785,10 @@ class PortfolioUI(BoxLayout):
             ):
                 # Toggle this coin
                 coin_data["expanded"] = not coin_data.get("expanded", False)
-                logger.info(f"Toggled {symbol} to expanded={coin_data['expanded']}")
+                logger.info("Toggled %s to expanded={coin_data['expanded']}", symbol)
                 break
         else:
-            logger.warning(f"Could not find parent coin with symbol: {symbol}")
+            logger.warning("Could not find parent coin with symbol: %s", symbol)
             return
 
         # Rebuild the entire list
@@ -879,7 +883,7 @@ class PortfolioUI(BoxLayout):
         self.coin_list_data.clear()
         self.coin_list_data.extend(new_data)
 
-        logger.debug(f"Rebuild complete: {len(new_data)} items")
+        logger.debug("Rebuild complete: %s items", len(new_data))
 
         # Force refresh (skip in test mode to avoid Kivy widget access)
         if not self.test_mode:
@@ -899,7 +903,7 @@ class PortfolioUI(BoxLayout):
                 "[PORTFOLIO GUI DEBUG] set_inventory called with empty inventory list"
             )
         else:
-            logger.debug(f"[PORTFOLIO GUI DEBUG] First few inventory items:")
+            logger.debug("[PORTFOLIO GUI DEBUG] First few inventory items:")
             for i, item in enumerate(inventory[:3]):
                 logger.debug(
                     f"[PORTFOLIO GUI DEBUG] Item {i}: {item.coin} qty={item.quantity} price={item.buy_price}"
@@ -1019,7 +1023,7 @@ class PortfolioUI(BoxLayout):
             except queue.Empty:
                 await asyncio.sleep(0.1)
             except Exception as e:
-                logger.error(f"[PORTFOLIO PRODUCTION] Error processing event: {e}")
+                logger.error("[PORTFOLIO PRODUCTION] Error processing event: %s", e)
                 await asyncio.sleep(0.1)
 
     async def process_test_events(self) -> None:
@@ -1031,7 +1035,7 @@ class PortfolioUI(BoxLayout):
                 await self._process_ui_event(data)
                 processed_count += 1
         except queue.Empty:
-            logger.debug(f"Processed {processed_count} events in test mode")
+            logger.debug("Processed %s events in test mode", processed_count)
 
     async def _process_ui_event(self, data: Event) -> None:
         """Process a single UI event."""
@@ -1235,7 +1239,7 @@ class PortfolioUI(BoxLayout):
                 break
 
         if not parent_coin:
-            logger.warning(f"Parent coin {event.coin} not found for HP sell")
+            logger.warning("Parent coin %s not found for HP sell", event.coin)
             return
 
         # Lock quantities using FIFO (lowest buy price first)
@@ -1379,20 +1383,20 @@ class PortfolioUI(BoxLayout):
             if is_final_multihop_child:
                 # Definitely a final multihop child (e.g., "1000b")
                 should_add_currency = True
-                logger.info(f"Adding currency for final multihop child {event.hp_id}")
+                logger.info("Adding currency for final multihop child %s", event.hp_id)
             elif is_direct_sell_child:
                 # Direct sell child (e.g., "1000_SELL")
                 should_add_currency = True
-                logger.info(f"Adding currency for direct sell child {event.hp_id}")
+                logger.info("Adding currency for direct sell child %s", event.hp_id)
             elif is_pure_digit_id and is_likely_direct_sell:
                 # For direct sells with pure digit IDs, we add currency since there's only one completion event
                 should_add_currency = True
-                logger.info(f"Adding currency for direct sell {event.hp_id}")
+                logger.info("Adding currency for direct sell %s", event.hp_id)
             elif is_pure_digit_id:
                 # For pure digit IDs that are NOT direct trading pairs, this is likely a convert operation
                 # Convert operations use a single HP ID and should receive the currency directly
                 should_add_currency = True
-                logger.info(f"Adding currency for convert operation {event.hp_id}")
+                logger.info("Adding currency for convert operation %s", event.hp_id)
             elif is_intermediate_multihop:
                 logger.info(
                     f"Skipping currency addition for intermediate multihop step {event.hp_id}"
@@ -1479,7 +1483,7 @@ class PortfolioUI(BoxLayout):
                     f"Persisted new inventory item to database: {inventory_id}"
                 )
             except Exception as e:
-                logger.error(f"Failed to persist new inventory item to database: {e}")
+                logger.error("Failed to persist new inventory item to database: %s", e)
 
             logger.info(
                 f"Created new HP item {inventory_id}: qty={filled_quantity}, price=${buy_price}"
@@ -1515,7 +1519,7 @@ class PortfolioUI(BoxLayout):
                 "show_lots": True,
             }
             self.coin_list_data.append(new_coin)
-            logger.info(f"Created new parent coin entry for {coin}")
+            logger.info("Created new parent coin entry for %s", coin)
 
     async def _lock_quantities_fifo(self, coin: str, quantity_to_lock: float):
         """Lock quantities using FIFO (lowest buy price first)."""
@@ -1527,7 +1531,7 @@ class PortfolioUI(BoxLayout):
                 break
 
         if not parent_coin or not parent_coin.get("lots"):
-            logger.warning(f"No lots found for {coin} to lock quantities")
+            logger.warning("No lots found for %s to lock quantities", coin)
             return
 
         # Sort lots by buy price (lowest first) for FIFO locking
@@ -1668,7 +1672,7 @@ class PortfolioUI(BoxLayout):
                     f"Persisted new inventory item to database: {inventory_id}"
                 )
             except Exception as e:
-                logger.error(f"Failed to persist new inventory item to database: {e}")
+                logger.error("Failed to persist new inventory item to database: %s", e)
 
             logger.info(
                 f"Created new HP item {inventory_id}: qty={event.quantity_bought}, price=${event.buy_price}"
@@ -1746,7 +1750,7 @@ class PortfolioUI(BoxLayout):
 
     async def _reduce_spent_currency(self, currency: str, amount: float):
         """Reduce spent currency (like USDC) from portfolio - mirrors _add_received_currency."""
-        logger.info(f"Reducing spent currency from portfolio: {amount} {currency}")
+        logger.info("Reducing spent currency from portfolio: %s {currency}", amount)
 
         # Find existing currency in coin_list_data
         existing_currency = None
@@ -1912,7 +1916,7 @@ class PortfolioUI(BoxLayout):
                     hp_id
                 ]:  # Remove HP ID if no currencies left
                     del self._hp_locked_amounts[hp_id]
-                logger.debug(f"Cleaned up locked amount tracking for HP {hp_id}")
+                logger.debug("Cleaned up locked amount tracking for HP %s", hp_id)
 
         else:
             logger.warning(
@@ -1925,7 +1929,7 @@ class PortfolioUI(BoxLayout):
         logger.info(
             f"[PORTFOLIO CANCELLATION] HP Position Cancelled: {event.hp_id} - {event.position_type} {event.quantity} {event.coin}"
         )
-        logger.info(f"[PORTFOLIO CANCELLATION] Test mode: {self.test_mode}")
+        logger.info("[PORTFOLIO CANCELLATION] Test mode: %s", self.test_mode)
         logger.info(
             f"[PORTFOLIO CANCELLATION] Before unlock - {event.coin} locked quantity check..."
         )
@@ -1964,7 +1968,7 @@ class PortfolioUI(BoxLayout):
                 break
 
         if not parent_coin or not parent_coin.get("lots"):
-            logger.warning(f"No lots found for {coin} to unlock quantities")
+            logger.warning("No lots found for %s to unlock quantities", coin)
             return
 
         # Sort lots by buy price (lowest first) for FIFO unlocking
@@ -2121,4 +2125,4 @@ class PortfolioUI(BoxLayout):
                         f"Failed to persist new {currency} inventory item to database: {e}"
                     )
 
-            logger.info(f"Created new {currency} entry with {amount}")
+            logger.info("Created new %s entry with {amount}", currency)

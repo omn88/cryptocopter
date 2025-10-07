@@ -89,7 +89,7 @@ class BaseHPModal(Popup):  # type: ignore[misc]
             self.callback(config)
             self.dismiss()
         except Exception as e:
-            logger.error(f"Error creating HP configuration: {e}")
+            logger.error("Error creating HP configuration: %s", e)
             self.validation_label.text = f"Error: {str(e)}"
 
     def create_form_row(
