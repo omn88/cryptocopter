@@ -114,7 +114,7 @@ class BrokerSpot:
         )
 
         self.client = BinanceClient(
-            api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
+            api_key=config_env("NEW_BIN"), api_secret=config_env("NEW_SECRET")
         )
 
         assert self.loop  # Start the connection health monitor
@@ -815,9 +815,8 @@ class BrokerSpot:
                 # This prevents "Session is closed" errors from lingering tasks
                 await asyncio.sleep(1.0)
 
-                # Step 3: Restart websocket tasks with NEW BinanceSocketManager
+                # Step 3: Restart websocket tasks with fresh BinanceSocketManager
                 # The BinanceSocketManager will create fresh websocket connections
-                # that don't have stale session references
                 logger.info(
                     "Creating fresh BinanceSocketManager and restarting streams..."
                 )
