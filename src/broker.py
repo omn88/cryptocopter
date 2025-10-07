@@ -114,7 +114,7 @@ class BrokerSpot:
         )
 
         self.client = BinanceClient(
-            api_key=config_env("NEW_BIN"), api_secret=config_env("NEW_SECRET")
+            api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
         )
 
         assert self.loop  # Start the connection health monitor
