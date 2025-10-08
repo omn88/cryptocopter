@@ -13,6 +13,7 @@ Tests the self-healing WebSocket architecture in the Broker to ensure:
 
 import time
 import queue
+import asyncio
 from unittest.mock import Mock, AsyncMock, patch
 from src.broker import BrokerSpot
 from src.strategy_executor import StrategyExecutor
@@ -54,6 +55,10 @@ async def test_broker_has_error_handling_attributes(mock_broker):
 
     # Subscription registry
     assert hasattr(mock_broker, "_subscription_registry")
+
+    # WebSocket task tracking (new architecture)
+    assert hasattr(mock_broker, "_ticker_socket_task")
+    assert hasattr(mock_broker, "_user_socket_task")
 
 
 async def test_handle_websocket_error_detects_unrecoverable(mock_broker):
@@ -223,20 +228,35 @@ async def test_handle_user_message_error_internally(mock_broker):
 
 
 async def test_restart_websocket_client_flow(mock_broker):
-    """Test the complete restart flow"""
-    with patch.object(mock_broker, "client") as mock_client:
-        mock_client.close_connection = AsyncMock()
+    """Test the complete websocket restart flow.
 
-        with patch("src.broker.BinanceClient") as mock_binance_client:
-            mock_binance_client.return_value = Mock()
+    NOTE: The new architecture does NOT restart BinanceClient itself,
+    only the websocket streams via BinanceSocketManager.
+    """
 
-            with patch.object(
-                mock_broker, "_resubscribe_all_subscriptions", new=AsyncMock()
-            ) as mock_resub:
+    # Create real asyncio tasks that can be cancelled
+    async def dummy_task():
+        """Dummy coroutine for task"""
+        try:
+            await asyncio.sleep(1000)  # Long-running task
+        except asyncio.CancelledError:
+            pass  # Expected when cancelled
+
+    # Create actual asyncio tasks
+    mock_broker._ticker_socket_task = asyncio.create_task(dummy_task())
+    mock_broker._user_socket_task = asyncio.create_task(dummy_task())
+
+    with patch.object(
+        mock_broker, "_start_websocket_tasks", new=AsyncMock()
+    ) as mock_start_ws:
+        with patch.object(
+            mock_broker, "_resubscribe_all_subscriptions", new=AsyncMock()
+        ) as mock_resub:
+            with patch("asyncio.sleep", new=AsyncMock()):
                 await mock_broker._restart_websocket_client()
 
-                # Verify client was recreated
-                assert mock_binance_client.called
+                # Verify websocket tasks were restarted (NOT client)
+                assert mock_start_ws.called
 
                 # Verify resubscription was called
                 assert mock_resub.called
@@ -260,7 +280,105 @@ async def test_keepalive_error_suppression(mock_broker):
     assert mock_broker._websocket_error_count >= 1
 
 
+async def test_websocket_tasks_cancelled_before_restart(mock_broker):
+    """Test that existing websocket tasks are properly cancelled before restart.
+
+    This prevents 'Session is closed' errors from orphaned keepalive tasks.
+    """
+
+    # Create real asyncio tasks that can be cancelled
+    async def dummy_task():
+        """Dummy coroutine for task that can be cancelled"""
+        await asyncio.sleep(1000)  # Long-running task - don't catch CancelledError!
+
+    # Create actual asyncio tasks
+    ticker_task = asyncio.create_task(dummy_task())
+    user_task = asyncio.create_task(dummy_task())
+
+    mock_broker._ticker_socket_task = ticker_task
+    mock_broker._user_socket_task = user_task
+
+    # Mock the restart process
+    with patch.object(mock_broker, "_start_websocket_tasks", new=AsyncMock()):
+        with patch.object(
+            mock_broker, "_resubscribe_all_subscriptions", new=AsyncMock()
+        ):
+            with patch("asyncio.sleep", new=AsyncMock()):
+                await mock_broker._restart_websocket_client()
+
+    # Verify both tasks were cancelled
+    # NOTE: After cancel() + await, tasks complete with CancelledError
+    # but .cancelled() returns True before they're awaited
+    assert ticker_task.done(), "Ticker task should be done"
+    assert user_task.done(), "User task should be done"
+
+
+async def test_start_websocket_tasks_creates_fresh_socket_manager(mock_broker):
+    """Test that _start_websocket_tasks creates a fresh BinanceSocketManager.
+
+    This is the key to fixing 'Session is closed' errors - we need a fresh
+    socket manager with fresh websocket connections.
+    """
+    # Mock dependencies
+    with patch("src.broker.BinanceSocketManager") as mock_socket_manager_class:
+        mock_socket_manager = Mock()
+        mock_socket_manager.ticker_socket.return_value = Mock()
+        mock_socket_manager.user_socket.return_value = Mock()
+        mock_socket_manager_class.return_value = mock_socket_manager
+
+        # Mock handle_socket to avoid actual websocket connection
+        with patch.object(mock_broker, "handle_socket", new=AsyncMock()):
+            # Ensure loop is available
+            if mock_broker.loop is None:
+                import asyncio
+
+                mock_broker.loop = asyncio.get_event_loop()
+
+            await mock_broker._start_websocket_tasks()
+
+        # Verify BinanceSocketManager was created
+        assert (
+            mock_socket_manager_class.called
+        ), "BinanceSocketManager should be created"
+
+        # Verify it was called with the current client
+        mock_socket_manager_class.assert_called_with(client=mock_broker.client)
+
+        # Verify websocket tasks were created
+        assert mock_broker._ticker_socket_task is not None
+        assert mock_broker._user_socket_task is not None
+
+
 # WebSocket Architecture Separation Tests
+
+
+async def test_client_not_restarted_only_websockets(mock_broker):
+    """Test that BinanceClient is NOT restarted, only websocket streams.
+
+    Key architectural principle: REST API (BinanceClient) works fine.
+    Only WebSocket streams need to be restarted when they get stale sessions.
+
+    This test verifies we don't unnecessarily close and recreate the client.
+    """
+    original_client = mock_broker.client
+
+    # Mock websocket tasks
+    mock_broker._ticker_socket_task = AsyncMock()
+    mock_broker._ticker_socket_task.done.return_value = False
+    mock_broker._user_socket_task = AsyncMock()
+    mock_broker._user_socket_task.done.return_value = False
+
+    with patch.object(mock_broker, "_start_websocket_tasks", new=AsyncMock()):
+        with patch.object(
+            mock_broker, "_resubscribe_all_subscriptions", new=AsyncMock()
+        ):
+            with patch("asyncio.sleep", new=AsyncMock()):
+                await mock_broker._restart_websocket_client()
+
+    # Verify client was NOT replaced (same object reference)
+    assert (
+        mock_broker.client is original_client
+    ), "Client should NOT be restarted - only websocket streams should be restarted"
 
 
 def test_strategy_executor_no_websocket_methods():
@@ -281,6 +399,7 @@ def test_broker_has_websocket_methods():
     assert hasattr(BrokerSpot, "_resubscribe_all_subscriptions")
     assert hasattr(BrokerSpot, "monitor_connection_health")
     assert hasattr(BrokerSpot, "update_message_timestamp")
+    assert hasattr(BrokerSpot, "_start_websocket_tasks")  # New method
 
 
 # WebSocket Configuration Tests

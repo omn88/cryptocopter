@@ -60,6 +60,10 @@ class BrokerSpot:
         self.tasks: Optional[List[asyncio.Task]] = None
         self.thread = threading.Thread(target=self.start_loop)
 
+        # Track websocket tasks separately for restart capability
+        self._ticker_socket_task: Optional[asyncio.Task] = None
+        self._user_socket_task: Optional[asyncio.Task] = None
+
         # WebSocket error handling - remove external handler dependency
         self._restart_lock = threading.Lock()  # Prevent double restart
         self._last_keepalive_error_log = 0  # Connection health monitoring
@@ -113,7 +117,6 @@ class BrokerSpot:
             api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
         )
 
-        socket_manager = BinanceSocketManager(client=self.client)
         assert self.loop  # Start the connection health monitor
         self._connection_health_task = self.loop.create_task(
             self.monitor_connection_health()
@@ -124,29 +127,55 @@ class BrokerSpot:
             self._monitor_ticker_timeout()
         )
 
+        # Start websocket tasks
+        await self._start_websocket_tasks()
+
+        # Gather all tasks - mypy: we know these are not None after _start_websocket_tasks
+        assert self._ticker_socket_task is not None
+        assert self._user_socket_task is not None
+
         self.tasks = [
             self._connection_health_task,
             self._ticker_timeout_task,
-            self.loop.create_task(
-                self.handle_socket(
-                    socket_manager.ticker_socket(),
-                    self.stop_producers_event,
-                    self.handle_ticker_message,
-                    reconnect_attempts=self._ws_config.max_reconnect_attempts,
-                )
-            ),
-            self.loop.create_task(
-                self.handle_socket(
-                    socket_manager.user_socket(),
-                    self.stop_producers_event,
-                    self.handle_user_message,
-                    reconnect_attempts=self._ws_config.max_reconnect_attempts,
-                )
-            ),
+            self._ticker_socket_task,
+            self._user_socket_task,
         ]
 
         # Await all tasks
         await asyncio.gather(*self.tasks, return_exceptions=True)
+
+    async def _start_websocket_tasks(self) -> None:
+        """Start or restart websocket connection tasks with fresh socket manager."""
+        logger.info("Starting websocket tasks with fresh BinanceSocketManager")
+
+        # Create new socket manager with current client
+        socket_manager = BinanceSocketManager(client=self.client)
+
+        # Ensure loop is available
+        assert (
+            self.loop is not None
+        ), "Event loop must be initialized before starting websocket tasks"
+
+        # Create websocket tasks
+        self._ticker_socket_task = self.loop.create_task(
+            self.handle_socket(
+                socket_manager.ticker_socket(),
+                self.stop_producers_event,
+                self.handle_ticker_message,
+                reconnect_attempts=self._ws_config.max_reconnect_attempts,
+            )
+        )
+
+        self._user_socket_task = self.loop.create_task(
+            self.handle_socket(
+                socket_manager.user_socket(),
+                self.stop_producers_event,
+                self.handle_user_message,
+                reconnect_attempts=self._ws_config.max_reconnect_attempts,
+            )
+        )
+
+        logger.info("Websocket tasks started successfully")
 
     async def monitor_connection_health(self):
         """Monitor WebSocket connection health and restart if needed"""
@@ -750,45 +779,61 @@ class BrokerSpot:
         logger.error("WebSocket error: %s", error_msg)
 
     async def _restart_websocket_client(self) -> None:
-        """Restart the WebSocket client and resubscribe all active subscriptions."""
+        """Restart WebSocket streams by recreating BinanceSocketManager.
+
+        Note: We do NOT restart the BinanceClient itself, as the REST API
+        (used for placing orders) works fine. The issue is only with WebSocket
+        streams getting stale sessions. We just need to recreate the socket manager.
+        """
         retry_count = 0
         while True:
             try:
-                # Stop current client if exists
                 logger.info(
-                    "Attempting to restart BinanceClient (restart #%d)...",
+                    "Attempting to restart WebSocket streams (restart #%d)...",
                     self._restart_count,
                 )
-                if self.client:
+
+                # Step 1: Cancel existing websocket tasks to stop old streams
+                logger.info("Cancelling existing websocket tasks...")
+                if self._ticker_socket_task and not self._ticker_socket_task.done():
+                    self._ticker_socket_task.cancel()
                     try:
-                        await self.client.close_connection()
-                        # Wait briefly for WebSocket keepalive tasks to detect closure and exit gracefully
-                        # This prevents "Session is closed" errors from orphaned tasks
-                        await asyncio.sleep(0.5)
-                        logger.info("BinanceClient connection closed successfully")
-                    except Exception as e:
-                        logger.warning("Error closing client (non-critical): %s", e)
-                    finally:
-                        self.client = None
+                        await self._ticker_socket_task
+                    except asyncio.CancelledError:
+                        logger.debug("Ticker socket task cancelled successfully")
 
-                # Recreate client
-                logger.info("Recreating BinanceClient...")
-                self.client = BinanceClient(
-                    api_key=config_env("API_KEY"),
-                    api_secret=config_env("API_SECRET"),
+                if self._user_socket_task and not self._user_socket_task.done():
+                    self._user_socket_task.cancel()
+                    try:
+                        await self._user_socket_task
+                    except asyncio.CancelledError:
+                        logger.debug("User socket task cancelled successfully")
+
+                logger.info("Websocket tasks cancelled successfully")
+
+                # Step 2: Wait briefly for old websocket keepalive tasks to exit
+                # This prevents "Session is closed" errors from lingering tasks
+                await asyncio.sleep(1.0)
+
+                # Step 3: Restart websocket tasks with fresh BinanceSocketManager
+                # The BinanceSocketManager will create fresh websocket connections
+                logger.info(
+                    "Creating fresh BinanceSocketManager and restarting streams..."
                 )
-                logger.info("BinanceClient restarted successfully.")
+                await self._start_websocket_tasks()
+                logger.info(
+                    "Websocket tasks restarted successfully with fresh streams."
+                )
 
-                # Resubscribe all active subscriptions
+                # Step 4: Resubscribe all active subscriptions
                 await self._resubscribe_all_subscriptions()
                 logger.info("Resubscription after restart complete.")
 
-                # Reset restart count on successful restart
-                if retry_count == 0:  # Only reset if first attempt succeeded
+                # Success!
+                if retry_count == 0:
                     logger.info(
-                        "WebSocket client restart successful. Circuit breaker reset."
+                        "WebSocket streams restart successful. Circuit breaker reset."
                     )
-                    # Don't reset _restart_count here - keep it for progressive delay
                 break
 
             except Exception as e:
