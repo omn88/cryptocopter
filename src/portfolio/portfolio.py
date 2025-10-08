@@ -10,6 +10,7 @@ from typing import Dict, List, Optional
 import uuid
 from decouple import Config, RepositoryEnv
 from src.database.trading_database import Database
+from src.common.client import BinanceClient
 from src.common.identifiers import (
     AccountPosition,
     AllTickers,
@@ -20,7 +21,6 @@ from src.common.identifiers import (
     SubscriptionInfo,
     SubscriptionTarget,
     SubscriptionType,
-    BinanceClient,
 )
 from src.broker import BrokerSpot
 from src.portfolio.usd_price_resolver import UsdPriceResolver

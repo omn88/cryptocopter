@@ -20,6 +20,7 @@ from src.broker import BrokerSpot
 from src.common.symbol import Symbol
 
 from src.database import Database
+from src.common.client import BinanceClient
 from src.common.identifiers import (
     ExecutionReport,
     HPSellConfig,
@@ -32,7 +33,6 @@ from src.common.identifiers import (
     SubscriptionTarget,
     SubscriptionType,
     UiState,
-    BinanceClient,
     PositionSide,
 )
 from src.portfolio.usd_price_resolver import UsdPriceResolver

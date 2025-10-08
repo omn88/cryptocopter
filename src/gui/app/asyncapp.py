@@ -20,11 +20,11 @@ from kivy.lang import Builder
 from kivy.properties import ListProperty
 from kivy.uix.tabbedpanel import TabbedPanelItem
 from kivy.uix.widget import Widget
+from src.common.client import BinanceClient
 from src.common.identifiers import (
     SubscriptionInfo,
     SubscriptionTarget,
     SubscriptionType,
-    BinanceClient,
 )
 from src.portfolio.portfolio import PortfolioManager
 from src.gui.hp_manager.hpfront import HpFront

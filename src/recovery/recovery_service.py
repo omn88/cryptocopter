@@ -15,8 +15,8 @@ from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_NEW
 from src.broker import BrokerSpot
 from src.common.helpers import determine_sell_strategy
 from src.database.trading_database import Database
+from src.common.client import BinanceClient
 from src.common.identifiers import (
-    BinanceClient,
     HPBuyConfig,
     HPBuy,
     HPSellConfig,

@@ -14,6 +14,7 @@ from binance.enums import (
 )
 from src.common.symbol import Symbol
 from src.database import Database
+from src.common.client import BinanceClient
 from src.common.identifiers import (
     AccountPosition,
     Event,
@@ -36,7 +37,6 @@ from src.common.identifiers import (
     StateInfo,
     TickerUpdate,
     UiState,
-    BinanceClient,
     PositionSide,
     HPSellPositionCompleted,
 )
