@@ -15,7 +15,7 @@ from binance import BinanceSocketManager
 
 from src.common.client import BinanceClient
 from src.common.identifiers import SubscriptionInfo
-from src.websocket.config import ULTRA_ROBUST_CONFIG
+from src.broker.websocket.config import ULTRA_ROBUST_CONFIG
 
 logger = logging.getLogger("broker.websocket_manager")
 
@@ -113,13 +113,8 @@ class WebSocketManager:
         # Start websocket streams
         await self._start_websocket_tasks()
 
-        # Return all tasks - mypy: all are guaranteed to be not None after start
-        assert self._connection_health_task is not None
-        assert self._ticker_timeout_task is not None
-        assert self._ticker_socket_task is not None
-        assert self._user_socket_task is not None
-
-        tasks: List[asyncio.Task] = [
+        # Return all tasks
+        tasks = [
             self._connection_health_task,
             self._ticker_timeout_task,
             self._ticker_socket_task,
@@ -127,7 +122,7 @@ class WebSocketManager:
         ]
 
         logger.info("WebSocket streams and monitors started successfully")
-        return tasks
+        return [task for task in tasks if task is not None]
 
     async def stop(self) -> None:
         """Stop all WebSocket streams and monitoring."""
@@ -150,14 +145,6 @@ class WebSocketManager:
         # Create new socket manager
         socket_manager = BinanceSocketManager(client=self.client)
 
-        # Ensure message handlers are set before creating tasks
-        assert (
-            self._ticker_message_handler is not None
-        ), "Ticker message handler must be set before starting"
-        assert (
-            self._user_message_handler is not None
-        ), "User message handler must be set before starting"
-
         # Create websocket tasks
         self._ticker_socket_task = self.loop.create_task(
             self._handle_socket(
@@ -178,7 +165,7 @@ class WebSocketManager:
         logger.info("Websocket tasks started successfully")
 
     async def _handle_socket(
-        self, socket, message_handler: Callable, reconnect_attempts: int = 10
+        self, socket, message_handler: Optional[Callable], reconnect_attempts: int = 10
     ) -> None:
         """Handle incoming data from WebSocket with reconnection logic.
 
@@ -213,7 +200,7 @@ class WebSocketManager:
                             )
 
                             # Call message handler
-                            if msg:
+                            if msg and message_handler is not None:
                                 message_handler(msg)
 
                         except asyncio.TimeoutError:

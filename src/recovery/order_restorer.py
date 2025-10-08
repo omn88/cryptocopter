@@ -12,8 +12,8 @@ from typing import List, Optional
 
 from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED, ORDER_STATUS_NEW
 
+from src.common.client import BinanceClient
 from src.common.identifiers import (
-    BinanceClient,
     Event,
     EventName,
     ExecutionReport,

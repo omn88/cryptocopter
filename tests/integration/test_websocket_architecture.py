@@ -9,8 +9,8 @@ import pytest
 from src.broker import BrokerSpot
 from src.websocket import WebSocketManager, ULTRA_ROBUST_CONFIG
 from src.strategy_executor import StrategyExecutor
+from src.common.client import BinanceClient
 from src.common.identifiers import (
-    BinanceClient,
     SubscriptionInfo,
     SubscriptionType,
     SubscriptionTarget,

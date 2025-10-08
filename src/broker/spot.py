@@ -13,8 +13,8 @@ from typing import Any, Dict, List, Optional
 
 from decouple import Config, RepositoryEnv
 
+from src.common.client import BinanceClient
 from src.common.identifiers import (
-    BinanceClient,
     SubscriptionInfo,
     SubscriptionType,
     SubscriptionTarget,

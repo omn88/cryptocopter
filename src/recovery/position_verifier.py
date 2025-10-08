@@ -8,7 +8,7 @@ system restart, updating positions and orders as needed.
 import logging
 from typing import List
 
-from src.common.identifiers import BinanceClient
+from src.common.client import BinanceClient
 from src.database.trading_database import Database
 from src.database.models import (
     Position,

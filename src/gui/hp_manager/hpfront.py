@@ -13,6 +13,7 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
 from src.database import Database
 from src.gui.hp_manager.modal_configurators import BuyHPModal
+from src.common.client import BinanceClient
 from src.common.identifiers import (
     HPBuyConfig,
     HPBuy,
@@ -25,7 +26,6 @@ from src.common.identifiers import (
     State,
     StateInfo,
     UiState,
-    BinanceClient,
     Mode,
     PositionSide,
 )

@@ -11,6 +11,7 @@ from binance.enums import (
 )
 from src.common.helpers import determine_sell_strategy, generate_hp_id
 from src.database import Database
+from src.common.client import BinanceClient
 from src.common.identifiers import (
     HPBuyConfig,
     HPBuy,
@@ -24,7 +25,6 @@ from src.common.identifiers import (
     State,
     StateInfo,
     UiState,
-    BinanceClient,
     PositionSide,
 )
 from src.common.symbol import Symbol

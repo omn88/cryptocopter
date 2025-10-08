@@ -18,12 +18,12 @@ from binance.exceptions import (
 
 
 from src.database import Database
+from src.common.client import BinanceClient
 from src.common.identifiers import (
     ExecutionReport,
     HPBuy,
     Order,
     UiState,
-    BinanceClient,
     Mode,
     State,
 )
