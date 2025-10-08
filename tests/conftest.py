@@ -226,7 +226,7 @@ async def hp_gui(mock_async_client) -> AsyncGenerator:
 @pytest.fixture
 def mock_broker():
     """Create a mock broker instance for WebSocket architecture testing"""
-    with patch("src.broker.BinanceClient"):
+    with patch("src.common.identifiers.BinanceClient"):
         # Patch the thread.start() to prevent background thread from starting
         with patch("threading.Thread.start"):
             broker = BrokerSpot()

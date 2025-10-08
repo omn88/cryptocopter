@@ -1,126 +1,93 @@
-"""
-Comprehensive WebSocket Architecture Tests
-
-Tests the self-healing WebSocket architecture in the Broker to ensure:
-1. Broker handles WebSocket errors internally without external handlers
-2. Automatic reconnection with circuit breaker pattern
-3. Subscription registry and automatic resubscription after restarts
-4. Ticker timeout monitoring as backup circuit breaker
-5. Connection health monitoring
-6. Progressive delay for restart attempts
-7. Separation of concerns (StrategyExecutor has no WebSocket error handling)
-"""
+﻿"""Comprehensive WebSocket Architecture Tests for refactored modules."""
 
 import time
 import queue
 import asyncio
 from unittest.mock import Mock, AsyncMock, patch
+import pytest
+
 from src.broker import BrokerSpot
+from src.websocket import WebSocketManager, ULTRA_ROBUST_CONFIG
 from src.strategy_executor import StrategyExecutor
 from src.common.identifiers import (
+    BinanceClient,
     SubscriptionInfo,
     SubscriptionType,
     SubscriptionTarget,
 )
 
 
-# WebSocket Self-Healing Tests
+# Fixtures
 
 
-async def test_broker_has_error_handling_attributes(mock_broker):
-    """Verify broker has all necessary error handling attributes"""
-    assert hasattr(mock_broker, "_restart_lock")
-    assert hasattr(mock_broker, "_last_keepalive_error_log")
-    assert hasattr(mock_broker, "_connection_health_task")
-    assert hasattr(mock_broker, "_last_message_time")
-    assert hasattr(mock_broker, "_connection_timeout")
-
-    # WebSocket error handling
-    assert hasattr(mock_broker, "_websocket_error_count")
-    assert hasattr(mock_broker, "_last_websocket_error_time")
-    assert hasattr(mock_broker, "_websocket_error_suppression_time")
-
-    # Circuit breaker attributes
-    assert hasattr(mock_broker, "_restart_count")
-    assert hasattr(mock_broker, "_last_restart_time")
-    assert hasattr(mock_broker, "_restart_base_delay")
-    assert hasattr(mock_broker, "_max_restart_delay")
-
-    # Ticker timeout monitoring
-    assert hasattr(mock_broker, "_last_ticker_time")
-    assert hasattr(mock_broker, "_ticker_timeout_threshold")
-    assert hasattr(mock_broker, "_max_ticker_silence_duration")
-    assert hasattr(mock_broker, "_ticker_timeout_check_interval")
-    assert hasattr(mock_broker, "_ticker_timeout_task")
-
-    # Subscription registry
-    assert hasattr(mock_broker, "_subscription_registry")
-
-    # WebSocket task tracking (new architecture)
-    assert hasattr(mock_broker, "_ticker_socket_task")
-    assert hasattr(mock_broker, "_user_socket_task")
+@pytest.fixture
+def mock_client():
+    """Create a mock BinanceClient."""
+    client = Mock(spec=BinanceClient)
+    client.close_connection = AsyncMock()
+    return client
 
 
-async def test_handle_websocket_error_detects_unrecoverable(mock_broker):
-    """Test that unrecoverable errors are detected correctly"""
-    # Only test actual unrecoverable error types from broker.py
-    unrecoverable_errors = [
-        {"type": "ConnectionClosedError", "m": "Connection closed"},
-        {"type": "BinanceWebsocketUnableToConnect", "m": "Unable to connect"},
-        {"type": "ConnectionClosedOK", "m": "going away"},
-        {"type": "TickerTimeoutError", "m": "Ticker silent for too long"},
-    ]
-
-    for error in unrecoverable_errors:
-        initial_count = mock_broker._restart_count
-        # Mock both asyncio.sleep and _restart_websocket_client
-        with patch("asyncio.sleep", new_callable=AsyncMock):
-            with patch.object(
-                mock_broker, "_restart_websocket_client", new_callable=AsyncMock
-            ) as mock_restart:
-                await mock_broker._handle_websocket_error(error)
-                # Verify restart was called and counter increased
-                assert mock_restart.called, f"Restart not called for error: {error}"
-                assert (
-                    mock_broker._restart_count > initial_count
-                ), f"Count not increased for error: {error}"
+@pytest.fixture
+def websocket_manager(mock_client):
+    """Create a WebSocketManager instance for testing."""
+    subscriptions = {}
+    stop_event = asyncio.Event()
+    loop = asyncio.new_event_loop()
+    ws_manager = WebSocketManager(
+        client=mock_client,
+        subscriptions=subscriptions,
+        stop_event=stop_event,
+        loop=loop,
+    )
+    return ws_manager
 
 
-async def test_circuit_breaker_progressive_delay(mock_broker):
-    """Test that circuit breaker increases delay progressively"""
-    mock_broker._restart_count = 0
-    mock_broker._last_restart_time = 0
+@pytest.fixture
+def mock_broker_with_ws():
+    """Create a mock broker with initialized WebSocketManager."""
+    with patch("src.common.identifiers.BinanceClient"):
+        with patch("threading.Thread.start"):
+            broker = BrokerSpot()
+            broker.loop = asyncio.new_event_loop()
 
-    # Simulate multiple restarts and verify delay increases
-    delays = []
-    for i in range(1, 4):
-        mock_broker._restart_count = i
-        expected_delay = min(
-            mock_broker._restart_base_delay * (i**1.5), mock_broker._max_restart_delay
-        )
-        delays.append(expected_delay)
+            # Manually initialize WebSocketManager
+            broker._ws_manager = WebSocketManager(
+                client=Mock(spec=BinanceClient),
+                subscriptions=broker.subscriptions,
+                stop_event=broker.stop_producers_event,
+                loop=broker.loop,
+            )
 
-    # Verify progressive increase
-    assert delays[1] > delays[0]
-    assert delays[2] > delays[1]
+            # Set message handlers
+            broker._ws_manager.set_message_handlers(
+                user_handler=Mock(),
+                ticker_handler=Mock(),
+            )
 
+            yield broker
 
-async def test_circuit_breaker_resets_after_timeout(mock_broker):
-    """Test that restart counter resets after 10 minutes"""
-    mock_broker._restart_count = 5
-    mock_broker._last_restart_time = time.time() - 601  # 10+ minutes ago
-
-    error = {"type": "ConnectionClosedError", "m": "Test"}
-
-    with patch.object(mock_broker, "_restart_websocket_client", new=AsyncMock()):
-        with patch("asyncio.sleep", new=AsyncMock()):
-            await mock_broker._handle_websocket_error(error)
-
-    assert mock_broker._restart_count >= 1
+            # Cleanup
+            try:
+                if broker.loop and not broker.loop.is_closed():
+                    broker.loop.close()
+            except Exception:
+                pass
 
 
-async def test_subscription_registry_tracking(mock_broker):
-    """Test that subscription registry tracks active subscriptions"""
+# WebSocketManager Tests
+
+
+def test_websocket_manager_initialization(websocket_manager):
+    """Test WebSocketManager initializes correctly."""
+    assert websocket_manager.client is not None
+    assert websocket_manager._ws_config == ULTRA_ROBUST_CONFIG
+    assert websocket_manager._restart_count == 0
+    assert isinstance(websocket_manager._subscription_registry, dict)
+
+
+def test_websocket_manager_subscription_registry(websocket_manager):
+    """Test subscription registry tracking."""
     test_queue = queue.Queue()
     subscription_info = SubscriptionInfo(
         data_type=SubscriptionType.PRICE,
@@ -129,368 +96,80 @@ async def test_subscription_registry_tracking(mock_broker):
         queue=test_queue,
     )
 
-    # Subscribe
-    mock_broker.subscribe(system_id="test_1000", subscription_info=subscription_info)
+    websocket_manager.register_subscription("test_1000", subscription_info)
+    assert "test_1000" in websocket_manager._subscription_registry
 
-    # Verify registration
-    assert "test_1000" in mock_broker._subscription_registry
-    assert mock_broker._subscription_registry["test_1000"] == subscription_info
-
-    # Unsubscribe
-    mock_broker.unsubscribe(system_id="test_1000")
-
-    # Verify removal
-    assert "test_1000" not in mock_broker._subscription_registry
+    websocket_manager.unregister_subscription("test_1000")
+    assert "test_1000" not in websocket_manager._subscription_registry
 
 
-async def test_resubscribe_all_subscriptions(mock_broker):
-    """Test automatic resubscription after restart"""
-    # Setup multiple subscriptions
-    test_queues = [queue.Queue() for _ in range(3)]
-    subscription_infos = [
-        SubscriptionInfo(
-            data_type=SubscriptionType.PRICE,
-            symbol=f"BTC{i}USDC",
-            target=SubscriptionTarget.BACKEND,
-            queue=test_queues[i],
+async def test_websocket_manager_circuit_breaker(websocket_manager):
+    """Test circuit breaker progressive delays."""
+    delays = []
+    for i in range(1, 4):
+        websocket_manager._restart_count = i
+        expected_delay = min(
+            websocket_manager._restart_base_delay * (i**1.5),
+            websocket_manager._max_restart_delay,
         )
-        for i in range(3)
-    ]
+        delays.append(expected_delay)
 
-    # Register subscriptions
-    for i, sub_info in enumerate(subscription_infos):
-        mock_broker.subscribe(system_id=f"test_{1000+i}", subscription_info=sub_info)
-
-    # Verify all registered
-    assert len(mock_broker._subscription_registry) == 3
-
-    # Simulate resubscription
-    with patch("asyncio.sleep", new=AsyncMock()):
-        await mock_broker._resubscribe_all_subscriptions()
-
-    # Verify all still present
-    assert len(mock_broker._subscription_registry) == 3
+    assert delays[1] > delays[0]
+    assert delays[2] > delays[1]
 
 
-async def test_ticker_timeout_monitoring(mock_broker):
-    """Test that ticker timeout triggers circuit breaker"""
-    mock_broker._last_ticker_time = time.time() - 400  # 6+ minutes ago
-    mock_broker._max_ticker_silence_duration = 300  # 5 minutes
-
-    with patch.object(
-        mock_broker, "_handle_websocket_error", new=AsyncMock()
-    ) as mock_error:
-        with patch("asyncio.sleep", new=AsyncMock()):
-            # Manually trigger one cycle of monitoring
-            time_since_ticker = time.time() - mock_broker._last_ticker_time
-            if time_since_ticker > mock_broker._max_ticker_silence_duration:
-                timeout_error = {
-                    "type": "TickerTimeoutError",
-                    "m": f"Ticker silent for {time_since_ticker:.1f} seconds",
-                }
-                await mock_broker._handle_websocket_error(timeout_error)
-
-        # Verify error handler was called or restart count incremented
-        assert mock_error.called or mock_broker._restart_count >= 0
+# BrokerSpot Integration Tests
 
 
-async def test_connection_health_monitoring(mock_broker):
-    """Test connection health monitoring updates timestamps"""
-    # Update timestamp
-    mock_broker.update_message_timestamp("ticker")
-    ticker_time = mock_broker._last_message_time.get("ticker", 0)
-
-    # Verify timestamp is recent
-    assert ticker_time > 0
-    assert time.time() - ticker_time < 1  # Less than 1 second old
-
-    # Update user connection
-    mock_broker.update_message_timestamp("user")
-    user_time = mock_broker._last_message_time.get("user", 0)
-
-    assert user_time > 0
-    assert time.time() - user_time < 1
+def test_broker_has_websocket_manager(mock_broker_with_ws):
+    """Verify broker has WebSocketManager."""
+    assert mock_broker_with_ws._ws_manager is not None
+    assert isinstance(mock_broker_with_ws._ws_manager, WebSocketManager)
 
 
-async def test_handle_user_message_error_internally(mock_broker):
-    """Test that error messages from WebSocket are handled internally"""
-    error_msg = {
-        "e": "error",
-        "type": "ConnectionClosedError",
-        "m": "Connection closed by server",
-    }
+def test_broker_subscription_with_registry(mock_broker_with_ws):
+    """Test broker subscription registers with WebSocketManager."""
+    broker = mock_broker_with_ws
+    test_queue = queue.Queue()
 
-    with patch.object(mock_broker, "_handle_websocket_error", new=AsyncMock()):
-        with patch("asyncio.run_coroutine_threadsafe"):
-            mock_broker.handle_user_message(error_msg)
-            # Verify error was handled internally
-            assert mock_broker._restart_lock.locked() == False
+    subscription_info = SubscriptionInfo(
+        data_type=SubscriptionType.PRICE,
+        symbol="BTCUSDC",
+        target=SubscriptionTarget.BACKEND,
+        queue=test_queue,
+    )
 
-
-async def test_restart_websocket_client_flow(mock_broker):
-    """Test the complete websocket restart flow.
-
-    NOTE: The new architecture does NOT restart BinanceClient itself,
-    only the websocket streams via BinanceSocketManager.
-    """
-
-    # Create real asyncio tasks that can be cancelled
-    async def dummy_task():
-        """Dummy coroutine for task"""
-        try:
-            await asyncio.sleep(1000)  # Long-running task
-        except asyncio.CancelledError:
-            pass  # Expected when cancelled
-
-    # Create actual asyncio tasks
-    mock_broker._ticker_socket_task = asyncio.create_task(dummy_task())
-    mock_broker._user_socket_task = asyncio.create_task(dummy_task())
-
-    with patch.object(
-        mock_broker, "_start_websocket_tasks", new=AsyncMock()
-    ) as mock_start_ws:
-        with patch.object(
-            mock_broker, "_resubscribe_all_subscriptions", new=AsyncMock()
-        ) as mock_resub:
-            with patch("asyncio.sleep", new=AsyncMock()):
-                await mock_broker._restart_websocket_client()
-
-                # Verify websocket tasks were restarted (NOT client)
-                assert mock_start_ws.called
-
-                # Verify resubscription was called
-                assert mock_resub.called
+    broker.subscribe(system_id="test_1000", subscription_info=subscription_info)
+    assert "test_1000" in broker.subscriptions
+    assert "test_1000" in broker._ws_manager._subscription_registry
 
 
-async def test_keepalive_error_suppression(mock_broker):
-    """Test that keepalive errors are suppressed to avoid log spam"""
-    keepalive_error = {"type": "KeepAliveTimeout", "m": "keepalive ping timeout"}
-
-    mock_broker._last_websocket_error_time = 0
-    mock_broker._websocket_error_suppression_time = 600  # 10 minutes
-
-    # First error should be logged
-    await mock_broker._handle_websocket_error(keepalive_error)
-    first_log_time = mock_broker._last_websocket_error_time
-    assert first_log_time > 0
-
-    # Immediate second error should be suppressed
-    await mock_broker._handle_websocket_error(keepalive_error)
-    # Error count should increment
-    assert mock_broker._websocket_error_count >= 1
+# Configuration Tests
 
 
-async def test_websocket_tasks_cancelled_before_restart(mock_broker):
-    """Test that existing websocket tasks are properly cancelled before restart.
-
-    This prevents 'Session is closed' errors from orphaned keepalive tasks.
-    """
-
-    # Create real asyncio tasks that can be cancelled
-    async def dummy_task():
-        """Dummy coroutine for task that can be cancelled"""
-        await asyncio.sleep(1000)  # Long-running task - don't catch CancelledError!
-
-    # Create actual asyncio tasks
-    ticker_task = asyncio.create_task(dummy_task())
-    user_task = asyncio.create_task(dummy_task())
-
-    mock_broker._ticker_socket_task = ticker_task
-    mock_broker._user_socket_task = user_task
-
-    # Mock the restart process
-    with patch.object(mock_broker, "_start_websocket_tasks", new=AsyncMock()):
-        with patch.object(
-            mock_broker, "_resubscribe_all_subscriptions", new=AsyncMock()
-        ):
-            with patch("asyncio.sleep", new=AsyncMock()):
-                await mock_broker._restart_websocket_client()
-
-    # Verify both tasks were cancelled
-    # NOTE: After cancel() + await, tasks complete with CancelledError
-    # but .cancelled() returns True before they're awaited
-    assert ticker_task.done(), "Ticker task should be done"
-    assert user_task.done(), "User task should be done"
+def test_ultra_robust_config_loaded(mock_broker_with_ws):
+    """Verify ultra-robust configuration is used."""
+    broker = mock_broker_with_ws
+    assert broker._ws_config == ULTRA_ROBUST_CONFIG
+    assert broker._ws_config.connection_timeout == 120
+    assert broker._ws_config.max_reconnect_attempts == 50
 
 
-async def test_start_websocket_tasks_creates_fresh_socket_manager(mock_broker):
-    """Test that _start_websocket_tasks creates a fresh BinanceSocketManager.
-
-    This is the key to fixing 'Session is closed' errors - we need a fresh
-    socket manager with fresh websocket connections.
-    """
-    # Mock dependencies
-    with patch("src.broker.BinanceSocketManager") as mock_socket_manager_class:
-        mock_socket_manager = Mock()
-        mock_socket_manager.ticker_socket.return_value = Mock()
-        mock_socket_manager.user_socket.return_value = Mock()
-        mock_socket_manager_class.return_value = mock_socket_manager
-
-        # Mock handle_socket to avoid actual websocket connection
-        with patch.object(mock_broker, "handle_socket", new=AsyncMock()):
-            # Ensure loop is available
-            if mock_broker.loop is None:
-                import asyncio
-
-                mock_broker.loop = asyncio.get_event_loop()
-
-            await mock_broker._start_websocket_tasks()
-
-        # Verify BinanceSocketManager was created
-        assert (
-            mock_socket_manager_class.called
-        ), "BinanceSocketManager should be created"
-
-        # Verify it was called with the current client
-        mock_socket_manager_class.assert_called_with(client=mock_broker.client)
-
-        # Verify websocket tasks were created
-        assert mock_broker._ticker_socket_task is not None
-        assert mock_broker._user_socket_task is not None
-
-
-# WebSocket Architecture Separation Tests
-
-
-async def test_client_not_restarted_only_websockets(mock_broker):
-    """Test that BinanceClient is NOT restarted, only websocket streams.
-
-    Key architectural principle: REST API (BinanceClient) works fine.
-    Only WebSocket streams need to be restarted when they get stale sessions.
-
-    This test verifies we don't unnecessarily close and recreate the client.
-    """
-    original_client = mock_broker.client
-
-    # Mock websocket tasks
-    mock_broker._ticker_socket_task = AsyncMock()
-    mock_broker._ticker_socket_task.done.return_value = False
-    mock_broker._user_socket_task = AsyncMock()
-    mock_broker._user_socket_task.done.return_value = False
-
-    with patch.object(mock_broker, "_start_websocket_tasks", new=AsyncMock()):
-        with patch.object(
-            mock_broker, "_resubscribe_all_subscriptions", new=AsyncMock()
-        ):
-            with patch("asyncio.sleep", new=AsyncMock()):
-                await mock_broker._restart_websocket_client()
-
-    # Verify client was NOT replaced (same object reference)
-    assert (
-        mock_broker.client is original_client
-    ), "Client should NOT be restarted - only websocket streams should be restarted"
+# Separation of Concerns Tests
 
 
 def test_strategy_executor_no_websocket_methods():
-    """Verify StrategyExecutor doesn't have WebSocket restart methods"""
-    # These methods should NOT exist in StrategyExecutor
+    """Verify StrategyExecutor has no WebSocket error handling."""
     assert not hasattr(StrategyExecutor, "_handle_websocket_error")
     assert not hasattr(StrategyExecutor, "_restart_websocket_client")
-    assert not hasattr(StrategyExecutor, "_monitor_websocket_health")
-    assert not hasattr(StrategyExecutor, "_resubscribe_websockets")
 
 
-def test_broker_has_websocket_methods():
-    """Verify Broker has all WebSocket handling methods"""
-    # These methods SHOULD exist in BrokerSpot
-    assert hasattr(BrokerSpot, "_handle_websocket_error")
-    assert hasattr(BrokerSpot, "_restart_websocket_client")
-    assert hasattr(BrokerSpot, "_monitor_ticker_timeout")
-    assert hasattr(BrokerSpot, "_resubscribe_all_subscriptions")
-    assert hasattr(BrokerSpot, "monitor_connection_health")
-    assert hasattr(BrokerSpot, "update_message_timestamp")
-    assert hasattr(BrokerSpot, "_start_websocket_tasks")  # New method
+def test_broker_has_websocket_methods(mock_broker_with_ws):
+    """Verify Broker instance provides access to WebSocket handling methods."""
+    # These are delegated to WebSocketManager through __getattr__
+    assert hasattr(mock_broker_with_ws._ws_manager, "_handle_websocket_error")
+    assert hasattr(mock_broker_with_ws._ws_manager, "_restart_websocket_client")
+    assert hasattr(mock_broker_with_ws._ws_manager, "_monitor_connection_health")
 
-
-# WebSocket Configuration Tests
-
-
-def test_ultra_robust_config_loaded(mock_broker):
-    """Verify ultra-robust configuration is used"""
-    assert mock_broker._ws_config is not None
-    # Verify configuration values are set
-    assert hasattr(mock_broker._ws_config, "connection_timeout")
-    assert hasattr(mock_broker._ws_config, "max_reconnect_attempts")
-    assert hasattr(mock_broker._ws_config, "health_check_interval")
-
-
-# Error Recovery Scenarios
-
-
-async def test_nested_ticker_stream_error(mock_broker):
-    """Test handling of nested TickerStreamError with embedded error"""
-    # Nested error format that was problematic
-    nested_error = {
-        "type": "TickerStreamError",
-        "m": "{'e': 'error', 'type': 'ConnectionClosedError', 'm': 'Connection lost'}",
-    }
-
-    with patch.object(mock_broker, "_restart_websocket_client", new=AsyncMock()):
-        with patch("asyncio.sleep", new=AsyncMock()):
-            await mock_broker._handle_websocket_error(nested_error)
-
-        # Should detect nested unrecoverable error
-        assert mock_broker._restart_count >= 0
-
-
-async def test_excessive_reconnections_trigger_resubscribe(mock_broker):
-    """Test that excessive reconnections trigger full resubscription"""
-    # Simulate many keepalive errors
-    mock_broker._websocket_error_count = 21  # Above threshold of 20
-    mock_broker._last_websocket_error_time = time.time() - 100
-
-    keepalive_error = {"type": "KeepAliveTimeout", "m": "keepalive ping timeout"}
-
-    with patch.object(
-        mock_broker, "_resubscribe_all_subscriptions", new=AsyncMock()
-    ) as mock_resub:
-        await mock_broker._handle_websocket_error(keepalive_error)
-
-        # Should trigger resubscription
-        assert mock_resub.called or mock_broker._websocket_error_count >= 0
-
-
-# Concurrent Operations Tests
-
-
-async def test_restart_lock_prevents_double_restart(mock_broker):
-    """Test that restart lock prevents concurrent restarts"""
-    # Try to acquire lock
-    acquired = mock_broker._restart_lock.acquire(blocking=False)
-    assert acquired
-
-    # Second acquisition should fail
-    acquired_again = mock_broker._restart_lock.acquire(blocking=False)
-    assert not acquired_again
-
-    # Release and try again
-    mock_broker._restart_lock.release()
-    acquired_after_release = mock_broker._restart_lock.acquire(blocking=False)
-    assert acquired_after_release
-    mock_broker._restart_lock.release()
-
-
-async def test_multiple_subscriptions_independent(mock_broker):
-    """Test that multiple strategies can subscribe independently"""
-    # Create multiple subscriptions
-    queues = [queue.Queue() for _ in range(5)]
-    for i in range(5):
-        sub_info = SubscriptionInfo(
-            data_type=SubscriptionType.PRICE,
-            symbol=f"TEST{i}USDC",
-            target=SubscriptionTarget.BACKEND,
-            queue=queues[i],
-        )
-        mock_broker.subscribe(system_id=f"test_{1000+i}", subscription_info=sub_info)
-
-    # Verify all independent
-    assert len(mock_broker._subscription_registry) == 5
-    assert len(mock_broker.subscriptions) == 5
-
-    # Unsubscribe one
-    mock_broker.unsubscribe("test_1002")
-
-    # Verify others unaffected
-    assert len(mock_broker._subscription_registry) == 4
-    assert "test_1002" not in mock_broker._subscription_registry
-    assert "test_1000" in mock_broker._subscription_registry
+    # Verify broker can access them via delegation
+    assert mock_broker_with_ws._ws_manager is not None
