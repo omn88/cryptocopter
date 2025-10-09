@@ -111,10 +111,12 @@ class OrderRestorer:
             price=current_order["price"],
             quantity_stable=current_order["quantity_stable"],
             realized_quantity=current_order["realized_quantity"],
-            status=current_order["status"],
-        )
-
-        # Verify with exchange if not filled or canceled
+            status=(
+                current_order["status"].value
+                if hasattr(current_order["status"], "value")
+                else current_order["status"]
+            ),
+        )  # Verify with exchange if not filled or canceled
         if current_order["status"] not in [ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED]:
             await self._verify_single_order_with_exchange(
                 trading_order,
@@ -164,7 +166,11 @@ class OrderRestorer:
                 price=latest_order["price"],
                 quantity_stable=latest_order["quantity_stable"],
                 realized_quantity=total_realized,
-                status=latest_order["status"],
+                status=(
+                    latest_order["status"].value
+                    if hasattr(latest_order["status"], "value")
+                    else latest_order["status"]
+                ),
             )
             restored_orders.append(trading_order)
 

@@ -815,6 +815,18 @@ async def test_recovery_default_position_first_order_filled_then_cancel(
     assert recovered_strategy.state == State.PARTIALLY_BOUGHT
     assert recovered_strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
     assert len(recovered_strategy.buy.orders) == 3
+
+    # Wait for order statuses to be updated after execution reports are processed
+    await wait_for_condition(
+        condition_func=lambda: recovered_strategy.buy.orders[0].status == "FILLED"
+    )
+    await wait_for_condition(
+        condition_func=lambda: recovered_strategy.buy.orders[1].status == "CANCELED"
+    )
+    await wait_for_condition(
+        condition_func=lambda: recovered_strategy.buy.orders[2].status == "CANCELED"
+    )
+
     assert recovered_strategy.buy.orders[0].status == "FILLED"
     assert recovered_strategy.buy.orders[1].status == "CANCELED"
     assert recovered_strategy.buy.orders[2].status == "CANCELED"
@@ -1193,6 +1205,15 @@ async def test_recovery_default_position_first_order_filled(crash_recovery_facto
     assert recovered_strategy.state == State.BUYING
     assert recovered_strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
     assert len(recovered_strategy.buy.orders) == 3
+
+    # Wait for order states to stabilize after recovery
+    await wait_for_condition(
+        lambda: all(
+            order.realized_quantity == (0.24 if order.price == 1400.0 else 0.0)
+            for order in recovered_strategy.buy.orders
+        )
+    )
+
     # Assert order statuses by price to avoid index/order mismatch
     for order in recovered_strategy.buy.orders:
         if order.price == 1400.0:

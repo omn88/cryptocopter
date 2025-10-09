@@ -46,7 +46,7 @@ def websocket_manager(mock_client):
 @pytest.fixture
 def mock_broker_with_ws():
     """Create a mock broker with initialized WebSocketManager."""
-    with patch("src.common.identifiers.BinanceClient"):
+    with patch("src.common.client.BinanceClient"):
         with patch("threading.Thread.start"):
             broker = BrokerSpot()
             broker.loop = asyncio.new_event_loop()
