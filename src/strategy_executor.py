@@ -818,6 +818,21 @@ class StrategyExecutor:
                         state_info=position.state_info,
                         state=strategy.state,
                     )
+
+                # Send buy position to UI to ensure buy child is visible
+                # This is critical for showing complete position history in recovery
+                if strategy.buy and strategy.buy.data:
+                    logger.info(
+                        "Sending buy position to UI for sell recovery: %s",
+                        strategy.buy.data.config.hp_id,
+                    )
+                    self.send_buy_position_to_ui(
+                        config=strategy.buy.data.config,
+                        state_info=strategy.buy.data.state_info,
+                        state=strategy.state,
+                        buy_orders=strategy.buy.orders,
+                    )
+
                 logger.info(
                     "Successfully restored sell position %s", sell_data.config.hp_id
                 )
