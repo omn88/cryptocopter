@@ -18,7 +18,7 @@ from src.common.identifiers import (
     StateInfo,
     PositionSide,
 )
-from tests.helpers import get_new_orders
+from tests.helpers import get_new_orders, get_new_order
 from tests.strategies.hp_simulator import HPSimulator
 from tests.strategies.hp_manager_helpers import (
     wait_for_condition,

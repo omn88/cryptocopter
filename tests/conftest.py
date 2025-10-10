@@ -602,7 +602,7 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
         portfolio_event_helper._callback = strategy.send_hp_event_to_portfolio
 
         # Prepare orders first (this is needed for proper hp_id resolution)
-        strategy.buy.prepare_orders()
+        strategy.buy.prepare_order()
 
         # Send initial UI message using the strategy's method
         strategy.send_buy_position_to_ui()

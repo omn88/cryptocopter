@@ -338,11 +338,8 @@ class Database:
                         json.dumps(position.child_position_ids),
                         position.trade_type.value,
                         position.hop_sequence,
-                        position.price_low,
-                        position.price_high,
                         position.order_trigger,
                         position.end_currency,
-                        position.mode,
                         position.completeness,
                         (
                             position.next_monitor_time.isoformat()
@@ -551,11 +548,8 @@ class Database:
                 child_position_ids=child_ids,
                 trade_type=TradeType(row["trade_type"]),
                 hop_sequence=row["hop_sequence"],
-                price_low=row["price_low"],
-                price_high=row["price_high"],
                 order_trigger=row["order_trigger"],
                 end_currency=row["end_currency"],
-                mode=row["mode"],
                 completeness=row["completeness"],
                 next_monitor_time=(
                     datetime.fromisoformat(row["next_monitor_time"])

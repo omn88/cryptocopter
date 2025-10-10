@@ -60,8 +60,8 @@ class OrderRestorer:
         )
 
         if not orders:
-            buy_position.prepare_orders()
-            return buy_position.orders
+            buy_position.prepare_order()
+            return [buy_position.buy_order] if buy_position.buy_order else []
 
         # Aggregate orders by (price, quantity) to handle duplicates
         restored_orders = self._aggregate_orders(orders, buy_config)

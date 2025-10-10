@@ -24,7 +24,7 @@ from src.common.identifiers import (
 )
 from src.strategies.hp_manager.hp_manager import HpStrategy
 from src.gui.hp_manager.hpfront import HpFront
-from tests.helpers import get_new_orders
+from tests.helpers import get_new_order
 from tests.strategies.hp_manager_helpers import (
     assert_default_buy_position_data,
     cancel_partially_bought_position_first_order_filled,
@@ -49,15 +49,7 @@ from tests.strategies.hp_manager_helpers import (
     simulate_partial_fill,
     simulate_partial_fill_sell,
     simulate_resend_sell_position,
-    simulate_second_buy_order_fill,
-    simulate_second_buy_order_fill_after_selling_first_order,
     simulate_second_buy_order_fill_after_selling_half_of_first_order,
-    simulate_second_buy_order_fill_with_sell_price,
-    simulate_second_buy_order_partial_fill,
-    simulate_third_buy_order_fill,
-    simulate_third_buy_order_fill_after_selling_first_order,
-    simulate_third_buy_order_fill_after_selling_half_of_first_order,
-    simulate_third_buy_order_fill_with_sell_price,
     prepare_hp_update_for_collapse,
     wait_for_condition,
 )
@@ -161,8 +153,8 @@ async def test_cancel_default_position_untouched_then_resend_orders(
 
     # Path 1: Resend buy orders
 
-    strategy.client.create_order.side_effect = get_new_orders(
-        orders=strategy.buy.orders
+    strategy.client.create_order.side_effect = get_new_order(
+        order=strategy.buy.buy_order
     )
 
     strategy, hp_list = await move_to_buy_position_active(
@@ -294,13 +286,6 @@ async def test_default_position_all_buy_orders_filled(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
     )
 
-    strategy, hp_list = await simulate_second_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=95830862
-    )
-    strategy, hp_list = await simulate_third_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=40613711
-    )
-
 
 async def test_conditions_for_new_buy_order_confirmation(
     hp_gui: HpFront, trading_system_factory
@@ -414,8 +399,8 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
     )
 
     # Reopen position
-    strategy.client.create_order.side_effect = get_new_orders(
-        orders=strategy.buy.orders
+    strategy.client.create_order.side_effect = get_new_order(
+        order=strategy.buy.buy_order
     )
 
     strategy = await resend_part_bought_first_order_filled_partially(
@@ -451,8 +436,8 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
     )
 
     # Resend buy orders after 1st order was filled
-    strategy.client.create_order.side_effect = get_new_orders(
-        orders=strategy.buy.orders
+    strategy.client.create_order.side_effect = get_new_order(
+        order=strategy.buy.buy_order
     )
 
     strategy, hp_list = await resend_part_bought_first_order_filled(
@@ -517,8 +502,8 @@ async def test_resend_unfilled_sell_orders(
     strategy.ticker_update = TickerUpdate(last_price=4032.0, symbol="BTCUSDC")
     assert strategy.conditions_for_sending_sell_orders()
 
-    strategy.client.create_order.side_effect = get_new_orders(
-        [strategy.sell.current_position.sell_order]
+    strategy.client.create_order.side_effect = get_new_order(
+        order=strategy.sell.current_position.sell_order
     )
 
     await strategy.process_ticker()  # type: ignore[attr-defined]
@@ -916,19 +901,6 @@ async def test_fill_orders_for_previously_partially_bought_position(
         hp_list=hp_list,
     )
 
-    strategy, hp_list = await simulate_second_buy_order_fill_with_sell_price(
-        strategy=strategy,
-        hp_gui=hp_gui,
-        hp_list=hp_list,
-        order_id=95830862,
-    )
-    strategy, hp_list = await simulate_third_buy_order_fill_with_sell_price(
-        strategy=strategy,
-        hp_gui=hp_gui,
-        hp_list=hp_list,
-        order_id=40613711,
-    )
-
 
 async def test_sell_partially_partially_bought_position(
     trading_system_factory, hp_gui: HpFront
@@ -1006,13 +978,8 @@ async def test_buy_partially_partially_sold_position(
     )
 
     # Reopen Buy position
-    strategy.client.create_order.side_effect = get_new_orders(strategy.buy.orders)
+    strategy.client.create_order.side_effect = [get_new_order(strategy.buy.buy_order)]
     strategy, hp_list = await reopen_buy_part_bought_part_sold(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-    )
-
-    # Buy partially second order
-    strategy, hp_list = await simulate_second_buy_order_partial_fill(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
@@ -1110,62 +1077,10 @@ async def test_cancel_buy_to_part_sold_part_bought(
     )
 
     # Reopen Buy position
-    strategy.client.create_order.side_effect = get_new_orders(strategy.buy.orders)
+    strategy.client.create_order.side_effect = [get_new_order(strategy.buy.buy_order)]
     strategy, hp_list = await reopen_buy_part_bought_part_sold(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
-
-    # Buy partially second order
-    strategy, hp_list = await simulate_second_buy_order_partial_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-    )
-
-    assert strategy.buy.orders_cancel_price == 1224.0
-    strategy.ticker_update = TickerUpdate(last_price=1224.0, symbol="BTCUSDC")
-    assert (
-        strategy.conditions_for_cancelling_partially_sold_and_bought_orders_buy_position()
-    )
-
-    await strategy.process_ticker()  # type: ignore[attr-defined]
-
-    assert strategy.state == State.PART_SOLD_PART_BOUGHT
-    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
-    assert strategy.sell.current_position.state_info.state == State.PARTIALLY_SOLD
-
-    assert strategy.ui_queue.qsize() == 1
-    content = strategy.ui_queue.get_nowait()
-    logger.info("Content: %s", content)
-    assert isinstance(content, HPGuiDataBuy)
-
-    state_info = content.data.state_info
-    assert isinstance(state_info, StateInfo)
-
-    assert state_info.state == State.PARTIALLY_BOUGHT
-    assert state_info.side == PositionSide.LONG
-    assert state_info.ui_state == UiState.STAGNATED
-    assert state_info.completeness == 0.45
-
-    assert strategy.ui_queue.qsize() == 0
-
-    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
-
-    assert len(hp_list) == 3
-    item = hp_list[0]
-    assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTCUSD"
-    assert item["buy_price"] == "1326.32"
-    assert item["quantity"] == "0.38"
-    assert item["quantity_usd"] == "504.0"  # Parent shows 0 for USD quantity
-    assert item["sell_price"] == "4200.0"
-    assert (
-        item["expected_return"] == "1092.0"
-    )  # Parent shows original sell value, not updated
-    assert item["current_price"] == "0.0"
-    assert item["net"] == "0.0"
-    assert item["net_percent"] == "0.0"
-    assert item["state"] == "PART_SOLD_PART_BOUGHT"
-
-    logger.info("HP List after the update: %s", hp_list)
 
 
 async def test_buy_fully_partially_sold_position(
@@ -1262,7 +1177,7 @@ async def test_buy_fully_partially_sold_position(
     )
 
     # Reopen Buy position
-    strategy.client.create_order.side_effect = get_new_orders(strategy.buy.orders)
+    strategy.client.create_order.side_effect = [get_new_order(strategy.buy.buy_order)]
     strategy, hp_list = await reopen_buy_part_bought_part_sold(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
@@ -1275,15 +1190,6 @@ async def test_buy_fully_partially_sold_position(
         hp_gui=hp_gui,
         hp_list=hp_list,
         order_id=95830862,
-    )
-    (
-        strategy,
-        hp_list,
-    ) = await simulate_third_buy_order_fill_after_selling_half_of_first_order(
-        strategy=strategy,
-        hp_gui=hp_gui,
-        hp_list=hp_list,
-        order_id=40613711,
     )
 
 
@@ -1556,29 +1462,10 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     assert strategy.ui_queue.qsize() == 0
 
     # Reopen Buy position
-    strategy.client.create_order.side_effect = get_new_orders(
-        orders=strategy.buy.orders
+    strategy.client.create_order.side_effect = get_new_order(
+        order=strategy.buy.buy_order
     )
 
     strategy, hp_list = await reopen_buy_part_bought_sold(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-    )
-
-    (
-        strategy,
-        hp_list,
-    ) = await simulate_second_buy_order_fill_after_selling_first_order(
-        strategy=strategy,
-        hp_gui=hp_gui,
-        hp_list=hp_list,
-        order_id=95830862,
-    )
-    (
-        strategy,
-        hp_list,
-    ) = await simulate_third_buy_order_fill_after_selling_first_order(
-        strategy=strategy,
-        hp_gui=hp_gui,
-        hp_list=hp_list,
-        order_id=40613711,
     )
