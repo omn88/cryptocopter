@@ -860,9 +860,19 @@ class HpStrategy:
     def conditions_for_sending_sell_orders_for_partially_bought_position(
         self, *args, **kwargs
     ) -> bool:
+        # Calculate actual quantity to sell
+        # For positions with buy orders: use realized quantity from orders
+        # For inventory sells: use config quantity (already set from inventory)
+        if self.buy.orders:
+            quantity_to_sell = sum(order.realized_quantity for order in self.buy.orders)
+        else:
+            # Inventory sell - use config quantity
+            quantity_to_sell = self.sell.current_position.config.quantity
+
         condition = (
             self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
             and self.sell.current_position.state_info.state == State.NEW
+            and quantity_to_sell > 0  # Ensure we have quantity to sell
             and self.ticker_update.last_price
             >= self.calculate_trigger_send_orders_price_sell()
             and self.ticker_update.symbol
@@ -880,6 +890,32 @@ class HpStrategy:
         return condition
 
     async def send_sell_order(self, *args, **kwargs) -> None:
+        # Update quantity from buy orders if they exist (for positions with actual buys)
+        # This ensures sell uses actual filled quantity, not initial estimate
+        if self.buy.orders:
+            actual_quantity = sum(order.realized_quantity for order in self.buy.orders)
+            logger.info(
+                "Updating sell quantity from %d buy orders: %s (was: %s)",
+                len(self.buy.orders),
+                actual_quantity,
+                self.sell.current_position.config.quantity,
+            )
+            # Update quantities for all positions
+            self.sell.current_position.config.quantity = actual_quantity
+            self.sell.original_position.config.quantity = actual_quantity
+
+            # Update all multihop positions if they exist
+            if (
+                hasattr(self.sell, "sell_positions")
+                and len(self.sell.sell_positions) > 1
+            ):
+                for position in self.sell.sell_positions:
+                    position.config.quantity = actual_quantity
+                logger.info(
+                    "Updated quantity for %d multihop positions",
+                    len(self.sell.sell_positions),
+                )
+
         if self.sell.current_position.config.symbol.is_convert_only:
             await self.convert_position()
             self.send_sell_position_to_ui()
@@ -1140,10 +1176,21 @@ class HpStrategy:
         assert isinstance(self.buy.data.config, HPBuyConfig)
         assert isinstance(self.sell.current_position.config, HPSellConfig)
         price = self.sell.current_position.config.sell_price
+
+        # Calculate actual quantity to sell
+        # For positions with buy orders: use realized quantity from orders
+        # For inventory sells: use config quantity (already set from inventory)
+        if self.buy.orders:
+            quantity_to_sell = sum(order.realized_quantity for order in self.buy.orders)
+        else:
+            # Inventory sell - use config quantity
+            quantity_to_sell = self.sell.current_position.config.quantity
+
         condition = (
             self.sell.current_position.state_info.state == State.NEW
             and price is not None
             and price > 0
+            and quantity_to_sell > 0  # Ensure we have quantity to sell
             and self.ticker_update.last_price >= trig_ord_price
             and self.ticker_update.symbol
             == self.sell.original_position.config.symbol.name
