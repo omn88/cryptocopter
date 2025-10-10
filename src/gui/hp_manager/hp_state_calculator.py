@@ -87,11 +87,20 @@ class HPStateCalculator:
 
     def has_sell_child(self, hp_id: str) -> bool:
         """
-        Check if the parent HP has any active sell-type children.
-        This includes:
-        - Regular sell children (hp_id_SELL)
-        - Convert-only children (hp_id_CONVERT)
-        - Multihop children (hp_id with letter suffix like 1000a, 1000b)
+        Check if the parent HP has any sell-type child visible in the UI.
+
+        Purpose:
+        1. Determine button text: "Update Sell" (child exists) vs "Sell" (no child)
+        2. Control BUY cancel: disabled if sell child exists (transaction linked)
+
+        Returns True if ANY sell child exists (regardless of state) because:
+        - If visible in UI, user should see "Update Sell" for clarity
+        - If sell exists (even SOLD), buy/sell are linked and shouldn't be canceled independently
+
+        Sell child types:
+        - Regular: {hp_id}_SELL
+        - Convert: {hp_id}_CONVERT
+        - Multihop: {hp_id}a, {hp_id}b (parent 1000 → children 1000a, 1000b)
         """
         if not self.hp_list_data_getter:
             logger.warning(
@@ -101,28 +110,24 @@ class HPStateCalculator:
 
         hp_list_data = self.hp_list_data_getter()
 
-        # Check for regular sell child
         for item in hp_list_data:
             child_hp_id = item.get("hp_id", "")
 
             # Check if this is a sell-type child of the specified parent
+            # Three patterns: regular (_SELL), convert (_CONVERT), multihop (ends with a/b)
             is_regular_sell = child_hp_id == f"{hp_id}_SELL"
             is_convert = child_hp_id == f"{hp_id}_CONVERT"
+            # Multihop: parent 1000 → children 1000a, 1000b (exactly parent + single letter)
             is_multihop = (
-                child_hp_id.startswith(f"{hp_id}")
-                and len(child_hp_id) > len(hp_id)
-                and child_hp_id[len(hp_id) : len(hp_id) + 1].isalpha()
-                and not child_hp_id.endswith("_BUY")
+                child_hp_id.startswith(hp_id)
+                and len(child_hp_id) == len(hp_id) + 1
+                and child_hp_id[-1].isalpha()
             )
 
             if is_regular_sell or is_convert or is_multihop:
-                state = item.get("state", "")
-                # Consider child as active if not in terminal states
-                if state in ["SELLING", "PARTIALLY_SOLD", "NEW", "BOUGHT", "BUYING"]:
-                    return True
-                elif state in ["CLOSED", "CANCELLED", "SOLD"]:
-                    # Continue checking other children
-                    continue
+                # If sell child exists in UI, return True (regardless of state)
+                # Button will show "Update Sell" and be disabled if state=SOLD
+                return True
 
         return False
 
