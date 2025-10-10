@@ -105,15 +105,22 @@ class HPPositionBuy:
                 side=self.data.state_info.side,
             )
 
-        # If all orders are canceled and none are filled or partially filled, set state to NEW
-        if self.buy_order.status == ORDER_STATUS_CANCELED:
+        # If order is canceled and has realized quantity, it was partially filled before cancel
+        if self.buy_order.status == ORDER_STATUS_CANCELED and self.buy_order.realized_quantity > 0:
+            self.data.state_info.state = State.PARTIALLY_BOUGHT
+            logger.info(
+                "Order canceled with partial fill (realized_quantity=%.5f): state remains PARTIALLY_BOUGHT",
+                self.buy_order.realized_quantity
+            )
+        # If order is canceled and has no realized quantity, it was never filled
+        elif self.buy_order.status == ORDER_STATUS_CANCELED:
             self.data.state_info.state = State.NEW
             self.data.state_info.completeness = 0.0
             logger.info(
-                "All buy orders canceled and none filled: setting state to NEW and completeness to 0.0"
+                "Order canceled with no fill: setting state to NEW and completeness to 0.0"
             )
-        # If any order is filled or partially filled, set state to PARTIALLY_BOUGHT, unless all are filled
-        if self.buy_order.status == ORDER_STATUS_FILLED:
+        # If order is filled, set state to BOUGHT
+        elif self.buy_order.status == ORDER_STATUS_FILLED:
 
             self.data.state_info.state = State.BOUGHT
             logger.info(
@@ -185,6 +192,9 @@ class HPPositionBuy:
 
     def prepare_order(self) -> None:
         config = self.data.config
+
+        # buy_price should already be set in the config
+        assert config.buy_price > 0, "buy_price must be set before calling prepare_order"
 
         order = Order(
             quantity=config.symbol.adjust_quantity(config.budget / config.buy_price),

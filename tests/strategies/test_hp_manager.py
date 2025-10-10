@@ -153,9 +153,9 @@ async def test_cancel_default_position_untouched_then_resend_orders(
 
     # Path 1: Resend buy orders
 
-    strategy.client.create_order.side_effect = get_new_order(
-        order=strategy.buy.buy_order
-    )
+    strategy.client.create_order.side_effect = [
+        get_new_order(order=strategy.buy.buy_order)
+    ]
 
     strategy, hp_list = await move_to_buy_position_active(
         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list

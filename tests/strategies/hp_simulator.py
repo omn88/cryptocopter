@@ -95,8 +95,7 @@ class HPSimulator:
         self,
         symbol: str,
         budget: float = 1000.0,
-        price_low: float = 1000.0,
-        price_high: float = 1400.0,  # Reverted back to 1400.0
+        buy_price: float = 1400.0,
         order_trigger: float = 1.0,
         hp_id: str = "0",
         coin: str = "BTC",
@@ -106,8 +105,7 @@ class HPSimulator:
             HPBuyConfig(
                 hp_id=hp_id,
                 symbol=Symbol(name=symbol, precision=5, price_precision=2),
-                price_low=price_low,
-                price_high=price_high,
+                buy_price=buy_price,
                 order_trigger=order_trigger,
                 budget=budget,
                 mode=mode,

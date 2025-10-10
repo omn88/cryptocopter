@@ -183,31 +183,19 @@ class BuyHPModal(BaseHPModal):
         )
         coin = symbol.replace("USDT", "").replace("USDC", "") if symbol else ""
 
-        # Get price values from SearchableDropDown, ensure they're not zero
-        price_low = None
-        price_high = None
-
-        if (
-            hasattr(self.symbol_input, "price_low_input")
-            and self.symbol_input.price_low_input.text
-        ):
-            try:
-                price_low = float(self.symbol_input.price_low_input.text)
-                if price_low <= 0:
-                    price_low = None
-            except ValueError:
-                price_low = None
+        # Get price value from SearchableDropDown, ensure it's not zero
+        buy_price = None
 
         if (
             hasattr(self.symbol_input, "price_high_input")
             and self.symbol_input.price_high_input.text
         ):
             try:
-                price_high = float(self.symbol_input.price_high_input.text)
-                if price_high <= 0:
-                    price_high = None
+                buy_price = float(self.symbol_input.price_high_input.text)
+                if buy_price <= 0:
+                    buy_price = None
             except ValueError:
-                price_high = None
+                buy_price = None
 
         return HPConfiguration(
             hp_type="BUY",
@@ -215,8 +203,7 @@ class BuyHPModal(BaseHPModal):
             symbol=symbol,
             hp_id=str(uuid.uuid4())[:8],  # Generate unique ID
             budget=float(self.budget_input.text),
-            price_low=price_low,
-            price_high=price_high,
+            buy_price=buy_price,
             order_trigger=float(self.order_trigger_spinner.text),
             mode=self.mode_spinner.text,
         )

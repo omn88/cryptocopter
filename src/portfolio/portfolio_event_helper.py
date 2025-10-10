@@ -78,16 +78,14 @@ class PortfolioEventHelper:
         hp_id: str,
         coin: str,
         budget: float,
-        price_low: float,
-        price_high: float,
+        buy_price: float,
     ) -> None:
         """Send HP buy position created event to portfolio."""
         hp_buy_created = HPBuyPositionCreated(
             hp_id=hp_id,
             coin=coin,
             budget=budget,
-            price_low=price_low,
-            price_high=price_high,
+            buy_price=buy_price,
             end_currency="USDC",
         )
         self._send_portfolio_event(EventName.HP_BUY_POSITION_CREATED, hp_buy_created)

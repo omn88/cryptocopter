@@ -48,12 +48,8 @@ class CrashRecoveryHelper:
         ), f"Budget mismatch: DB={db_position.budget}, Memory={strategy.buy.data.config.budget}"
 
         assert (
-            db_position.price_low == strategy.buy.data.config.price_low
-        ), f"Price low mismatch: DB={db_position.price_low}, Memory={strategy.buy.data.config.price_low}"
-
-        assert (
-            db_position.price_high == strategy.buy.data.config.price_high
-        ), f"Price high mismatch: DB={db_position.price_high}, Memory={strategy.buy.data.config.price_high}"
+            db_position.buy_price == strategy.buy.data.config.buy_price
+        ), f"Buy price mismatch: DB={db_position.buy_price}, Memory={strategy.buy.data.config.buy_price}"
 
         assert (
             db_position.order_trigger == strategy.buy.data.config.order_trigger
@@ -72,7 +68,7 @@ class CrashRecoveryHelper:
         logger.info("  Coin: %s", db_position.coin)
         logger.info("  Budget: %s", db_position.budget)
         logger.info(
-            "  Price range: %s - %s", db_position.price_low, db_position.price_high
+            "  Buy price: %s", db_position.buy_price
         )
         logger.info("  Order trigger: %s", db_position.order_trigger)
         logger.info("  Mode: %s", db_position.mode)

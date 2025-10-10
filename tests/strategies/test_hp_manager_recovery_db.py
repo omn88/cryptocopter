@@ -62,8 +62,7 @@ async def test_recovery_get_default_buy_position(crash_recovery_factory):
     assert db_position.hp_id == "1000"
     assert db_position.status.value == "NEW"
     assert db_position.symbol == "BTCUSDC"
-    assert db_position.price_low == 1000.0
-    assert db_position.price_high == 1400.0
+    assert db_position.buy_price == 1400.0
     assert db_position.budget == 1000.0
 
     # Assert that database state matches application state (before crash)
@@ -128,10 +127,7 @@ async def test_recovery_get_default_buy_position(crash_recovery_factory):
     # Verify configuration preserved exactly
     assert recovered_strategy.buy.data.config.hp_id == original_config["hp_id"]
     assert recovered_strategy.buy.data.config.symbol.name == original_config["symbol"]
-    assert recovered_strategy.buy.data.config.price_low == original_config["price_low"]
-    assert (
-        recovered_strategy.buy.data.config.price_high == original_config["price_high"]
-    )
+    assert recovered_strategy.buy.data.config.buy_price == original_config["buy_price"]
     assert recovered_strategy.buy.data.config.budget == original_config["budget"]
 
     # Update simulator to use new backend and verify state consistency
@@ -266,8 +262,7 @@ async def test_recovery_default_buy_position_send_orders(crash_recovery_factory)
     original_config = {
         "hp_id": strategy.buy.data.config.hp_id,
         "symbol": strategy.buy.data.config.symbol.name,
-        "price_low": strategy.buy.data.config.price_low,
-        "price_high": strategy.buy.data.config.price_high,
+        "buy_price": strategy.buy.data.config.buy_price,
         "budget": strategy.buy.data.config.budget,
         "mode": strategy.buy.data.config.mode,
     }
@@ -435,10 +430,7 @@ async def test_recovery_default_buy_position_send_orders(crash_recovery_factory)
     # Verify configuration preserved exactly
     assert recovered_strategy.buy.data.config.hp_id == original_config["hp_id"]
     assert recovered_strategy.buy.data.config.symbol.name == original_config["symbol"]
-    assert recovered_strategy.buy.data.config.price_low == original_config["price_low"]
-    assert (
-        recovered_strategy.buy.data.config.price_high == original_config["price_high"]
-    )
+    assert recovered_strategy.buy.data.config.buy_price == original_config["buy_price"]
     assert recovered_strategy.buy.data.config.budget == original_config["budget"]
     assert recovered_strategy.buy.data.config.mode == original_config["mode"]
 
@@ -521,8 +513,7 @@ async def test_recovery_cancel_default_position_untouched(crash_recovery_factory
     assert db_position.hp_id == "1000"
     assert db_position.status.value == "NEW"
     assert db_position.symbol == "BTCUSDC"
-    assert db_position.price_low == 1000.0
-    assert db_position.price_high == 1400.0
+    assert db_position.buy_price == 1400.0
     assert db_position.budget == 1000.0
     assert db_position.strategy_state == "NEW"
 
@@ -646,8 +637,7 @@ async def test_recovery_cancel_default_position_untouched_then_resend_orders(
     assert db_position.hp_id == "1000"
     assert db_position.status.value == "NEW"
     assert db_position.symbol == "BTCUSDC"
-    assert db_position.price_low == 1000.0
-    assert db_position.price_high == 1400.0
+    assert db_position.buy_price == 1400.0
     assert db_position.budget == 1000.0
     assert db_position.strategy_state == "BUYING"
 
@@ -774,8 +764,7 @@ async def test_recovery_default_position_first_order_filled_then_cancel(
     assert db_position.hp_id == "1000"
     assert db_position.status.value in ("PARTIALLY_BOUGHT", "PARTIALLY_FILLED")
     assert db_position.symbol == "BTCUSDC"
-    assert db_position.price_low == 1000.0
-    assert db_position.price_high == 1400.0
+    assert db_position.buy_price == 1400.0
     assert db_position.budget == 1000.0
     assert db_position.strategy_state == "PARTIALLY_BOUGHT"
 
@@ -919,8 +908,7 @@ async def test_recovery_default_position_first_order_filled_partially(
     assert db_position.hp_id == "1000"
     assert db_position.status.value in ("PARTIALLY_BOUGHT", "PARTIALLY_FILLED")
     assert db_position.symbol == "BTCUSDC"
-    assert db_position.price_low == 1000.0
-    assert db_position.price_high == 1400.0
+    assert db_position.buy_price == 1400.0
     assert db_position.budget == 1000.0
     assert db_position.strategy_state == "PARTIALLY_BOUGHT"
 
@@ -1058,8 +1046,7 @@ async def test_recovery_default_position_first_order_filled_partially_then_cance
     assert db_position.hp_id == "1000"
     assert db_position.status.value in ("PARTIALLY_BOUGHT", "PARTIALLY_FILLED")
     assert db_position.symbol == "BTCUSDC"
-    assert db_position.price_low == 1000.0
-    assert db_position.price_high == 1400.0
+    assert db_position.buy_price == 1400.0
     assert db_position.budget == 1000.0
     assert db_position.strategy_state == "PARTIALLY_BOUGHT"
 
@@ -1175,8 +1162,7 @@ async def test_recovery_default_position_first_order_filled(crash_recovery_facto
     assert db_position.hp_id == "1000"
     assert db_position.status.value == "PARTIALLY_FILLED"
     assert db_position.symbol == "BTCUSDC"
-    assert db_position.price_low == 1000.0
-    assert db_position.price_high == 1400.0
+    assert db_position.buy_price == 1400.0
     assert db_position.budget == 1000.0
 
     db_orders = await new_front.db.get_orders_by_position_id(db_position.id)
@@ -1291,8 +1277,7 @@ async def test_recovery_default_position_all_buy_orders_filled(crash_recovery_fa
     assert db_position.hp_id == "1000"
     assert db_position.status.value in ("BOUGHT", "FILLED")
     assert db_position.symbol == "BTCUSDC"
-    assert db_position.price_low == 1000.0
-    assert db_position.price_high == 1400.0
+    assert db_position.buy_price == 1400.0
     assert db_position.budget == 1000.0
 
     db_orders = await new_front.db.get_orders_by_position_id(db_position.id)
@@ -1437,8 +1422,7 @@ async def test_recovery_default_position_first_order_filled_partially_then_cance
     assert db_position.hp_id == "1000"
     assert db_position.status.value in ("PARTIALLY_BOUGHT", "PARTIALLY_FILLED")
     assert db_position.symbol == "BTCUSDC"
-    assert db_position.price_low == 1000.0
-    assert db_position.price_high == 1400.0
+    assert db_position.buy_price == 1400.0
     assert db_position.budget == 1000.0
     assert db_position.strategy_state == "BUYING"
 
@@ -1543,8 +1527,7 @@ async def test_recovery_default_position_first_order_filled_then_cancel_then_res
     assert db_position.hp_id == "1000"
     assert db_position.status.value in "PARTIALLY_FILLED"
     assert db_position.symbol == "BTCUSDC"
-    assert db_position.price_low == 1000.0
-    assert db_position.price_high == 1400.0
+    assert db_position.buy_price == 1400.0
     assert db_position.budget == 1000.0
     assert db_position.strategy_state == "PARTIALLY_BOUGHT"
 

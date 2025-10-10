@@ -39,8 +39,7 @@ class HPBuyPositionCreated:
     hp_id: str
     coin: str
     budget: float
-    price_low: float
-    price_high: float
+    buy_price: float
     end_currency: str  # Usually USDC
 
 
@@ -371,8 +370,6 @@ class HPBuyConfig:
     order_trigger: float = 0
     order_cancel: float = 0
     budget: float = 0
-    price_high: float = 0
-    price_low: float = 0
     mode: str = ""
 
     def __post_init__(self):

@@ -416,12 +416,12 @@ class HpStrategy:
         # Determine the appropriate buy price
         if self.buy.buy_order:
             if self.buy.buy_order.realized_quantity == 0.0:
-                buy_price = self.buy.data.config.price_high
+                buy_price = self.buy.data.config.buy_price
             else:
                 buy_price = self.buy.calculate_avg_buy_price()
         else:
-            if self.buy.data.config and self.buy.data.config.price_high > 0:
-                buy_price = self.buy.data.config.price_high
+            if self.buy.data.config and self.buy.data.config.buy_price > 0:
+                buy_price = self.buy.data.config.buy_price
             else:
                 buy_price = self.sell.current_position.config.buy_price
 
@@ -491,44 +491,10 @@ class HpStrategy:
                     self.sell.current_position.sell_order.realized_quantity
                 )
 
-        # Calculate expected quantity from budget and price configuration
-        # For DCA mode, this is the total across all orders
+        # Calculate expected quantity from budget and buy price
         expected_qty = 0.0
-        if self.buy.data.config.budget > 0:
-            if self.buy.data.config.mode == "DCA":
-                # DCA calculation: sum of quantities across all price levels
-                num_orders = 3
-                min_budget_for_max_orders = num_orders * symbol.min_notional
-
-                if self.buy.data.config.budget >= min_budget_for_max_orders:
-                    order_quantity_stable = self.buy.data.config.budget / num_orders
-                else:
-                    order_quantity_stable = symbol.min_notional
-                    num_orders = int(self.buy.data.config.budget / symbol.min_notional)
-                    num_orders = num_orders if num_orders % 2 == 1 else num_orders - 1
-
-                if num_orders == 1:
-                    # Single order fallback
-                    expected_qty = (
-                        self.buy.data.config.budget / self.buy.data.config.price_high
-                    )
-                else:
-                    # Calculate total expected quantity across all DCA orders
-                    price_increment = (
-                        self.buy.data.config.price_high - self.buy.data.config.price_low
-                    ) / (num_orders - 1)
-                    for i in range(num_orders):
-                        order_price = (
-                            self.buy.data.config.price_high - i * price_increment
-                        )
-                        if order_price > 0:
-                            expected_qty += order_quantity_stable / order_price
-                    expected_qty = round(expected_qty, symbol.precision)
-            else:
-                # SINGLE mode: budget / price_high
-                expected_qty = (
-                    self.buy.data.config.budget / self.buy.data.config.price_high
-                )
+        if self.buy.data.config.budget > 0 and self.buy.data.config.buy_price > 0:
+            expected_qty = self.buy.data.config.budget / self.buy.data.config.buy_price
 
         # Get buy order quantity
         orders_total_qty = self.buy.buy_order.quantity if self.buy.buy_order else 0.0
@@ -615,20 +581,18 @@ class HpStrategy:
         self.ui_queue.put_nowait(sell_data)
 
     def calculate_trigger_send_orders_price_buy(self):
-        # logger.info(self.buy.orders)
-
-        price = (
-            self.buy.data.config.symbol.adjust_price(
-                max(
-                    order.price
-                    for order in self.buy.orders
-                    if order.status != ORDER_STATUS_FILLED
-                )
+        # With single order architecture, check if buy_order exists and is not filled
+        if (
+            self.buy.buy_order
+            and self.buy.buy_order.status != ORDER_STATUS_FILLED
+        ):
+            price = self.buy.data.config.symbol.adjust_price(
+                self.buy.buy_order.price
                 * (1 + self.buy.data.config.order_trigger / 100)
             )
-            if any(order.status != ORDER_STATUS_FILLED for order in self.buy.orders)
-            else 0.0
-        )
+        else:
+            price = 0.0
+
         # logger.info(
         #     "Calculated price for trigger send orders price buy: %s, config: %s",
         #     price,

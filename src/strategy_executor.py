@@ -267,8 +267,7 @@ class StrategyExecutor:
             hp_id=str(new_hp.config.hp_id),
             coin=new_hp.config.coin,
             budget=new_hp.config.budget,
-            price_low=new_hp.config.price_low,
-            price_high=new_hp.config.price_high,
+            buy_price=new_hp.config.buy_price,
         )
 
         strategy.worker_task = asyncio.create_task(strategy.worker())
@@ -283,13 +282,10 @@ class StrategyExecutor:
     ) -> None:
         total_quant = sum(order.realized_quantity for order in buy_orders)
         orders_total_quantity = sum(order.quantity for order in buy_orders)
-        # Calculate expected quantity from budget and price configuration
-        # For DCA mode, this is the total across all orders
+        # Calculate expected quantity from budget and buy price
         expected_qty = 0.0
-        if config.budget > 0:
-            expected_qty = (
-                config.budget / config.price_high if config.price_high > 0 else 0.0
-            )
+        if config.budget > 0 and config.buy_price > 0:
+            expected_qty = config.budget / config.buy_price
 
         self.ui_queue.put_nowait(
             HPGuiDataBuy(
@@ -320,9 +316,9 @@ class StrategyExecutor:
                 and hasattr(strategy.buy, "data")
                 and hasattr(strategy.buy.data, "config")
             ):
-                buy_price = strategy.buy.data.config.price_high
+                buy_price = strategy.buy.data.config.buy_price
                 logger.info(
-                    "Using buy config price_high %s instead of sell config buy_price %s",
+                    "Using buy config buy_price %s instead of sell config buy_price %s",
                     buy_price,
                     config.buy_price,
                 )
