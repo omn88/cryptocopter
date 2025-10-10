@@ -1848,3 +1848,353 @@ async def test_convert_position_spread_too_high(frontend_backend_setup):
     ), f"Expected state to remain BOUGHT, got {item['state']}"
     assert item["quantity"] == str(quantity)
     assert item["quantity_usd"] == str(round(quantity * buy_price, 2))
+
+
+async def test_multihop_sell_price_recalculation_on_trigger(frontend_backend_setup):
+    """
+    Test that multihop sell prices are recalculated based on current market prices
+    when the trigger condition is met, not using stale prices from position creation.
+
+    Scenario:
+    1. Create a multihop sell position for AXL with target price 14.0 USDT
+    2. Initial market prices: BTCUSDC = 95000.0, AXLBTC calculated accordingly
+    3. Simulate market movement: BTC price changes to 98000.0 before trigger
+    4. When AXLUSDT reaches trigger price (14.0), verify that:
+       - Prices are recalculated using the NEW BTC price (98000.0)
+       - AXLBTC order price * BTCUSDC price ≈ 14.0 USD
+       - NOT using the old BTC price (95000.0)
+    """
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
+
+    assert len(back.strategies) == 0
+
+    # Step 1: Set initial market prices
+    # BTC/USDC = 95000.0 (this will change later to test recalculation)
+    initial_btc_price = 95000.0
+    back.price_resolver.update_price("BTCUSDC", initial_btc_price)
+    back.price_resolver.update_price(
+        "BTCPLN", 320000.0
+    )  # Not used, just for completeness
+
+    # Calculate initial AXLBTC price based on target 14.0 USD
+    # If we want AXL to be worth 14.0 USD and BTC is 95000 USD:
+    # AXLBTC = 14.0 / 95000.0 = 0.00014736
+    target_sell_price_usd = 14.0
+    initial_axlbtc_price = target_sell_price_usd / initial_btc_price
+    back.price_resolver.update_price("AXLBTC", initial_axlbtc_price)
+
+    logger.info(f"=== INITIAL MARKET SETUP ===")
+    logger.info(f"Target sell price (USD): {target_sell_price_usd}")
+    logger.info(f"Initial BTCUSDC price: {initial_btc_price}")
+    logger.info(f"Initial AXLBTC price: {initial_axlbtc_price}")
+    logger.info(f"Initial equivalent USD: {initial_axlbtc_price * initial_btc_price}")
+
+    # Step 2: Create multihop sell position
+    coin = "AXL"
+    quantity = 1000.0
+    buy_price = 0.2928
+
+    sell_config = HPSell(
+        config=HPSellConfig(
+            hp_id="",
+            coin=coin,
+            buy_price=buy_price,
+            sell_price=target_sell_price_usd,  # Target: 14.0 USD
+            quantity=quantity,
+            end_currency="USDC",  # Changed to USDC for clearer test
+            symbol=back.price_resolver.symbols[f"{coin}USDT"],
+        ),
+        state_info=StateInfo(side=PositionSide.SHORT),
+    )
+    front.config_queue.put_nowait(sell_config)
+    logger.info("Sell config added to the queue: %s", sell_config.config)
+
+    # Wait for position to be created
+    await wait_for_condition(
+        condition_func=lambda: len(front.hp_list_data) == 3,  # Parent + 2 children
+    )
+
+    strategy = back.strategies["1000"]
+
+    # Verify multihop strategy was created correctly
+    assert len(strategy.sell.sell_strategy) == 2
+    assert strategy.sell.sell_strategy[0].name == f"{coin}BTC"
+    assert strategy.sell.sell_strategy[1].name == f"BTCUSDC"
+
+    # Store initial calculated prices from position creation
+    leg1_initial = strategy.sell.sell_positions[0]
+    leg2_initial = strategy.sell.sell_positions[1]
+
+    initial_leg1_price = leg1_initial.sell_order.price
+    initial_leg2_price = leg2_initial.sell_order.price
+
+    logger.info(f"=== INITIAL POSITION PRICES (at creation) ===")
+    logger.info(f"Leg1 (AXLBTC) initial price: {initial_leg1_price}")
+    logger.info(f"Leg2 (BTCUSDC) initial price: {initial_leg2_price}")
+    logger.info(f"Initial product: {initial_leg1_price * initial_leg2_price}")
+
+    # Verify initial calculation is approximately correct
+    assert (
+        abs(initial_leg1_price * initial_leg2_price - target_sell_price_usd) < 0.5
+    ), f"Initial prices should multiply to ~{target_sell_price_usd}"
+
+    # Step 3: CRITICAL - Simulate market movement BEFORE trigger
+    # BTC price increases from 95000 to 98000
+    new_btc_price = 98000.0
+    back.price_resolver.update_price("BTCUSDC", new_btc_price)
+
+    # AXLBTC price should adjust too (market would adjust this)
+    # To maintain 14 USD: AXLBTC = 14.0 / 98000.0 = 0.00014285
+    new_axlbtc_price = target_sell_price_usd / new_btc_price
+    back.price_resolver.update_price("AXLBTC", new_axlbtc_price)
+
+    logger.info(f"=== MARKET MOVED BEFORE TRIGGER ===")
+    logger.info(f"NEW BTCUSDC price: {new_btc_price}")
+    logger.info(f"NEW AXLBTC price: {new_axlbtc_price}")
+    logger.info(f"NEW equivalent USD: {new_axlbtc_price * new_btc_price}")
+
+    # Verify prices changed significantly
+    assert (
+        abs(new_btc_price - initial_btc_price) > 1000
+    ), "BTC price should have moved significantly"
+
+    # Step 4: Mock order creation and trigger the sell
+    strategy.client.create_order.side_effect = get_new_orders(
+        orders=[strategy.sell.current_position.sell_order]
+    )
+
+    # Send price update that triggers the sell (AXLUSDT reaches target)
+    # Note: For regular sell, trigger is at 0.96 * sell_price = 0.96 * 14.0 = 13.44
+    # But for multihop (TWOHOPS), trigger is at sell_price = 14.0 (see calculate_trigger_send_orders_price_sell)
+    trigger_price = target_sell_price_usd
+    sim.new_price(price=trigger_price, symbol="AXLUSDT")
+
+    logger.info(f"=== TRIGGERED SELL AT PRICE: {trigger_price} ===")
+
+    # Step 5: Wait for state to change to SELLING
+    await wait_for_condition(
+        condition_func=lambda: strategy.state == State.SELLING, timeout=5.0
+    )
+
+    # Step 6: VERIFY RECALCULATION - This is the critical assertion
+    # After trigger, prices should be recalculated using NEW market prices
+    leg1_after = strategy.sell.sell_positions[0]
+    leg2_after = strategy.sell.sell_positions[1]
+
+    recalculated_leg1_price = leg1_after.sell_order.price
+    recalculated_leg2_price = leg2_after.sell_order.price
+
+    logger.info(f"=== PRICES AFTER RECALCULATION (at trigger) ===")
+    logger.info(f"Leg1 (AXLBTC) recalculated price: {recalculated_leg1_price}")
+    logger.info(f"Leg2 (BTCUSDC) recalculated price: {recalculated_leg2_price}")
+    logger.info(
+        f"Recalculated product: {recalculated_leg1_price * recalculated_leg2_price}"
+    )
+
+    # CRITICAL ASSERTIONS:
+    # 1. Prices should have been recalculated (different from initial)
+    assert (
+        recalculated_leg1_price != initial_leg1_price
+    ), f"Leg1 price should have been recalculated! Initial: {initial_leg1_price}, After: {recalculated_leg1_price}"
+
+    assert (
+        recalculated_leg2_price != initial_leg2_price
+    ), f"Leg2 price should have been recalculated! Initial: {initial_leg2_price}, After: {recalculated_leg2_price}"
+
+    # 2. Recalculated prices should use the NEW BTC price (98000), not old (95000)
+    # Leg2 should be close to new BTC price
+    assert (
+        abs(recalculated_leg2_price - new_btc_price) < 100
+    ), f"Leg2 should use new BTC price {new_btc_price}, but got {recalculated_leg2_price}"
+
+    # 3. Product should still be approximately 14.0 USD (using NEW prices)
+    recalculated_product = recalculated_leg1_price * recalculated_leg2_price
+    assert (
+        abs(recalculated_product - target_sell_price_usd) < 0.5
+    ), f"Recalculated prices should multiply to ~{target_sell_price_usd}, but got {recalculated_product}"
+
+    # 4. Verify order was actually sent with NEW prices
+    assert leg1_after.sell_order.order_id > 0, "Order should have been sent"
+    assert leg1_after.sell_order.status == ORDER_STATUS_NEW, "Order should be NEW"
+
+    logger.info(f"=== TEST PASSED ===")
+    logger.info(
+        f"✓ Prices were recalculated from initial BTC={initial_btc_price} to new BTC={new_btc_price}"
+    )
+    logger.info(
+        f"✓ Leg1 price changed: {initial_leg1_price} -> {recalculated_leg1_price}"
+    )
+    logger.info(
+        f"✓ Leg2 price changed: {initial_leg2_price} -> {recalculated_leg2_price}"
+    )
+    logger.info(
+        f"✓ Product maintains target: {recalculated_product} ≈ {target_sell_price_usd}"
+    )
+    logger.info(f"✓ Multihop sell price recalculation works correctly!")
+
+
+async def test_multihop_sell_uses_trigger_price_not_early_trigger(
+    frontend_backend_setup,
+):
+    """
+    Test that multihop sells trigger at the exact target price (not 0.96x like regular sells).
+
+    This test verifies the logic in calculate_trigger_send_orders_price_sell():
+    - Regular/Direct sells: trigger at 0.96 * sell_price (2% or 4% early)
+    - Multihop sells: trigger at exact sell_price (no early trigger)
+
+    Why? Because multihop prices MUST be calculated at the exact moment when
+    the target price is reached to ensure proper price alignment across legs.
+    """
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
+
+    assert len(back.strategies) == 0
+
+    # Setup market prices
+    btc_price = 95000.0
+    back.price_resolver.update_price("BTCUSDC", btc_price)
+    back.price_resolver.update_price("BTCPLN", 320000.0)
+
+    target_price = 14.0
+    axlbtc_price = target_price / btc_price
+    back.price_resolver.update_price("AXLBTC", axlbtc_price)
+
+    # Create multihop sell position
+    coin = "AXL"
+    sell_config = HPSell(
+        config=HPSellConfig(
+            hp_id="",
+            coin=coin,
+            buy_price=0.2928,
+            sell_price=target_price,
+            quantity=1000.0,
+            end_currency="USDC",
+            symbol=back.price_resolver.symbols[f"{coin}USDT"],
+        ),
+        state_info=StateInfo(side=PositionSide.SHORT),
+    )
+    front.config_queue.put_nowait(sell_config)
+
+    await wait_for_condition(
+        condition_func=lambda: len(front.hp_list_data) == 3,
+    )
+
+    strategy = back.strategies["1000"]
+
+    # Calculate trigger price using the same logic as hp_manager.py
+    trigger_price = strategy.calculate_trigger_send_orders_price_sell()
+
+    logger.info(f"=== TRIGGER PRICE TEST ===")
+    logger.info(f"Target sell price: {target_price}")
+    logger.info(f"Calculated trigger price: {trigger_price}")
+    logger.info(f"Sell type: {strategy.sell.current_position.sell_type}")
+
+    # CRITICAL ASSERTION: For multihop, trigger should be at exact price, not 0.96x
+    assert (
+        trigger_price == target_price
+    ), f"Multihop sell should trigger at exact price {target_price}, not at {trigger_price}"
+
+    # Verify that trigger doesn't happen too early
+    early_price = 0.96 * target_price  # This is what regular sells use
+    strategy.client.create_order.side_effect = get_new_orders(
+        orders=[strategy.sell.current_position.sell_order]
+    )
+
+    # Try triggering at early price - should NOT trigger
+    sim.new_price(price=early_price, symbol="AXLUSDT")
+    await asyncio.sleep(0.1)
+
+    assert (
+        strategy.state == State.BOUGHT
+    ), f"Should NOT trigger at early price {early_price}, but state is {strategy.state}"
+
+    logger.info(f"✓ Did NOT trigger at early price: {early_price}")
+
+    # Now trigger at exact price - SHOULD trigger
+    sim.new_price(price=target_price, symbol="AXLUSDT")
+    await wait_for_condition(
+        condition_func=lambda: strategy.state == State.SELLING, timeout=5.0
+    )
+
+    logger.info(f"✓ Correctly triggered at exact price: {target_price}")
+    logger.info(f"✓ Multihop sell trigger mechanism works correctly!")
+
+
+async def test_regular_sell_uses_early_trigger_96_percent(frontend_backend_setup):
+    """
+    Test that regular (direct) sells trigger at 0.96 * sell_price (4% early).
+    This is the opposite of multihop and serves as a comparison test.
+
+    For regular sells with order_trigger = 2%, the actual trigger is:
+    0.96 * sell_price (which represents a 4% buffer)
+    """
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
+
+    assert len(back.strategies) == 0
+
+    # Setup direct sell (not multihop) - BTCUSDC is a direct pair
+    target_price = 100000.0
+    back.price_resolver.update_price("BTCUSDC", target_price)
+
+    # Create regular sell position (direct pair)
+    coin = "BTC"
+    sell_config = HPSell(
+        config=HPSellConfig(
+            hp_id="",
+            coin=coin,
+            buy_price=95000.0,
+            sell_price=target_price,
+            quantity=1.0,
+            end_currency="USDC",
+            symbol=back.price_resolver.symbols[f"{coin}USDC"],
+        ),
+        state_info=StateInfo(side=PositionSide.SHORT),
+    )
+    front.config_queue.put_nowait(sell_config)
+
+    # Wait for position to be created (parent + 1 child sell position)
+    await wait_for_condition(
+        condition_func=lambda: len(front.hp_list_data) == 2,
+    )
+
+    strategy = back.strategies["1000"]
+
+    # Calculate trigger price
+    trigger_price = strategy.calculate_trigger_send_orders_price_sell()
+    expected_trigger = 0.96 * target_price
+
+    logger.info(f"=== REGULAR SELL TRIGGER PRICE TEST ===")
+    logger.info(f"Target sell price: {target_price}")
+    logger.info(f"Expected trigger (0.96x): {expected_trigger}")
+    logger.info(f"Calculated trigger price: {trigger_price}")
+    logger.info(f"Sell type: {strategy.sell.current_position.sell_type}")
+
+    # CRITICAL ASSERTION: For regular sells, trigger should be at 0.96x
+    assert (
+        abs(trigger_price - expected_trigger) < 100
+    ), f"Regular sell should trigger at 0.96 * {target_price} = {expected_trigger}, but got {trigger_price}"
+
+    # Verify trigger happens at early price
+    strategy.client.create_order.side_effect = get_new_orders(
+        orders=[strategy.sell.current_position.sell_order]
+    )
+
+    # Trigger at 0.96x price - SHOULD trigger
+    sim.new_price(price=expected_trigger, symbol="BTCUSDC")
+    await wait_for_condition(
+        condition_func=lambda: strategy.state == State.SELLING, timeout=5.0
+    )
+
+    logger.info(
+        f"✓ Regular sell correctly triggered at early price: {expected_trigger}"
+    )
+    logger.info(f"✓ Regular sell trigger mechanism (0.96x) works correctly!")
