@@ -299,6 +299,23 @@ class RecoveryService:
             "Setting up NEW SELL position with config: %s", sell_position.config
         )
 
+        # Get actual strategy state from database instead of hardcoding to BOUGHT
+        # This ensures SOLD positions are restored with SOLD state, not BOUGHT
+        strategy_state_str = await self.get_strategy_state_from_db(parent_hp_id)
+        if strategy_state_str:
+            initial_state = State(strategy_state_str)
+            logger.info(
+                "Restoring strategy state from DB for HP %s: %s",
+                parent_hp_id,
+                initial_state,
+            )
+        else:
+            initial_state = State.BOUGHT
+            logger.warning(
+                "No strategy state found in DB for HP %s, defaulting to BOUGHT",
+                parent_hp_id,
+            )
+
         worker_queue: queue.Queue = queue.Queue()
 
         # Create temporary portfolio event helper (will be updated after strategy creation)
@@ -347,7 +364,7 @@ class RecoveryService:
             db=self.db,
             worker_queue=worker_queue,
             config_queue=config_queue,
-            initial_state=State.BOUGHT,
+            initial_state=initial_state,
             portfolio_ui_queue=portfolio_ui_queue,
         )
 
