@@ -74,10 +74,8 @@ async def test_recovery_get_default_buy_position(crash_recovery_factory):
     original_config = {
         "hp_id": strategy.buy.data.config.hp_id,
         "symbol": strategy.buy.data.config.symbol.name,
-        "price_low": strategy.buy.data.config.price_low,
-        "price_high": strategy.buy.data.config.price_high,
+        "buy_price": strategy.buy.data.config.buy_price,
         "budget": strategy.buy.data.config.budget,
-        "mode": strategy.buy.data.config.mode.value,
     }
 
     # === SIMULATE CRASH: Forcefully terminate original instances ===
@@ -135,7 +133,6 @@ async def test_recovery_get_default_buy_position(crash_recovery_factory):
         recovered_strategy.buy.data.config.price_high == original_config["price_high"]
     )
     assert recovered_strategy.buy.data.config.budget == original_config["budget"]
-    assert recovered_strategy.buy.data.config.mode.value == original_config["mode"]
 
     # Update simulator to use new backend and verify state consistency
     new_sim = HPSimulator(front=new_front, back=new_back)

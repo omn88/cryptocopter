@@ -66,7 +66,6 @@ class PositionManager:
                 price_low=buy_data.config.price_low,
                 price_high=buy_data.config.price_high,
                 order_trigger=buy_data.config.order_trigger,
-                mode=buy_data.config.mode.value,
                 completeness=buy_data.state_info.completeness,
                 trade_type=TradeType.DIRECT,
                 created_at=(

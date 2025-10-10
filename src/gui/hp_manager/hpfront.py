@@ -278,7 +278,6 @@ Side: {side}"""
                 price_high=config.price_high or 0.0,
                 budget=config.budget or 1000.0,
                 order_trigger=config.order_trigger if config.order_trigger else 1.0,
-                mode=Mode.DCA if config.mode == "DCA" else Mode.SINGLE,
             ),
             state_info=StateInfo(),
         )

@@ -471,7 +471,6 @@ def get_default_buy_position(trading_system_factory) -> HpStrategy:
     assert buy_cfg.price_high == 1400
     assert buy_cfg.order_trigger == 1
     assert buy_cfg.budget == 1000
-    assert buy_cfg.mode == Mode.DCA
     assert buy_cfg.symbol.name == "BTCUSDC"
 
     assert strategy.buy.data.state_info.side == PositionSide.LONG
@@ -518,7 +517,6 @@ def assert_default_buy_position_data(
     assert config.budget == 1000
     assert config.order_trigger == 1.0
     assert config.order_cancel == 2.0
-    assert config.mode == Mode.DCA
     assert config.symbol.name == "BTCUSDC"
     assert config.symbol.precision == 5
     assert config.symbol.price_precision == 2
@@ -622,7 +620,6 @@ async def move_to_buy_position_active(
     assert config.budget == 1000
     assert config.order_trigger == 1.0
     assert config.order_cancel == 2.0
-    assert config.mode == Mode.DCA
     assert config.symbol.name == "BTCUSDC"
     assert config.symbol.precision == 5
     assert config.symbol.price_precision == 2

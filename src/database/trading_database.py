@@ -737,14 +737,8 @@ class Database:
                 symbol=data.config.symbol.name,
                 coin=data.config.coin,
                 budget=data.config.budget,
-                price_low=data.config.price_low,
-                price_high=data.config.price_high,
+                buy_price=data.config.buy_price,
                 order_trigger=data.config.order_trigger,
-                mode=(
-                    data.config.mode.value
-                    if hasattr(data.config.mode, "value")
-                    else str(data.config.mode)
-                ),
                 completeness=data.state_info.completeness,
                 trade_type=TradeType.DIRECT,
                 created_at=(

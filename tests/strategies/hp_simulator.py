@@ -94,7 +94,6 @@ class HPSimulator:
     def simulate_buy_position(
         self,
         symbol: str,
-        mode: Mode = Mode.DCA,
         budget: float = 1000.0,
         price_low: float = 1000.0,
         price_high: float = 1400.0,  # Reverted back to 1400.0

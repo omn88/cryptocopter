@@ -689,8 +689,8 @@ class HpStrategy:
         budget_amount = self.get_remaining_quantity_buy()
         self.balance -= budget_amount
 
-        self.buy.prepare_orders()
-        self.buy.orders = await self.buy.open_position()
+        self.buy.prepare_order()
+        await self.buy.open_position()
         self.state = State.BUYING
         self.buy.data.state_info.state = State.NEW
 

@@ -42,10 +42,10 @@ class HPPositionBuy:
         self.client = client
         self.data = data
         self.db = db
-        self.orders: List[Order] = []
+        self.buy_order: Order = None
         self.orders_cancel_price: float = 0
 
-    async def open_position(self) -> List[Order]:
+    async def open_position(self) -> None:
         """Send a list of orders concurrently.
 
         Returns:
@@ -57,31 +57,23 @@ class HPPositionBuy:
             self.orders_cancel_price,
             self.data.config.symbol.name,
         )
-        logger.info("Orders: %s", self.orders)
-        for order in self.orders:
-            if order.status != ORDER_STATUS_FILLED:
-                order.status = ORDER_STATUS_NEW
-                order.order_id = 0
+        logger.info("Order: %s", self.buy_order)
+        if self.buy_order.status != ORDER_STATUS_FILLED:
+            self.buy_order.status = ORDER_STATUS_NEW
+            self.buy_order.order_id = 0
 
         logger.info("Orders after update: %s", self.orders)
+        if self.buy_order.status != ORDER_STATUS_FILLED:
+            self._create_order()
 
-        results = await asyncio.gather(
-            *[
-                self._create_order(order=order)
-                for order in self.orders
-                if order.status != ORDER_STATUS_FILLED
-            ]
+        logger.info(
+            "New %s order send for %s at price: %s and quantity: %s [id: %s]",
+            self.data.state_info.side.value,
+            self.data.config.symbol.name,
+            self.buy_order.price,
+            self.buy_order.quantity_stable,
+            self.buy_order.order_id,
         )
-        for order in results:
-            logger.info(
-                "New %s order send for %s at price: %s and quantity: %s [id: %s]",
-                self.data.state_info.side.value,
-                self.data.config.symbol.name,
-                order.price,
-                order.quantity_stable,
-                order.order_id,
-            )
-        return results
 
     async def cancel_position(self) -> None:
         logger.info(
@@ -189,66 +181,23 @@ class HPPositionBuy:
         self.data.state_info.get_completeness(self.orders)
         logger.info("Completeness: %s", self.data.state_info.completeness)
 
-    def prepare_orders(self) -> None:
+    def prepare_order(self) -> None:
         config = self.data.config
 
-        def prepare_single_buy_order():
-            orders.append(
-                Order(
-                    quantity=config.symbol.adjust_quantity(
-                        config.budget / config.price_high
-                    ),
-                    price=config.symbol.adjust_price(config.price_high),
-                    quantity_stable=config.budget,
-                    precision=config.symbol.precision,
-                    price_precision=config.symbol.price_precision,
-                )
-            )
+        order = Order(
+            quantity=config.symbol.adjust_quantity(config.budget / config.buy_price),
+            price=config.symbol.adjust_price(config.buy_price),
+            quantity_stable=config.budget,
+            precision=config.symbol.precision,
+            price_precision=config.symbol.price_precision,
+        )
 
-        orders = []
-
-        if config.mode == Mode.SINGLE:
-            prepare_single_buy_order()
-
-        if config.mode == Mode.DCA:
-            num_orders = 3
-
-            min_budget_for_max_orders = num_orders * config.symbol.min_notional
-
-            if config.budget >= min_budget_for_max_orders:
-                order_quantity_stable = config.budget / num_orders
-            else:
-                order_quantity_stable = config.symbol.min_notional
-                num_orders = int(config.budget / config.symbol.min_notional)
-                num_orders = num_orders if num_orders % 2 == 1 else num_orders - 1
-
-            if num_orders == 1:
-                prepare_single_buy_order()
-            else:
-                price_increment = (config.price_high - config.price_low) / (
-                    num_orders - 1
-                )
-
-                for i in range(num_orders):
-                    order_price = config.price_high - i * price_increment
-
-                    orders.append(
-                        Order(
-                            quantity=config.symbol.adjust_quantity(
-                                order_quantity_stable / order_price
-                            ),
-                            price=config.symbol.adjust_price(order_price),
-                            quantity_stable=round(order_quantity_stable, 2),
-                            precision=config.symbol.precision,
-                            price_precision=config.symbol.price_precision,
-                        )
-                    )
         logger.info(
             "Buy orders prepared:\n%s\n for position: %s",
-            pprint.pformat(list(orders)),
+            pprint.pformat(list(order)),
             config.symbol.name,
         )
-        self.orders = orders
+        self.buy_order = order
 
     def calculate_trigger_cancel_orders_price(self):
         return self.data.config.symbol.adjust_price(
@@ -323,15 +272,15 @@ class HPPositionBuy:
 
         return self.data.config.symbol.adjust_quantity(total_realized_quantity)
 
-    async def _create_order(self, order: Order) -> Order:
+    async def _create_order(self) -> Order:
         max_retries = 10
         last_exception = None
         for _ in range(max_retries):
             try:
                 symbol = self.data.config.symbol
-                price = symbol.format_price(order.price)
+                price = symbol.format_price(self.buy_order.price)
                 quantity = symbol.adjust_quantity(
-                    order.quantity - order.realized_quantity
+                    self.buy_order.quantity - self.buy_order.realized_quantity
                 )
                 symbol.validate_order(price=float(price), quantity=quantity)
                 resp = await self.client.create_order(
@@ -350,17 +299,17 @@ class HPPositionBuy:
                 last_exception = exception
                 logger.error(
                     "Failed to create spot order: %s due to %s: %s",
-                    order,
+                    self.buy_order,
                     type(exception).__name__,
                     exception,
                 )
                 await asyncio.sleep(1)  # wait for a second before retrying
                 continue
             else:
-                order.order_id = int(resp["orderId"])
-                # order.price = resp["price"]
-                order.status = resp["status"]
-                return order
+                self.buy_order.order_id = int(resp["orderId"])
+                # self.buy_order.price = resp["price"]
+                self.buy_order.status = resp["status"]
+                return self.buy_order
 
         assert last_exception is not None
         raise last_exception

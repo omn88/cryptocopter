@@ -376,12 +376,10 @@ class HPBuyConfig:
     symbol: Symbol
     coin: str
     hp_id: str = "0"
-    price_low: float = 0
-    price_high: float = 0
+    buy_price: float = 0
     order_trigger: float = 0
     order_cancel: float = 0
     budget: float = 0
-    mode: Mode = Mode.DCA
 
     def __post_init__(self):
         """Ensure order_cancel is always set correctly based on order_trigger"""
@@ -391,8 +389,8 @@ class HPBuyConfig:
     def __str__(self):
         return (
             f"HPBuyConfig(hp_id={self.hp_id}, symbol={self.symbol}"
-            f"price_low={self.price_low}, price_high={self.price_high}, "
-            f"order_trigger={self.order_trigger}, budget={self.budget}, mode={self.mode})"
+            f"buy_price={self.buy_price}, "
+            f"order_trigger={self.order_trigger}, budget={self.budget})"
         )
 
 

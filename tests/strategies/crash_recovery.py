@@ -59,10 +59,6 @@ class CrashRecoveryHelper:
             db_position.order_trigger == strategy.buy.data.config.order_trigger
         ), f"Order trigger mismatch: DB={db_position.order_trigger}, Memory={strategy.buy.data.config.order_trigger}"
 
-        assert (
-            db_position.mode == strategy.buy.data.config.mode.value
-        ), f"Mode mismatch: DB={db_position.mode}, Memory={strategy.buy.data.config.mode.value}"
-
         # Tolerate DB state == PARTIALLY_BOUGHT and memory == BUYING after cancel/resend recovery
 
         assert (

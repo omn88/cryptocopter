@@ -127,15 +127,9 @@ class PositionConverter:
                 symbol=symbol,
                 coin=position.coin,
                 hp_id=position.hp_id,
-                price_low=position.price_low,
-                price_high=position.price_high,
+                buy_price=position.buy_price,
                 order_trigger=position.order_trigger,
                 budget=position.budget,
-                mode=(
-                    Mode(position.mode)
-                    if position.mode in ["SINGLE", "DCA"]
-                    else Mode.DCA
-                ),
             )
 
             state_info = StateInfo(

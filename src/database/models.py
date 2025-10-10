@@ -98,11 +98,8 @@ class Position:
     hop_sequence: int = 0  # 0=original, 1=first hop, 2=second hop
 
     # Configuration
-    price_low: float = 0.0
-    price_high: float = 0.0
     order_trigger: float = 0.0
     end_currency: str = "USDC"
-    mode: str = "DCA"
 
     # State tracking
     completeness: float = 0.0
