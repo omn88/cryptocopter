@@ -993,6 +993,11 @@ class HpStrategy:
             self.sell.current_position.state_info.ui_state = UiState.CLOSED
             self.sell.current_position.state_info.completeness = 1.0
 
+            # Persist SOLD state to database
+            await self.db.upsert_sell_price_level(
+                data=self.sell.current_position, strategy_state=self.state
+            )
+
             # Emit a partial fill event (treat full convert as a single fill) so portfolio can
             # reduce inventory immediately under the new "fills mutate inventory" rule.
             try:
@@ -1293,6 +1298,7 @@ class HpStrategy:
         logger.info("All order filled, archiving position")
 
         self.sell.current_position.state_info.state = State.SOLD
+        self.state = State.SOLD  # Set parent strategy state to SOLD
         self.sell.current_position.state_info.ui_state = UiState.CLOSED
         self.sell.current_position.state_info.get_completeness(
             self.sell.current_position.sell_order
