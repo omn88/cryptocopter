@@ -86,6 +86,13 @@ class HPStateCalculator:
                 return "NEW"
 
     def has_sell_child(self, hp_id: str) -> bool:
+        """
+        Check if the parent HP has any active sell-type children.
+        This includes:
+        - Regular sell children (hp_id_SELL)
+        - Convert-only children (hp_id_CONVERT)
+        - Multihop children (hp_id with letter suffix like 1000a, 1000b)
+        """
         if not self.hp_list_data_getter:
             logger.warning(
                 "hp_list_data_getter not set, cannot check for sell children"
@@ -93,13 +100,30 @@ class HPStateCalculator:
             return False
 
         hp_list_data = self.hp_list_data_getter()
+
+        # Check for regular sell child
         for item in hp_list_data:
-            if item.get("hp_id") == f"{hp_id}_SELL":
+            child_hp_id = item.get("hp_id", "")
+
+            # Check if this is a sell-type child of the specified parent
+            is_regular_sell = child_hp_id == f"{hp_id}_SELL"
+            is_convert = child_hp_id == f"{hp_id}_CONVERT"
+            is_multihop = (
+                child_hp_id.startswith(f"{hp_id}")
+                and len(child_hp_id) > len(hp_id)
+                and child_hp_id[len(hp_id) : len(hp_id) + 1].isalpha()
+                and not child_hp_id.endswith("_BUY")
+            )
+
+            if is_regular_sell or is_convert or is_multihop:
                 state = item.get("state", "")
-                if state in ["SELLING", "PARTIALLY_SOLD", "NEW"]:
+                # Consider child as active if not in terminal states
+                if state in ["SELLING", "PARTIALLY_SOLD", "NEW", "BOUGHT", "BUYING"]:
                     return True
                 elif state in ["CLOSED", "CANCELLED", "SOLD"]:
-                    return False
+                    # Continue checking other children
+                    continue
+
         return False
 
     def get_sell_child_realized_quantity(self, hp_id: str) -> float:
@@ -119,6 +143,7 @@ class HPStateCalculator:
         hp_id = hp_data.get("hp_id", "")
         side = hp_data.get("side", "")
         is_child = hp_data.get("is_child", False)
+        state = hp_data.get("state", "")
         base_hp_id = hp_id.split("_")[0] if is_child else hp_id
 
         buttons: Dict[str, Any] = {"buttons": [], "states": {}}
@@ -126,13 +151,37 @@ class HPStateCalculator:
         if side == "PARENT":
             has_sell_child = self.has_sell_child(base_hp_id)
             realized_quantity = float(hp_data.get("quantity", "0.0"))
-            buttons["buttons"].append("SELL")
-            buttons["states"]["SELL"] = {
-                "enabled": realized_quantity > 0,
-                "text": "Update Sell" if has_sell_child else "Sell",
-            }
-            buttons["buttons"].append("CANCEL")
-            buttons["states"]["CANCEL"] = {"enabled": True, "text": "Cancel"}
+
+            # For SOLD state, disable both buttons (position is complete)
+            if state == "SOLD":
+                buttons["buttons"].append("SELL")
+                buttons["states"]["SELL"] = {
+                    "enabled": False,
+                    "text": "Update Sell" if has_sell_child else "Sell",
+                }
+                buttons["buttons"].append("CANCEL")
+                buttons["states"]["CANCEL"] = {"enabled": False, "text": "Cancel"}
+            else:
+                # For active positions (BUYING, BOUGHT, SELLING, etc.):
+                # - Allow setting sell price even if quantity is 0 (important for BUYING state)
+                # - Enable sell button if quantity > 0 OR if state is BUYING/SELLING
+                is_active_position = state in [
+                    "BUYING",
+                    "SELLING",
+                    "BOUGHT",
+                    "PARTIALLY_BOUGHT",
+                    "PARTIALLY_SOLD",
+                ]
+                sell_enabled = realized_quantity > 0 or is_active_position
+
+                buttons["buttons"].append("SELL")
+                buttons["states"]["SELL"] = {
+                    "enabled": sell_enabled,
+                    "text": "Update Sell" if has_sell_child else "Sell",
+                }
+                buttons["buttons"].append("CANCEL")
+                buttons["states"]["CANCEL"] = {"enabled": True, "text": "Cancel"}
+
         elif side == "BUY":
             has_sell_child = self.has_sell_child(base_hp_id)
             buttons["buttons"].append("CANCEL")
