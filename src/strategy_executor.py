@@ -819,11 +819,18 @@ class StrategyExecutor:
                         state=strategy.state,
                     )
 
-                # Send buy position to UI to ensure buy child is visible
-                # This is critical for showing complete position history in recovery
-                if strategy.buy and strategy.buy.data:
+                # Send buy position to UI ONLY if there were actual buy orders
+                # This ensures buy child appears only for positions that had a buy phase
+                # (e.g., HP 1000 had buy phase, but HP 1001-1004 were inventory sells)
+                if (
+                    strategy.buy
+                    and strategy.buy.data
+                    and strategy.buy.orders
+                    and len(strategy.buy.orders) > 0
+                ):
                     logger.info(
-                        "Sending buy position to UI for sell recovery: %s",
+                        "Sending buy position to UI for sell recovery (has %d buy orders): %s",
+                        len(strategy.buy.orders),
                         strategy.buy.data.config.hp_id,
                     )
                     self.send_buy_position_to_ui(
@@ -831,6 +838,11 @@ class StrategyExecutor:
                         state_info=strategy.buy.data.state_info,
                         state=strategy.state,
                         buy_orders=strategy.buy.orders,
+                    )
+                else:
+                    logger.info(
+                        "Skipping buy position UI update for sell-only recovery (no buy orders): %s",
+                        sell_data.config.hp_id,
                     )
 
                 logger.info(
