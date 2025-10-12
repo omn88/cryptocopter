@@ -580,24 +580,13 @@ class HpStrategy:
         )
         self.ui_queue.put_nowait(sell_data)
 
-    def calculate_trigger_send_orders_price_buy(self):
-        # With single order architecture, check if buy_order exists and is not filled
-        if (
-            self.buy.buy_order
-            and self.buy.buy_order.status != ORDER_STATUS_FILLED
-        ):
-            price = self.buy.data.config.symbol.adjust_price(
-                self.buy.buy_order.price
-                * (1 + self.buy.data.config.order_trigger / 100)
-            )
-        else:
-            price = 0.0
-
-        # logger.info(
-        #     "Calculated price for trigger send orders price buy: %s, config: %s",
-        #     price,
-        #     self.buy.data.config,
-        # )
+    def calculate_trigger_send_order_price_buy(self):
+        price = self.buy.data.config.symbol.adjust_price(
+            self.buy.buy_order.price * (1 + self.buy.data.config.order_trigger / 100)
+        )
+        logger.info(
+            "Buy order trigger: %s price: %s", self.buy.data.config.order_trigger, price
+        )
         return price
 
     def get_remaining_quantity_buy(self, *args, **kwargs) -> float:
@@ -611,12 +600,14 @@ class HpStrategy:
         return rem_quant
 
     def conditions_for_sending_buy_orders(self, *args, **kwargs) -> bool:
-        trigger_send_orders_price = self.calculate_trigger_send_orders_price_buy()
         condition = (
             self.state == State.NEW
             and self.buy.data.state_info.state == State.NEW
-            and self.ticker_update.last_price <= trigger_send_orders_price
+            and self.ticker_update.last_price
+            <= self.calculate_trigger_send_order_price_buy()
             and self.balance >= self.buy.data.config.budget
+            and self.buy.buy_order is not None
+            and self.buy.buy_order.status != ORDER_STATUS_FILLED
         )
         if condition:
             logger.info(
@@ -627,7 +618,7 @@ class HpStrategy:
                 self.state,
                 self.buy.data.config.budget,
                 self.balance,
-                trigger_send_orders_price,
+                self.calculate_trigger_send_order_price_buy(),
                 self.ticker_update.last_price,
             )
         if self.balance < self.buy.data.config.budget:
@@ -760,7 +751,7 @@ class HpStrategy:
     def conditions_for_resending_partially_bought_position(
         self, *args, **kwargs
     ) -> bool:
-        trigger_send_orders_price = self.calculate_trigger_send_orders_price_buy()
+        trigger_send_orders_price = self.calculate_trigger_send_order_price_buy()
         remaining_quantity = self.get_remaining_quantity_buy()
 
         condition = (
@@ -1448,7 +1439,7 @@ class HpStrategy:
             self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
             and self.sell.current_position.state_info.state == State.PARTIALLY_SOLD
             and self.ticker_update.last_price
-            <= self.calculate_trigger_send_orders_price_buy()
+            <= self.calculate_trigger_send_order_price_buy()
         )
         if condition:
             logger.info(
@@ -1559,7 +1550,7 @@ class HpStrategy:
             self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
             and self.sell.current_position.state_info.state == State.SOLD
             and self.ticker_update.last_price
-            <= self.calculate_trigger_send_orders_price_buy()
+            <= self.calculate_trigger_send_order_price_buy()
         )
         if condition:
             logger.info(

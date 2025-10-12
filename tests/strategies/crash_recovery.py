@@ -67,9 +67,7 @@ class CrashRecoveryHelper:
         logger.info("  Symbol: %s", db_position.symbol)
         logger.info("  Coin: %s", db_position.coin)
         logger.info("  Budget: %s", db_position.budget)
-        logger.info(
-            "  Buy price: %s", db_position.buy_price
-        )
+        logger.info("  Buy price: %s", db_position.buy_price)
         logger.info("  Order trigger: %s", db_position.order_trigger)
         logger.info("  Mode: %s", db_position.mode)
         logger.info(

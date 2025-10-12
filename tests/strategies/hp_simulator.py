@@ -108,7 +108,6 @@ class HPSimulator:
                 buy_price=buy_price,
                 order_trigger=order_trigger,
                 budget=budget,
-                mode=mode,
                 coin=coin,
             ),
             state_info=StateInfo(),

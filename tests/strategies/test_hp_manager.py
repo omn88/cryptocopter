@@ -9,7 +9,7 @@ from binance.enums import (
     ORDER_STATUS_CANCELED,
     ORDER_STATUS_EXPIRED,
 )
-from src.gui.identifiers import HPGuiDataBuy, HPGuiDataSell
+from src.gui.identifiers import HPGuiDataSell
 from src.common.identifiers import (
     Event,
     EventName,
@@ -45,19 +45,17 @@ from tests.strategies.hp_manager_helpers import (
     send_sell_order_for_partially_bought_position,
     simulate_bought_position,
     simulate_cancel_sell_position,
-    simulate_first_buy_order_fill,
+    simulate_complete_buy_order_fill,
     simulate_partial_fill,
     simulate_partial_fill_sell,
     simulate_resend_sell_position,
     simulate_second_buy_order_fill_after_selling_half_of_first_order,
-    prepare_hp_update_for_collapse,
-    wait_for_condition,
 )
 
 logger = logging.getLogger("test_hp_manager")
 
 
-async def test_default_position(hp_gui: HpFront, trading_system_factory) -> None:
+async def test_default_buy_position(hp_gui: HpFront, trading_system_factory) -> None:
     """
     This test purpose is to instantiate basic buy position and assert on
     the default values
@@ -73,7 +71,7 @@ async def test_default_position(hp_gui: HpFront, trading_system_factory) -> None
     )
 
 
-async def test_default_position_send_orders(
+async def test_default_buy_position_send_order(
     hp_gui: HpFront, trading_system_factory
 ) -> None:
     """
@@ -95,7 +93,7 @@ async def test_default_position_send_orders(
     )
 
 
-async def test_cancel_default_position_untouched(
+async def test_cancel_default_buy_position_untouched(
     hp_gui: HpFront, trading_system_factory
 ) -> None:
     """
@@ -124,7 +122,7 @@ async def test_cancel_default_position_untouched(
     )
 
 
-async def test_cancel_default_position_untouched_then_resend_orders(
+async def test_cancel_default_position_untouched_then_resend_order(
     trading_system_factory, hp_gui: HpFront
 ) -> None:
     """
@@ -213,7 +211,7 @@ async def test_default_position_first_order_filled_partially_then_cancel(
     )
 
 
-async def test_default_position_first_order_filled(
+async def test_default_position_first_order_filled_partially_then_cancel_then_resend(
     trading_system_factory, hp_gui: HpFront
 ) -> None:
     # Path 0: Default buy position
@@ -230,13 +228,27 @@ async def test_default_position_first_order_filled(
         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
     )
 
-    # Simulate full order fill
-    strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
+    # Simulate partial fill
+    strategy = await simulate_partial_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
+
+    # Cancel position
+    strategy = await cancel_partially_bought_position_first_order_filled_partially(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
+
+    # Reopen position
+    strategy.client.create_order.side_effect = get_new_order(
+        order=strategy.buy.buy_order
+    )
+
+    strategy = await resend_part_bought_first_order_filled_partially(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
 
-async def test_default_position_first_order_filled_then_cancel(
+async def test_default_position_buy_order_filled(
     trading_system_factory, hp_gui: HpFront
 ) -> None:
     # Path 0: Default buy position
@@ -253,37 +265,12 @@ async def test_default_position_first_order_filled_then_cancel(
         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
     )
 
-    # Simulate full order fill
-    strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
-    )
-
-    # Cancel partially bought position
-    strategy = await cancel_partially_bought_position_first_order_filled(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-    )
-
-
-async def test_default_position_all_buy_orders_filled(
-    trading_system_factory, hp_gui: HpFront
-) -> None:
-    # Path 0: Default buy position
-    hp_list: List[Dict] = []
-    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
-
-    strategy, hp_list = assert_default_buy_position_data(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-    )
-
-    # Path 1: Send buy orders
-
-    strategy, hp_list = await move_to_buy_position_active(
-        strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
-    )
-
-    # Simulate full order fill
-    strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
+    # Simulate complete order fill (all 0.71429 BTC)
+    # Use the actual order_id from the strategy
+    assert strategy.buy.buy_order is not None
+    order_id = strategy.buy.buy_order.order_id
+    strategy, hp_list = await simulate_complete_buy_order_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
     )
 
 
@@ -369,80 +356,6 @@ async def test_conditions_for_buy_order_expiration(
         order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_EXPIRED
     )
     assert strategy.conditions_for_order_expiration()
-
-
-async def test_default_position_first_order_filled_partially_then_cancel_then_resend(
-    trading_system_factory, hp_gui: HpFront
-) -> None:
-    # Path 0: Default buy position
-    hp_list: List[Dict] = []
-    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
-
-    strategy, hp_list = assert_default_buy_position_data(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-    )
-
-    # Path 1: Send buy orders
-
-    strategy, hp_list = await move_to_buy_position_active(
-        strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
-    )
-
-    # Simulate partial fill
-    strategy = await simulate_partial_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-    )
-
-    # Cancel position
-    strategy = await cancel_partially_bought_position_first_order_filled_partially(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-    )
-
-    # Reopen position
-    strategy.client.create_order.side_effect = get_new_order(
-        order=strategy.buy.buy_order
-    )
-
-    strategy = await resend_part_bought_first_order_filled_partially(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-    )
-
-
-async def test_default_position_first_order_filled_then_cancel_then_resend(
-    trading_system_factory, hp_gui: HpFront
-) -> None:
-    # Path 0: Default buy position
-    hp_list: List[Dict] = []
-    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
-
-    strategy, hp_list = assert_default_buy_position_data(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-    )
-
-    # Path 1: Send buy orders
-
-    strategy, hp_list = await move_to_buy_position_active(
-        strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
-    )
-
-    # Simulate full order fill
-    strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
-    )
-
-    # Cancel partially bought position
-    strategy = await cancel_partially_bought_position_first_order_filled(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-    )
-
-    # Resend buy orders after 1st order was filled
-    strategy.client.create_order.side_effect = get_new_order(
-        order=strategy.buy.buy_order
-    )
-
-    strategy, hp_list = await resend_part_bought_first_order_filled(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-    )
 
 
 async def test_send_sell_order_for_bought_position(
@@ -810,8 +723,10 @@ async def test_send_sell_order_for_partially_bought_position(
     )
 
     # Simulate full order fill
-    strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
+    assert strategy.buy.buy_order is not None
+    order_id = strategy.buy.buy_order.order_id
+    strategy, hp_list = await simulate_complete_buy_order_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
     )
 
     # Cancel partially bought position
@@ -842,8 +757,10 @@ async def test_cancel_unfilled_sell_orders_for_partially_bought_position(
     )
 
     # Simulate full order fill
-    strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
+    assert strategy.buy.buy_order is not None
+    order_id = strategy.buy.buy_order.order_id
+    strategy, hp_list = await simulate_complete_buy_order_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
     )
 
     # Cancel partially bought position
@@ -878,8 +795,10 @@ async def test_fill_orders_for_previously_partially_bought_position(
     )
 
     # Simulate full order fill
-    strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
+    assert strategy.buy.buy_order is not None
+    order_id = strategy.buy.buy_order.order_id
+    strategy, hp_list = await simulate_complete_buy_order_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
     )
 
     # Cancel partially bought position
@@ -919,8 +838,10 @@ async def test_sell_partially_partially_bought_position(
         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
     )
     # Simulate full order fill
-    strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
+    assert strategy.buy.buy_order is not None
+    order_id = strategy.buy.buy_order.order_id
+    strategy, hp_list = await simulate_complete_buy_order_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
     )
 
     # Cancel partially bought position
@@ -955,8 +876,10 @@ async def test_buy_partially_partially_sold_position(
     )
 
     # Simulate full order fill
-    strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
+    assert strategy.buy.buy_order is not None
+    order_id = strategy.buy.buy_order.order_id
+    strategy, hp_list = await simulate_complete_buy_order_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
     )
 
     # Cancel partially bought position
@@ -1002,8 +925,10 @@ async def test_cancel_buy_to_part_sold_part_bought(
     )
 
     # Simulate full order fill
-    strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
+    assert strategy.buy.buy_order is not None
+    order_id = strategy.buy.buy_order.order_id
+    strategy, hp_list = await simulate_complete_buy_order_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
     )
 
     # Cancel partially bought position
@@ -1101,8 +1026,10 @@ async def test_buy_fully_partially_sold_position(
     )
 
     # Simulate full order fill
-    strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
+    assert strategy.buy.buy_order is not None
+    order_id = strategy.buy.buy_order.order_id
+    strategy, hp_list = await simulate_complete_buy_order_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
     )
 
     # Cancel partially bought position
@@ -1211,8 +1138,10 @@ async def test_sell_fully_partially_bought_position(
     )
 
     # Simulate full order fill
-    strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
+    assert strategy.buy.buy_order is not None
+    order_id = strategy.buy.buy_order.order_id
+    strategy, hp_list = await simulate_complete_buy_order_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
     )
 
     # Cancel partially bought position
@@ -1350,8 +1279,10 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     )
 
     # Simulate full order fill
-    strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
+    assert strategy.buy.buy_order is not None
+    order_id = strategy.buy.buy_order.order_id
+    strategy, hp_list = await simulate_complete_buy_order_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
     )
 
     # Cancel partially bought position

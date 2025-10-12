@@ -544,7 +544,6 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
                 buy_price=hp_config.buy_price,
                 order_trigger=hp_config.order_trigger,
                 budget=hp_config.budget,
-                mode=hp_config.mode,
             ),
             state_info=StateInfo(side=PositionSide.LONG),
         )

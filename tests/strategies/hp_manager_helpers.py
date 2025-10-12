@@ -25,6 +25,7 @@ from src.common.identifiers import (
     Mode,
     PositionSide,
     SellPosition,
+    Signal,
     SignalUpdate,
     StateInfo,
     TickerUpdate,
@@ -475,7 +476,7 @@ def get_default_buy_position(trading_system_factory) -> HpStrategy:
     assert strategy.buy.data.state_info.completeness == 0
     assert strategy.buy.data.state_info.ui_state == UiState.NEW
 
-    assert strategy.calculate_trigger_send_orders_price_buy() == 1414
+    assert strategy.calculate_trigger_send_order_price_buy() == 1414
 
     assert strategy.buy.buy_order
     # With single order, full budget is used: 1000 / 1400 = 0.71429
@@ -589,7 +590,7 @@ def assert_default_buy_position_data(
 async def move_to_buy_position_active(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict], trigger_price: float
 ) -> Tuple[HpStrategy, List[Dict]]:
-    assert strategy.calculate_trigger_send_orders_price_buy() == trigger_price
+    assert strategy.calculate_trigger_send_order_price_buy() == trigger_price
     strategy.ticker_update = TickerUpdate(last_price=trigger_price, symbol="BTCUSDC")
 
     assert strategy.conditions_for_sending_buy_orders()
@@ -737,24 +738,49 @@ async def simulate_partial_fill(
     return strategy
 
 
-async def simulate_first_buy_order_fill(
+async def simulate_complete_buy_order_fill(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict], order_id: int
 ) -> Tuple[HpStrategy, List[Dict]]:
+    """Simulate complete fill of the buy order (all 0.71429 BTC filled)."""
     assert strategy.buy.buy_order is not None
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
         order_id=order_id,
-        last_executed_quantity=0.24,
+        last_executed_quantity=0.71429,
         last_executed_price=1400,
-        cumulative_filled_quantity=0.24,
+        cumulative_filled_quantity=0.71429,
         price=1400.0,
     )
     await strategy.process_order()  # type: ignore[attr-defined]
-    assert strategy.state == State.BUYING
+
+    # After process_order(), we get one UI update for PARTIALLY_BOUGHT state
+    assert strategy.ui_queue.qsize() == 1
+    first_content = strategy.ui_queue.get_nowait()
+    logger.info("First content: %s", first_content)
+    assert isinstance(first_content, HPGuiDataBuy)
+    assert first_content.data.state_info.state == State.BOUGHT
+
+    # Wait for the HP_ALL_ORDERS_FILLED signal to be queued
+    await asyncio.sleep(0.1)  # Brief wait for signal to be queued
+
+    # Manually process the signal from worker queue (no worker thread in tests)
+    assert strategy.worker_queue.qsize() == 1
+    event = strategy.worker_queue.get_nowait()
+    assert isinstance(event, Event)
+    assert event.name == EventName.SIGNAL
+    assert isinstance(event.content, SignalUpdate)
+    assert event.content.signal == Signal.HP_ALL_ORDERS_FILLED
+
+    # Set the signal and trigger the state machine
+    strategy.signal_update = event.content
+    await strategy.process_signal()  # type: ignore[attr-defined]
+
     logger.info("Order: %s", strategy.buy.buy_order)
     assert strategy.buy.buy_order.status == ORDER_STATUS_FILLED
+    assert strategy.state == State.BOUGHT
 
+    # Now we get the second UI update for BOUGHT state
     assert strategy.ui_queue.qsize() == 1
     content = strategy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
@@ -763,42 +789,34 @@ async def simulate_first_buy_order_fill(
     state_info = content.data.state_info
     assert isinstance(state_info, StateInfo)
 
-    assert state_info.state == State.PARTIALLY_BOUGHT
-
-    assert state_info.ui_state == UiState.OPEN
-    assert content.data.config.order_cancel == 2.0
-    assert state_info.completeness == 0.28
+    assert state_info.state == State.BOUGHT
+    assert state_info.ui_state == UiState.CLOSED
+    assert state_info.completeness == 1.0
 
     assert strategy.ui_queue.qsize() == 0
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
-    # With unified HP manager, we expect 2 items: parent container and child position
     assert len(hp_list) == 2
 
-    # Find the child item (BUY position) - this is the one with actual data
     child_item = None
     for item in hp_list:
-        if not item.get("children"):  # Child doesn't have children
+        if not item.get("children"):
             child_item = item
             break
 
     assert child_item is not None, "No child position found"
-    assert (
-        child_item["hp_id"] == "1000_BUY" or child_item["hp_id"] == "1000"
-    )  # Allow both formats
+    assert child_item["hp_id"] == "1000_BUY" or child_item["hp_id"] == "1000"
     assert child_item["coin"] == "BTCUSDC"
     assert child_item["buy_price"] == "1400.0"
     assert child_item["quantity"] == "0.71429"
-    assert child_item["quantity_usd"] == "336.0"
-    # Buy children should not have sell-related fields
+    assert child_item["quantity_usd"] == "1000.0"
     assert "sell_price" not in child_item
     assert "expected_return" not in child_item
     assert child_item["current_price"] == "0.0"
     assert child_item["net"] == "0.0"
     assert child_item["net_percent"] == "0.0"
-    # After partial fill, the buy child should be PARTIALLY_BOUGHT
-    assert child_item["state"] == "PARTIALLY_BOUGHT"
+    assert child_item["state"] == "BOUGHT"
 
     logger.info("HP List after the update: %s", hp_list)
 
@@ -881,7 +899,7 @@ async def simulate_second_buy_order_fill_after_selling_half_of_first_order(
 async def resend_part_bought_first_order_filled(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
-    assert strategy.calculate_trigger_send_orders_price_buy() == 1212
+    assert strategy.calculate_trigger_send_order_price_buy() == 1212
     strategy.ticker_update = TickerUpdate(last_price=1212, symbol="BTCUSDC")
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
@@ -939,7 +957,7 @@ async def resend_part_bought_first_order_filled(
 async def resend_part_bought_first_order_filled_with_sell_price(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
-    assert strategy.calculate_trigger_send_orders_price_buy() == 1212
+    assert strategy.calculate_trigger_send_order_price_buy() == 1212
     strategy.ticker_update = TickerUpdate(last_price=1212, symbol="BTCUSDC")
     strategy.client.create_order.side_effect = [get_new_order(strategy.buy.buy_order)]
 
@@ -1058,7 +1076,7 @@ async def cancel_partially_bought_position_first_order_filled_partially(
 async def resend_part_bought_first_order_filled_partially(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> HpStrategy:
-    assert strategy.calculate_trigger_send_orders_price_buy() == 1414
+    assert strategy.calculate_trigger_send_order_price_buy() == 1414
     strategy.ticker_update = TickerUpdate(last_price=1414, symbol="BTCUSDC")
 
     await strategy.process_ticker()  # type: ignore[attr-defined]
@@ -1558,9 +1576,11 @@ async def simulate_bought_position(
     strategy, hp_list = await move_to_buy_position_active(
         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
     )
-    # Simulate full order fill
-    strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
+    # Simulate full order fill with actual order_id from strategy
+    assert strategy.buy.buy_order is not None
+    order_id = strategy.buy.buy_order.order_id
+    strategy, hp_list = await simulate_complete_buy_order_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
     )
 
     return strategy, hp_list
@@ -2026,7 +2046,7 @@ async def cancel_sell_position_part_bought_part_sold(
 async def reopen_buy_part_bought_part_sold(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
-    assert strategy.calculate_trigger_send_orders_price_buy() == 1212
+    assert strategy.calculate_trigger_send_order_price_buy() == 1212
     strategy.ticker_update = TickerUpdate(last_price=1212, symbol="BTCUSDC")
 
     assert not strategy.conditions_for_sending_buy_orders()
@@ -2099,7 +2119,7 @@ async def reopen_buy_part_bought_part_sold(
 async def reopen_buy_part_bought_sold(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
-    assert strategy.calculate_trigger_send_orders_price_buy() == 1212
+    assert strategy.calculate_trigger_send_order_price_buy() == 1212
     strategy.ticker_update = TickerUpdate(last_price=1212, symbol="BTCUSDC")
 
     assert not strategy.conditions_for_sending_buy_orders()

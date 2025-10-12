@@ -187,11 +187,11 @@ class BuyHPModal(BaseHPModal):
         buy_price = None
 
         if (
-            hasattr(self.symbol_input, "price_high_input")
-            and self.symbol_input.price_high_input.text
+            hasattr(self.symbol_input, "buy_price_input")
+            and self.symbol_input.buy_price_input.text
         ):
             try:
-                buy_price = float(self.symbol_input.price_high_input.text)
+                buy_price = float(self.symbol_input.buy_price_input.text)
                 if buy_price <= 0:
                     buy_price = None
             except ValueError:

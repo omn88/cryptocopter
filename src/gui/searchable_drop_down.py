@@ -45,16 +45,11 @@ class SearchableDropDown(BoxLayout):
 
         # Adding price input fields in a single horizontal BoxLayout
         price_box = BoxLayout(orientation="horizontal", size_hint_y=None, height=30)
-        price_box.add_widget(Label(text="Price Low:", size_hint_x=0.2))
-        self.price_low_input = TextInput(
+        price_box.add_widget(Label(text="Buy Price:", size_hint_x=0.2))
+        self.buy_price = TextInput(
             hint_text="0.0", size_hint_x=0.3, height=30, multiline=False
         )
-        price_box.add_widget(self.price_low_input)
-        price_box.add_widget(Label(text="Price High:", size_hint_x=0.2))
-        self.price_high_input = TextInput(
-            hint_text="0.0", size_hint_x=0.3, height=30, multiline=False
-        )
-        price_box.add_widget(self.price_high_input)
+        price_box.add_widget(self.buy_price)
         self.add_widget(price_box)
 
     async def fetch_bid_ask_price(self, symbol: str):
@@ -66,8 +61,7 @@ class SearchableDropDown(BoxLayout):
 
     async def _update_prices_async(self, symbol: str):
         bid, ask = await self.fetch_bid_ask_price(symbol)
-        self.price_low_input.text = self.symbols[symbol].format_price(bid)
-        self.price_high_input.text = self.symbols[symbol].format_price(ask)
+        self.buy_price_input.text = self.symbols[symbol].format_price(ask)
 
     def update_dropdown(self, instance, value):
         self.dropdown.clear_widgets()

@@ -370,7 +370,6 @@ class HPBuyConfig:
     order_trigger: float = 0
     order_cancel: float = 0
     budget: float = 0
-    mode: str = ""
 
     def __post_init__(self):
         """Ensure order_cancel is always set correctly based on order_trigger"""
