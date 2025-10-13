@@ -56,9 +56,9 @@ async def test_default_buy_position_send_order(frontend_backend_setup):
 
     # Open position and send order
     strategy = back.strategies["1000"]
-    strategy.client.create_order.side_effect = get_new_order(
-        order=strategy.buy.buy_order
-    )
+    strategy.client.create_order.side_effect = [
+        get_new_order(order=strategy.buy.buy_order)
+    ]
     sim.new_price(price=1410)
 
     # Assert new opened position data
@@ -116,7 +116,7 @@ async def test_cancel_default_position_untouched(frontend_backend_setup):
         condition_func=lambda: strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
     )
 
-    assert len(strategy.buy.buy_order) == 1
+    assert strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
     assert strategy.buy.data.state_info.state == State.NEW
     assert strategy.state == State.NEW
 
@@ -198,9 +198,9 @@ async def test_default_position_first_order_filled_then_cancel(
     assert strategy.buy.order_cancel_price == 1428.0
     sim.new_price(price=1428.0)
 
-    assert len(strategy.buy.buy_order) == 1
+    assert strategy.buy.buy_order is not None
 
-    assert strategy.buy.buy_order.status == ORDER_STATUS_FILLED
+    assert strategy.buy.buy_order.status == ORDER_STATUS_PARTIALLY_FILLED
 
     # Wait for state transition to complete
     await wait_for_condition(
@@ -233,7 +233,7 @@ async def test_default_position_first_order_filled_then_cancel(
     sim.validate_buy_order(
         strategy,
         [
-            {"realized_quantity": 0.24, "status": ORDER_STATUS_FILLED},
+            {"realized_quantity": 0.24, "status": ORDER_STATUS_CANCELED},
         ],
     )
     sim.validate_strategy_state(
@@ -381,7 +381,7 @@ async def test_default_position_first_order_filled(
     sim.validate_buy_order(
         strategy,
         [
-            {"realized_quantity": 0.24, "status": ORDER_STATUS_FILLED},
+            {"realized_quantity": 0.24, "status": ORDER_STATUS_PARTIALLY_FILLED},
         ],
     )
     sim.validate_strategy_state(
@@ -404,19 +404,19 @@ async def test_default_position_buy_order_filled(
     # Comprehensive validation for fully bought position
     sim.validate_parent(
         "1000",
-        quantity="0.85",
+        quantity="0.71429",
         realized_quantity="0.0",
         state="BOUGHT",
-        buy_price="1178.82",
-        quantity_usd="1002.0",
+        buy_price="1400.0",
+        quantity_usd="1000.01",
     )
     sim.validate_child_buy(
-        "1000", quantity="0.71429", realized_quantity="0.85", state="BOUGHT"
+        "1000", quantity="0.71429", realized_quantity="0.71429", state="BOUGHT"
     )
     sim.validate_buy_order(
         strategy,
         [
-            {"realized_quantity": 0.24, "status": ORDER_STATUS_FILLED},
+            {"realized_quantity": 0.71429, "status": ORDER_STATUS_FILLED},
         ],
     )
     sim.validate_strategy_state(strategy, "BOUGHT", expected_buy_state="BOUGHT")
@@ -488,9 +488,9 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
     logger.info("HP List after the update: %s", front.hp_list_data)
 
     # Reopen position
-    strategy.client.create_order.side_effect = get_new_order(
-        order=strategy.buy.buy_order
-    )
+    strategy.client.create_order.side_effect = [
+        get_new_order(order=strategy.buy.buy_order)
+    ]
     sim.new_price(price=1414)
 
     await wait_for_condition(lambda: strategy.buy.buy_order.status == ORDER_STATUS_NEW)
@@ -548,9 +548,14 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
     assert strategy.buy.order_cancel_price == 1428.0
     sim.new_price(price=1428.0)
 
+    # Wait for cancel to complete
+    await wait_for_condition(
+        condition_func=lambda: strategy.state == State.PARTIALLY_BOUGHT
+    )
+
     assert strategy.buy.buy_order is not None
 
-    assert strategy.buy.buy_order.status == ORDER_STATUS_FILLED
+    assert strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
 
     assert strategy.buy.buy_order.realized_quantity == 0.24
 
@@ -581,7 +586,7 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
     sim.validate_buy_order(
         strategy,
         [
-            {"realized_quantity": 0.24, "status": ORDER_STATUS_FILLED},
+            {"realized_quantity": 0.24, "status": ORDER_STATUS_CANCELED},
         ],
     )
     sim.validate_strategy_state(
@@ -590,17 +595,20 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
 
     logger.info("HP List after the update: %s", front.hp_list_data)
 
-    # Reopen position
-    strategy.client.create_order.side_effect = get_new_order(
-        order=strategy.buy.buy_order
-    )
+    # Reopen position - mock will return new order when create_order is called
+    # The system should send a new order for the remaining quantity
+    strategy.client.create_order.side_effect = [get_new_order(order=None)]
 
-    # Price trigger is now related to the middle order as the top order is already filled.
+    # Price trigger is now for resending the buy order
     sim.new_price(price=1212)
 
-    assert strategy.buy.buy_order.status == ORDER_STATUS_FILLED
+    # Wait for new order to be sent
+    await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
 
-    assert strategy.buy.buy_order.realized_quantity == 0.24
+    # New order should be sent
+    assert strategy.buy.buy_order is not None
+    assert strategy.buy.buy_order.status == ORDER_STATUS_NEW
+    assert strategy.buy.buy_order.realized_quantity == 0.0
 
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.state == State.BUYING
@@ -609,22 +617,22 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
         condition_func=lambda: front.hp_list_data[0]["state"] == "BUYING"
     )
 
-    # Comprehensive validation for resent order state (first order filled scenario)
+    # Comprehensive validation for resent order state
     sim.validate_parent(
         "1000",
-        quantity="0.24",
+        quantity="0.24",  # Still only the originally filled amount
         realized_quantity="0.0",
         state="BUYING",
         buy_price="1400.0",
         quantity_usd="336.0",
     )
     sim.validate_child_buy(
-        "1000", quantity="0.71429", realized_quantity="0.24", state="PARTIALLY_BOUGHT"
+        "1000", quantity="0.47429", realized_quantity="0.24", state="PARTIALLY_BOUGHT"
     )
     sim.validate_buy_order(
         strategy,
         [
-            {"realized_quantity": 0.24, "status": ORDER_STATUS_FILLED},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_NEW},
         ],
     )
     sim.validate_strategy_state(
@@ -644,8 +652,8 @@ async def test_setup_sell_position_for_bought_position(
     await sim.setup_sell_position(
         hp_id="1000",
         symbol="BTCUSDC",
-        quantity=0.85,
-        buy_price=1178.82,
+        quantity=0.71429,
+        buy_price=1400.0,
         sell_price=4200.0,
         end_currency="USDC",
         coin="BTC",
@@ -655,19 +663,19 @@ async def test_setup_sell_position_for_bought_position(
     strategy = back.strategies["1000"]
     sim.validate_parent(
         "1000",
-        quantity="0.85",
+        quantity="0.71429",
         realized_quantity="0.0",
         state="BOUGHT",
-        buy_price="1178.82",
+        buy_price="1400.0",
         sell_price="4200.0",
-        quantity_usd="1002.0",
+        quantity_usd="1000.01",
     )
     sim.validate_child_buy(
-        "1000", quantity="0.71429", realized_quantity="0.85", state="BOUGHT"
+        "1000", quantity="0.71429", realized_quantity="0.71429", state="BOUGHT"
     )
     sim.validate_child_sell(
         "1000",
-        quantity="0.85",
+        quantity="0.71429",
         realized_quantity="0.0",
         state="NEW",
         sell_price="4200.0",
@@ -686,8 +694,8 @@ async def test_send_sell_order_for_bought_position(
     await sim.setup_sell_position(
         hp_id="1000",
         symbol="BTCUSDC",
-        quantity=0.85,
-        buy_price=1178.82,
+        quantity=0.71429,
+        buy_price=1400.0,
         sell_price=4200.0,
         end_currency="USDC",
         coin="BTC",
@@ -695,9 +703,9 @@ async def test_send_sell_order_for_bought_position(
 
     strategy = back.strategies["1000"]
 
-    strategy.client.create_order.side_effect = get_new_order(
-        order=strategy.sell.current_position.sell_order
-    )
+    strategy.client.create_order.side_effect = [
+        get_new_order(order=strategy.sell.current_position.sell_order)
+    ]
     sim.new_price(price=4156)
 
     await wait_for_condition(
@@ -706,13 +714,13 @@ async def test_send_sell_order_for_bought_position(
     # Validate using comprehensive helper methods from simulator
     sim.validate_parent(
         "1000",
-        quantity="0.85",
+        quantity="0.71429",
         realized_quantity="0.0",
         state="SELLING",
-        buy_price="1178.82",
+        buy_price="1400.0",
         sell_price="4200.0",
-        quantity_usd="1002.0",
-        expected_return="2568.0",
+        quantity_usd="1000.01",
+        expected_return="2000.01",
         current_price="0.0",
         net="0.0",
         net_percent="0.0",
@@ -722,13 +730,13 @@ async def test_send_sell_order_for_bought_position(
         condition_func=lambda: strategy.sell.current_position.sell_order.status
         == ORDER_STATUS_NEW
     )
-    assert strategy.sell.current_position.sell_order.quantity == 0.85
+    assert strategy.sell.current_position.sell_order.quantity == 0.71429
     assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
     # Validate sell child based on the hierarchical approach - try both patterns
     sim.validate_child_sell(
         "1000",
-        quantity="0.85",
+        quantity="0.71429",
         realized_quantity="0.0",
         state="SELLING",
         sell_price="4200.0",
@@ -747,8 +755,8 @@ async def test_cancel_unfilled_sell_order(
     await sim.setup_sell_position(
         hp_id="1000",
         symbol="BTCUSDC",
-        quantity=0.85,
-        buy_price=1178.82,
+        quantity=0.71429,
+        buy_price=1400.0,
         sell_price=4200.0,
         end_currency="USDC",
         coin="BTC",
@@ -772,8 +780,8 @@ async def test_resend_unfilled_sell_order(
     await sim.setup_sell_position(
         hp_id="1000",
         symbol="BTCUSDC",
-        quantity=0.85,
-        buy_price=1178.82,
+        quantity=0.71429,
+        buy_price=1400.0,
         sell_price=4200.0,
         end_currency="USDC",
         coin="BTC",
@@ -799,8 +807,8 @@ async def test_sell_position_first_order_filled_partially(
     await sim.setup_sell_position(
         hp_id="1000",
         symbol="BTCUSDC",
-        quantity=0.85,
-        buy_price=1178.82,
+        quantity=0.71429,
+        buy_price=1400.0,
         sell_price=4200.0,
         end_currency="USDC",
         coin="BTC",
@@ -823,8 +831,8 @@ async def test_sell_position_first_order_filled(
     await sim.setup_sell_position(
         hp_id="1000",
         symbol="BTCUSDC",
-        quantity=0.85,
-        buy_price=1178.82,
+        quantity=0.71429,
+        buy_price=1400.0,
         sell_price=4200.0,
         end_currency="USDC",
         coin="BTC",
@@ -847,8 +855,8 @@ async def test_cancel_sell_position_first_order_filled_partially(
     await sim.setup_sell_position(
         hp_id="1000",
         symbol="BTCUSDC",
-        quantity=0.85,
-        buy_price=1178.82,
+        quantity=0.71429,
+        buy_price=1400.0,
         sell_price=4200.0,
         end_currency="USDC",
         coin="BTC",
@@ -873,8 +881,8 @@ async def test_resend_sell_position_first_order_filled_partially(
     await sim.setup_sell_position(
         hp_id="1000",
         symbol="BTCUSDC",
-        quantity=0.85,
-        buy_price=1178.82,
+        quantity=0.71429,
+        buy_price=1400.0,
         sell_price=4200.0,
         end_currency="USDC",
         coin="BTC",
@@ -997,9 +1005,9 @@ async def test_fill_order_for_previously_partially_bought_position(
 
     await sim.cancel_unfilled_sell_position_from_part_filled_buy()
 
-    strategy.client.create_order.side_effect = get_new_order(
-        order=strategy.buy.buy_order
-    )
+    strategy.client.create_order.side_effect = [
+        get_new_order(order=strategy.buy.buy_order)
+    ]
 
     # Price trigger is now related to the middle order as the top order is already filled.
     sim.new_price(price=1212)
@@ -1096,9 +1104,9 @@ async def test_buy_partially_partially_sold_position(
     await sim.cancel_sell_position_filled_partially()
 
     # Reopen Buy position
-    strategy.client.create_order.side_effect = get_new_order(
-        order=strategy.buy.buy_order
-    )
+    strategy.client.create_order.side_effect = [
+        get_new_order(order=strategy.buy.buy_order)
+    ]
 
     # Price trigger is now related to the middle order as the top order is already filled.
     sim.new_price(price=1212)
@@ -1158,9 +1166,9 @@ async def test_cancel_buy_to_part_sold_part_bought(
     await sim.cancel_sell_position_filled_partially()
 
     # Reopen Buy position
-    strategy.client.create_order.side_effect = get_new_order(
-        order=strategy.buy.buy_order
-    )
+    strategy.client.create_order.side_effect = [
+        get_new_order(order=strategy.buy.buy_order)
+    ]
 
     # Price trigger is now related to the middle order as the top order is already filled.
     sim.new_price(price=1212)
@@ -1223,9 +1231,9 @@ async def test_buy_fully_partially_sold_position(
     await sim.cancel_sell_position_filled_partially()
 
     # Reopen Buy position
-    strategy.client.create_order.side_effect = get_new_order(
-        order=strategy.buy.buy_order
-    )
+    strategy.client.create_order.side_effect = [
+        get_new_order(order=strategy.buy.buy_order)
+    ]
 
     # Price trigger is now related to the middle order as the top order is already filled.
     sim.new_price(price=1212)
@@ -1319,9 +1327,9 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     await sim.simulate_sell_order_fill_from_part_bought()
 
     # Reopen Buy position
-    strategy.client.create_order.side_effect = get_new_order(
-        order=strategy.buy.buy_order
-    )
+    strategy.client.create_order.side_effect = [
+        get_new_order(order=strategy.buy.buy_order)
+    ]
 
     # Price trigger is now related to the middle order as the top order is already filled.
     sim.new_price(price=1212)
@@ -1362,7 +1370,7 @@ async def test_send_order_for_first_sell_position_in_two_hop_trade(
 
     await sim.open_first_sell_position_from_two_hop_trade()
 
-    await sim.send_order_for_first_position_from_two_hop_trade()
+    await sim.send_orders_for_first_position_from_two_hop_trade()
 
 
 async def test_fill_partially_first_sell_position_in_two_hop_trade(
@@ -1375,7 +1383,7 @@ async def test_fill_partially_first_sell_position_in_two_hop_trade(
 
     await sim.open_first_sell_position_from_two_hop_trade()
 
-    await sim.send_order_for_first_position_from_two_hop_trade()
+    await sim.send_orders_for_first_position_from_two_hop_trade()
 
     await sim.simulate_sell_order_partial_fill_in_first_hop()
 
@@ -1390,7 +1398,7 @@ async def test_fill_first_sell_position_in_two_hop_trade(
 
     await sim.open_first_sell_position_from_two_hop_trade()
 
-    await sim.send_order_for_first_position_from_two_hop_trade()
+    await sim.send_orders_for_first_position_from_two_hop_trade()
 
     await sim.simulate_sell_order_fill_in_first_hop()
 
@@ -1405,7 +1413,7 @@ async def test_start_second_sell_position_in_two_hop_trade(
 
     await sim.open_first_sell_position_from_two_hop_trade()
 
-    await sim.send_order_for_first_position_from_two_hop_trade()
+    await sim.send_orders_for_first_position_from_two_hop_trade()
 
     await sim.simulate_sell_order_fill_in_first_hop()
 
@@ -1422,7 +1430,7 @@ async def test_partial_fill_second_sell_position_in_two_hop_trade(
 
     await sim.open_first_sell_position_from_two_hop_trade()
 
-    await sim.send_order_for_first_position_from_two_hop_trade()
+    await sim.send_orders_for_first_position_from_two_hop_trade()
 
     await sim.simulate_sell_order_fill_in_first_hop()
 
@@ -1441,7 +1449,7 @@ async def test_fill_second_sell_position_in_two_hop_trade(
 
     await sim.open_first_sell_position_from_two_hop_trade()
 
-    await sim.send_order_for_first_position_from_two_hop_trade()
+    await sim.send_orders_for_first_position_from_two_hop_trade()
 
     await sim.simulate_sell_order_fill_in_first_hop()
 
@@ -1605,9 +1613,9 @@ async def test_sell_order_send_if_buy_position_realized_partially(
 
     logger.info("HP List after the update: %s", front.hp_list_data)
 
-    strategy.client.create_order.side_effect = get_new_order(
-        order=strategy.sell.current_position.sell_order
-    )
+    strategy.client.create_order.side_effect = [
+        get_new_order(order=strategy.sell.current_position.sell_order)
+    ]
     sim.new_price(price=4200.0)
 
     await wait_for_condition(
@@ -1872,13 +1880,13 @@ async def test_multihop_sell_price_recalculation_on_trigger(frontend_backend_set
     ), "BTC price should have moved significantly"
 
     # Step 4: Mock order creation and trigger the sell
-    strategy.client.create_order.side_effect = get_new_order(
-        order=strategy.sell.current_position.sell_order
-    )
+    strategy.client.create_order.side_effect = [
+        get_new_order(order=strategy.sell.current_position.sell_order)
+    ]
 
     # Send price update that triggers the sell (AXLUSDT reaches target)
     # Note: For regular sell, trigger is at 0.96 * sell_price = 0.96 * 14.0 = 13.44
-    # But for multihop (TWOHOPS), trigger is at sell_price = 14.0 (see calculate_trigger_send_order_price_sell)
+    # But for multihop (TWOHOPS), trigger is at sell_price = 14.0 (see calculate_trigger_send_orders_price_sell)
     trigger_price = target_sell_price_usd
     sim.new_price(price=trigger_price, symbol="AXLUSDT")
 
@@ -1952,7 +1960,7 @@ async def test_multihop_sell_uses_trigger_price_not_early_trigger(
     """
     Test that multihop sells trigger at the exact target price (not 0.96x like regular sells).
 
-    This test verifies the logic in calculate_trigger_send_order_price_sell():
+    This test verifies the logic in calculate_trigger_send_orders_price_sell():
     - Regular/Direct sells: trigger at 0.96 * sell_price (2% or 4% early)
     - Multihop sells: trigger at exact sell_price (no early trigger)
 
@@ -1998,7 +2006,7 @@ async def test_multihop_sell_uses_trigger_price_not_early_trigger(
     strategy = back.strategies["1000"]
 
     # Calculate trigger price using the same logic as hp_manager.py
-    trigger_price = strategy.calculate_trigger_send_order_price_sell()
+    trigger_price = strategy.calculate_trigger_send_orders_price_sell()
 
     logger.info(f"=== TRIGGER PRICE TEST ===")
     logger.info(f"Target sell price: {target_price}")
@@ -2012,9 +2020,9 @@ async def test_multihop_sell_uses_trigger_price_not_early_trigger(
 
     # Verify that trigger doesn't happen too early
     early_price = 0.96 * target_price  # This is what regular sells use
-    strategy.client.create_order.side_effect = get_new_order(
-        order=strategy.sell.current_position.sell_order
-    )
+    strategy.client.create_order.side_effect = [
+        get_new_order(order=strategy.sell.current_position.sell_order)
+    ]
 
     # Try triggering at early price - should NOT trigger
     sim.new_price(price=early_price, symbol="AXLUSDT")
@@ -2079,7 +2087,7 @@ async def test_regular_sell_uses_early_trigger_96_percent(frontend_backend_setup
     strategy = back.strategies["1000"]
 
     # Calculate trigger price
-    trigger_price = strategy.calculate_trigger_send_order_price_sell()
+    trigger_price = strategy.calculate_trigger_send_orders_price_sell()
     expected_trigger = 0.96 * target_price
 
     logger.info(f"=== REGULAR SELL TRIGGER PRICE TEST ===")
@@ -2094,9 +2102,9 @@ async def test_regular_sell_uses_early_trigger_96_percent(frontend_backend_setup
     ), f"Regular sell should trigger at 0.96 * {target_price} = {expected_trigger}, but got {trigger_price}"
 
     # Verify trigger happens at early price
-    strategy.client.create_order.side_effect = get_new_order(
-        order=strategy.sell.current_position.sell_order
-    )
+    strategy.client.create_order.side_effect = [
+        get_new_order(order=strategy.sell.current_position.sell_order)
+    ]
 
     # Trigger at 0.96x price - SHOULD trigger
     sim.new_price(price=expected_trigger, symbol="BTCUSDC")
