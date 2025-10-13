@@ -12,7 +12,7 @@ from src.database.models import OrderStatus
 from src.common.identifiers import Order, State
 from src.strategy_executor import StrategyExecutor
 from src.gui.hp_manager.hpfront import HpFront
-from tests.helpers import get_new_orders, get_new_order
+from tests.helpers import get_new_order
 from tests.strategies.hp_manager_helpers import (
     wait_for_condition,
     wait_for_active_buy_positions,

@@ -43,7 +43,7 @@ class HPPositionBuy:
         self.data = data
         self.db = db
         self.buy_order: Optional[Order] = None
-        self.orders_cancel_price: float = 0
+        self.order_cancel_price: float = 0
 
     async def open_position(self) -> None:
         """Send a list of orders concurrently.
@@ -52,10 +52,10 @@ class HPPositionBuy:
             A list of `Order` objects with updated order IDs and statuses.
         """
         assert self.buy_order is not None, "Buy order not prepared"
-        self.orders_cancel_price = self.calculate_trigger_cancel_orders_price()
+        self.order_cancel_price = self.calculate_trigger_cancel_order_price()
         logger.info(
-            "Orders cancel price set to: %s for position: %s",
-            self.orders_cancel_price,
+            "Order cancel price set to: %s for position: %s",
+            self.order_cancel_price,
             self.data.config.symbol.name,
         )
         logger.info("Order: %s", self.buy_order)
@@ -216,7 +216,7 @@ class HPPositionBuy:
         )
         self.buy_order = order
 
-    def calculate_trigger_cancel_orders_price(self):
+    def calculate_trigger_cancel_order_price(self):
         assert self.buy_order is not None, "Buy order not prepared"
         if self.buy_order.status == ORDER_STATUS_FILLED:
             return 0.0

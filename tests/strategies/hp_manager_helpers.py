@@ -1013,7 +1013,7 @@ async def resend_part_bought_first_order_filled_partially(
 async def cancel_partially_bought_position(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> HpStrategy:
-    assert strategy.buy.orders_cancel_price == 1428.0
+    assert strategy.buy.order_cancel_price == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0, symbol="BTCUSDC")
 
     assert not strategy.conditions_for_cancelling_unfilled_buy_orders()
@@ -2063,7 +2063,7 @@ async def cancel_untouched_buy_position(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
     assert strategy.buy.buy_order is not None
-    assert strategy.buy.orders_cancel_price == 1428.0
+    assert strategy.buy.order_cancel_price == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0, symbol="BTCUSDC")
     assert strategy.conditions_for_cancelling_unfilled_buy_orders()
 

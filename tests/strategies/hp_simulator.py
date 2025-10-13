@@ -26,7 +26,7 @@ from src.common.identifiers import (
 )
 from src.strategies.hp_manager.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor
-from tests.helpers import get_new_orders, get_new_order
+from tests.helpers import get_new_order
 from tests.strategies.hp_manager_helpers import (
     wait_for_condition,
     get_buy_positions,
@@ -130,7 +130,7 @@ class HPSimulator:
 
         assert isinstance(strategy, HpStrategy)
         assert strategy.state == State.NEW, strategy.state
-        assert len(strategy.buy.orders) == 3
+        assert strategy.buy.buy_order is not None
 
         await wait_for_no_active_buy_positions(self.front)
         await wait_for_idle_buy_positions(self.front)
@@ -146,9 +146,9 @@ class HPSimulator:
 
         self.validate_child_buy(
             "1000",
-            quantity="0.84921",
+            quantity="0.71429",
             realized_quantity="0.0",
-            state="NEW",  # 0.84921 is correct with precision=5 rounding
+            state="NEW",  # 0.71429 is correct with precision=5 rounding
         )
 
     async def move_to_position_active_buy(self):
@@ -181,12 +181,11 @@ class HPSimulator:
         self.new_price(price=1428.0, symbol="BTCUSDC")
 
         await wait_for_condition(
-            condition_func=lambda: all(
-                order.status == ORDER_STATUS_CANCELED for order in strategy.buy.orders
-            )
+            condition_func=lambda: strategy.buy.buy_order.status
+            == ORDER_STATUS_CANCELED
         )
 
-        assert len(strategy.buy.orders) == 3
+        assert strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
         assert strategy.buy.data.state_info.state == State.NEW
         assert strategy.state == State.NEW
 
@@ -205,9 +204,9 @@ class HPSimulator:
             quantity_usd="0.0",
         )
 
-        # Child buy validation - quantity should always be total expected (0.84921)
+        # Child buy validation - quantity should always be total expected (0.71429)
         self.validate_child_buy(
-            "1000", quantity="0.84921", realized_quantity="0.0", state="NEW"
+            "1000", quantity="0.71429", realized_quantity="0.0", state="NEW"
         )
 
     async def simulate_partial_fill(self) -> HpStrategy:
@@ -251,10 +250,10 @@ class HPSimulator:
             quantity_usd="168.0",
         )
 
-        # Child buy validation - quantity should always be total expected (0.84921)
+        # Child buy validation - quantity should always be total expected (0.71429)
         self.validate_child_buy(
             "1000",
-            quantity="0.84921",
+            quantity="0.71429",
             realized_quantity="0.12",
             state="PARTIALLY_BOUGHT",
         )
@@ -308,10 +307,10 @@ class HPSimulator:
             net_percent="0.0",
         )
 
-        # Child buy validation - quantity should always be total expected (0.84921)
+        # Child buy validation - quantity should always be total expected (0.71429)
         self.validate_child_buy(
             "1000",
-            quantity="0.84921",
+            quantity="0.71429",
             realized_quantity="0.12",
             state="PARTIALLY_BOUGHT",
         )
@@ -342,12 +341,10 @@ class HPSimulator:
             condition_func=lambda: strategy.buy.buy_order.status == ORDER_STATUS_FILLED
         )
         # Validate order states
-        self.validate_buy_orders(
+        self.validate_buy_order(
             strategy,
             expected_order_data=[
                 {"status": ORDER_STATUS_FILLED},
-                {"status": ORDER_STATUS_NEW},
-                {"status": ORDER_STATUS_NEW},
             ],
         )
 
@@ -371,10 +368,10 @@ class HPSimulator:
             net_percent="0.0",
         )
 
-        # Child buy validation - quantity should always be total expected (0.84921)
+        # Child buy validation - quantity should always be total expected (0.71429)
         self.validate_child_buy(
             "1000",
-            quantity="0.84921",
+            quantity="0.71429",
             realized_quantity="0.24",
             state="PARTIALLY_BOUGHT",
         )
@@ -438,7 +435,7 @@ class HPSimulator:
 
         # Child buy validation - quantity should always be total expected (0.85)
         self.validate_child_buy(
-            "1000", quantity="0.84921", realized_quantity="0.85", state="BOUGHT"
+            "1000", quantity="0.71429", realized_quantity="0.85", state="BOUGHT"
         )
 
         await wait_for_condition(
@@ -875,8 +872,6 @@ class HPSimulator:
         assert strategy.buy.orders_cancel_price == 1428.0
         self.new_price(price=1428.0, symbol="BTCUSDC")
 
-        assert len(strategy.buy.orders) == 3
-
         assert strategy.buy.buy_order.status == ORDER_STATUS_FILLED
 
         assert strategy.buy.buy_order.realized_quantity == 0.24
@@ -907,7 +902,7 @@ class HPSimulator:
         # Child buy validation - quantity should always be total expected (0.85)
         self.validate_child_buy(
             "1000",
-            quantity="0.84921",
+            quantity="0.71429",
             realized_quantity="0.24",
             state="PARTIALLY_BOUGHT",
         )
@@ -1413,8 +1408,8 @@ class HPSimulator:
     async def simulate_sell_order_fill_in_first_hop(self) -> None:
         strategy = self.back.strategies["1000"]
 
-        strategy.client.create_order.side_effect = get_new_orders(
-            orders=[strategy.sell.sell_positions[1].sell_order]
+        strategy.client.create_order.side_effect = get_new_order(
+            order=strategy.sell.sell_positions[1].sell_order
         )
 
         exc_report = ExecutionReport(
@@ -1897,21 +1892,22 @@ class HPSimulator:
                 child["net_percent"] == net_percent
             ), f"Multihop child net_percent: expected {net_percent}, got {child['net_percent']}"
 
-    def validate_buy_orders(self, strategy, expected_order_data):
+    def validate_buy_order(self, strategy, expected_order_data):
         """
         Comprehensive validation for buy orders in the strategy.
         expected_order_data should be a list of dicts with keys: realized_quantity, status, etc.
+        For compatibility, accepts a list but validates the single buy_order against the first entry.
         """
-        assert len(strategy.buy.orders) == len(
-            expected_order_data
-        ), f"Expected {len(expected_order_data)} orders, got {len(strategy.buy.orders)}"
-        for i, expected_data in enumerate(expected_order_data):
-            order = strategy.buy.orders[i]
-            for attr, expected_value in expected_data.items():
-                actual_value = getattr(order, attr)
-                assert (
-                    actual_value == expected_value
-                ), f"Order {i} {attr}: expected {expected_value}, got {actual_value}"
+        assert strategy.buy.buy_order is not None, "Expected buy_order to exist"
+
+        # Use first entry from expected_order_data (legacy format had 3 orders)
+        expected_data = expected_order_data[0] if expected_order_data else {}
+
+        for attr, expected_value in expected_data.items():
+            actual_value = getattr(strategy.buy.buy_order, attr)
+            assert (
+                actual_value == expected_value
+            ), f"buy_order {attr}: expected {expected_value}, got {actual_value}"
 
     def validate_sell_orders(self, strategy, expected_order_data):
         """

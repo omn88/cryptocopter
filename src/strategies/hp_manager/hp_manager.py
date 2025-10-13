@@ -684,9 +684,10 @@ class HpStrategy:
             self.buy.data.state_info.state == State.NEW
             and self.sell.current_position.state_info.state == State.NEW
             and self.state == State.BUYING
-            and self.ticker_update.last_price >= self.buy.orders_cancel_price
+            and self.ticker_update.last_price >= self.buy.order_cancel_price
             and self.buy.buy_order is not None
-            and self.buy.buy_order.status == ORDER_STATUS_NEW
+            and self.buy.buy_order.status
+            in [ORDER_STATUS_NEW, ORDER_STATUS_PARTIALLY_FILLED]
         )
         if condition:
             logger.info(
@@ -694,7 +695,7 @@ class HpStrategy:
                 "state: %s, buy state: %s",
                 self.buy.data.config.symbol.name,
                 self.ticker_update.last_price,
-                self.buy.orders_cancel_price,
+                self.buy.order_cancel_price,
                 self.state,
                 self.buy.data.state_info.state,
             )
@@ -727,14 +728,14 @@ class HpStrategy:
         condition = (
             self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
             and self.sell.current_position.state_info.state == State.NEW
-            and self.ticker_update.last_price >= self.buy.orders_cancel_price
+            and self.ticker_update.last_price >= self.buy.order_cancel_price
         )
         if condition:
             logger.info(
                 "[Cancel Part Filled BUY] %s, last price: %s, trig price: %s",
                 self.buy.data.config.symbol.name,
                 self.ticker_update.last_price,
-                self.buy.orders_cancel_price,
+                self.buy.order_cancel_price,
             )
 
         return condition
@@ -1458,14 +1459,14 @@ class HpStrategy:
         condition = (
             self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
             and self.sell.current_position.state_info.state == State.PARTIALLY_SOLD
-            and self.ticker_update.last_price >= self.buy.orders_cancel_price
+            and self.ticker_update.last_price >= self.buy.order_cancel_price
         )
         if condition:
             logger.info(
                 "[Cancel Part Filled BUY] %s, last price: %s, trigger price: %s",
                 self.sell.current_position.config.symbol.name,
                 self.ticker_update.last_price,
-                self.buy.orders_cancel_price,
+                self.buy.order_cancel_price,
             )
 
         return condition
@@ -1569,14 +1570,14 @@ class HpStrategy:
         condition = (
             self.buy.data.state_info.state == State.SOLD
             and self.sell.current_position.state_info.state == State.PARTIALLY_BOUGHT
-            and self.ticker_update.last_price >= self.buy.orders_cancel_price
+            and self.ticker_update.last_price >= self.buy.order_cancel_price
         )
         if condition:
             logger.info(
                 "[Cancel Part Filled BUY] %s, last price: %s, trigger price: %s",
                 self.sell.current_position.config.symbol.name,
                 self.ticker_update.last_price,
-                self.buy.orders_cancel_price,
+                self.buy.order_cancel_price,
             )
 
         return condition
