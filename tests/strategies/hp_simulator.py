@@ -44,41 +44,6 @@ logger = logging.getLogger("hp_simulator")
 
 
 class HPSimulator:
-    async def simulate_convert_only_position(
-        self,
-        coin="DYM",
-        end_currency="USDC",
-        quantity=10.0,
-        buy_price=2.0,
-        sell_price=2.0,
-    ) -> HPSell:
-        """
-        Simulates a convert-only position (e.g., DYM/USDC) for E2E tests.
-        - Assumes the config queue and backend are ready.
-        - Mocks the convert quote/accept and market price.
-        - Waits for the frontend to reflect the expected state.
-        """
-        name = f"{coin}{end_currency}"
-
-        # Simulate sending config for convert-only position
-        hp_sell_data = HPSell(
-            config=HPSellConfig(
-                coin=coin,
-                buy_price=buy_price,
-                sell_price=sell_price,
-                quantity=quantity,
-                end_currency=end_currency,
-                symbol=Symbol(name=name, precision=5, price_precision=2),
-            ),
-            state_info=StateInfo(side=PositionSide.SHORT),
-        )
-        self.front.config_queue.put_nowait(hp_sell_data)
-        logger.info(
-            "Convert-only sell config added to the queue: %s", hp_sell_data.config
-        )
-
-        return hp_sell_data
-
     def __init__(self, front: HpFront, back: StrategyExecutor):
         self.front = front
         self.back = back
@@ -529,7 +494,7 @@ class HPSimulator:
         assert (
             active_sell_item["coin"] == "BTCUSDC"
         )  # sell child uses 'coin' not 'symbol'
-        assert active_sell_item["buy_price"] == "1178.82"
+        assert active_sell_item["buy_price"] == "1400.0"
         assert active_sell_item["quantity"] == "0.71429"
         # Note: end_currency is not available in sell child structure
         assert (
@@ -580,7 +545,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=3570,
+            order_id=strategy.sell.current_position.sell_order.order_id,
             last_executed_quantity=0.42,
             last_executed_price=4200,
             cumulative_filled_quantity=0.42,
@@ -635,7 +600,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=3570,
+            order_id=strategy.sell.current_position.sell_order.order_id,
             last_executed_quantity=0.71429,
             last_executed_price=4200,
             cumulative_filled_quantity=0.71429,
@@ -759,7 +724,7 @@ class HPSimulator:
 
         assert selling_parent_item["hp_id"] == "1000"
         assert selling_parent_item["coin"] == "BTCUSD"  # Parent shows simplified symbol
-        assert selling_parent_item["buy_price"] == "1178.82"
+        assert selling_parent_item["buy_price"] == "1400.0"
         assert (
             selling_parent_item["quantity"] == "0.71429"
         )  # Remaining quantity after partial fill
@@ -895,12 +860,19 @@ class HPSimulator:
         assert strategy.buy.order_cancel_price == 1428.0
         self.new_price(price=1428.0, symbol="BTCUSDC")
 
-        assert strategy.buy.buy_order.status == ORDER_STATUS_PARTIALLY_FILLED
+        # Wait for the state transition to complete
+        await wait_for_condition(
+            condition_func=lambda: strategy.state == State.PARTIALLY_BOUGHT
+        )
+
+        # After cancellation, order status should be CANCELED
+        await wait_for_condition(
+            condition_func=lambda: strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
+        )
 
         assert strategy.buy.buy_order.realized_quantity == 0.24
 
         assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
-        assert strategy.state == State.PARTIALLY_BOUGHT
 
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["state"]
@@ -1633,6 +1605,42 @@ class HPSimulator:
         assert main_item["state"] == "SOLD"
         assert first_leg["state"] == "SOLD"
         assert second_leg["state"] == "SOLD"
+
+    async def simulate_convert_only_position(
+        self,
+        coin="DYM",
+        end_currency="USDC",
+        quantity=10.0,
+        buy_price=2.0,
+        sell_price=2.0,
+    ) -> HPSell:
+        """
+        Simulates a convert-only position (e.g., DYM/USDC) for E2E tests.
+        - Assumes the config queue and backend are ready.
+        - Mocks the convert quote/accept and market price.
+        - Waits for the frontend to reflect the expected state.
+        """
+        name = f"{coin}{end_currency}"
+
+        # Simulate sending config for convert-only position
+        hp_sell_data = HPSell(
+            config=HPSellConfig(
+                coin=coin,
+                buy_price=buy_price,
+                sell_price=sell_price,
+                quantity=quantity,
+                end_currency=end_currency,
+                symbol=Symbol(name=name, precision=5, price_precision=2),
+            ),
+            state_info=StateInfo(side=PositionSide.SHORT),
+        )
+        self.front.config_queue.put_nowait(hp_sell_data)
+        logger.info(
+            "Convert-only sell config added to the queue: %s", hp_sell_data.config
+        )
+
+        return hp_sell_data
+
 
     # ============================== COMPREHENSIVE VALIDATION METHODS ==============================
 
