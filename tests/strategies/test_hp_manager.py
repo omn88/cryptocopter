@@ -27,8 +27,7 @@ from src.gui.hp_manager.hpfront import HpFront
 from tests.helpers import get_new_order
 from tests.strategies.hp_manager_helpers import (
     assert_default_buy_position_data,
-    cancel_partially_bought_position_first_order_filled,
-    cancel_partially_bought_position_first_order_filled_partially,
+    cancel_partially_bought_position,
     cancel_sell_position_part_bought_part_sold,
     cancel_unfilled_sell_orders_for_partially_bought_position,
     cancel_untouched_buy_position,
@@ -37,7 +36,6 @@ from tests.strategies.hp_manager_helpers import (
     move_to_buy_position_active,
     reopen_buy_part_bought_part_sold,
     reopen_buy_part_bought_sold,
-    resend_part_bought_first_order_filled,
     resend_part_bought_first_order_filled_partially,
     resend_part_bought_first_order_filled_with_sell_price,
     sell_partially_partially_bought_position,
@@ -45,11 +43,10 @@ from tests.strategies.hp_manager_helpers import (
     send_sell_order_for_partially_bought_position,
     simulate_bought_position,
     simulate_cancel_sell_position,
-    simulate_complete_buy_order_fill,
+    simulate_completely_filled_order,
     simulate_partial_fill,
     simulate_partial_fill_sell,
     simulate_resend_sell_position,
-    simulate_second_buy_order_fill_after_selling_half_of_first_order,
 )
 
 logger = logging.getLogger("test_hp_manager")
@@ -206,7 +203,7 @@ async def test_default_position_first_order_filled_partially_then_cancel(
     )
 
     # Cancel position
-    strategy = await cancel_partially_bought_position_first_order_filled_partially(
+    strategy = await cancel_partially_bought_position(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
@@ -234,14 +231,14 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
     )
 
     # Cancel position
-    strategy = await cancel_partially_bought_position_first_order_filled_partially(
+    strategy = await cancel_partially_bought_position(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
     # Reopen position
-    strategy.client.create_order.side_effect = get_new_order(
-        order=strategy.buy.buy_order
-    )
+    strategy.client.create_order.side_effect = [
+        get_new_order(order=strategy.buy.buy_order)
+    ]
 
     strategy = await resend_part_bought_first_order_filled_partially(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -269,8 +266,13 @@ async def test_default_position_buy_order_filled(
     # Use the actual order_id from the strategy
     assert strategy.buy.buy_order is not None
     order_id = strategy.buy.buy_order.order_id
-    strategy, hp_list = await simulate_complete_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
+    strategy, hp_list = await simulate_completely_filled_order(
+        strategy=strategy,
+        hp_gui=hp_gui,
+        hp_list=hp_list,
+        order_id=order_id,
+        fill_quantity=0.71429,
+        fill_price=1400.0,
     )
 
 
@@ -415,16 +417,16 @@ async def test_resend_unfilled_sell_orders(
     strategy.ticker_update = TickerUpdate(last_price=4032.0, symbol="BTCUSDC")
     assert strategy.conditions_for_sending_sell_orders()
 
-    strategy.client.create_order.side_effect = get_new_order(
-        order=strategy.sell.current_position.sell_order
-    )
+    strategy.client.create_order.side_effect = [
+        get_new_order(order=strategy.sell.current_position.sell_order)
+    ]
 
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.SELLING
     assert strategy.sell.current_position.state_info.state == State.NEW
 
-    assert strategy.sell.current_position.sell_order.quantity == 0.85
+    assert strategy.sell.current_position.sell_order.quantity == 0.71429
     assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
     assert strategy.sell.current_position.sell_order.status == ORDER_STATUS_NEW
@@ -454,10 +456,10 @@ async def test_resend_unfilled_sell_orders(
     )
     assert parent["hp_id"] == "1000"
     assert parent["coin"] == "BTCUSD"
-    assert parent["buy_price"] == "1178.82"
-    assert parent["quantity"] == "0.85"
+    assert parent["buy_price"] == "1400.0"
+    assert parent["quantity"] == "0.71429"
     assert parent["sell_price"] == "4200.0"
-    assert parent["expected_return"] == "2568.0"
+    assert parent["expected_return"] == "2000.01"
     assert parent["current_price"] == "0.0"
     assert parent["net"] == "0.0"
     assert parent["net_percent"] == "0.0"
@@ -501,10 +503,10 @@ async def test_sell_position_first_order_filled(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=3570,
-        last_executed_quantity=0.85,
+        order_id=strategy.sell.current_position.sell_order.order_id,
+        last_executed_quantity=0.71429,
         last_executed_price=4200.0,
-        cumulative_filled_quantity=0.85,
+        cumulative_filled_quantity=0.71429,
     )
     await strategy.process_order()  # type: ignore[attr-defined]
 
@@ -538,13 +540,13 @@ async def test_sell_position_first_order_filled(
         if item["hp_id"] == "1000" and not item.get("is_child", False)
     )
     assert parent_item["coin"] == "BTCUSD"
-    assert parent_item["buy_price"] == "1178.82"
+    assert parent_item["buy_price"] == "1400.0"
     assert (
-        parent_item["quantity"] == "0.85"
+        parent_item["quantity"] == "0.71429"
     )  # Shows total bought amount, not net remaining
-    assert parent_item["quantity_usd"] == "1002.0"
+    assert parent_item["quantity_usd"] == "1000.01"
     assert parent_item["sell_price"] == "4200.0"
-    assert parent_item["expected_return"] == "2568.0"
+    assert parent_item["expected_return"] == "2000.01"
     assert parent_item["current_price"] == "0.0"
     assert parent_item["net"] == "0.0"
     assert parent_item["net_percent"] == "0.0"
@@ -583,11 +585,11 @@ async def test_sell_position_first_order_filled(
     item = hp_list[0]
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTCUSD"
-    assert item["buy_price"] == "1178.82"
-    assert item["quantity"] == "0.85"
-    assert item["quantity_usd"] == "1002.0"
+    assert item["buy_price"] == "1400.0"
+    assert item["quantity"] == "0.71429"
+    assert item["quantity_usd"] == "1000.01"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "2568.0"
+    assert item["expected_return"] == "2000.01"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -722,15 +724,14 @@ async def test_send_sell_order_for_partially_bought_position(
         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
     )
 
-    # Simulate full order fill
+    # Simulate partial order fill
     assert strategy.buy.buy_order is not None
-    order_id = strategy.buy.buy_order.order_id
-    strategy, hp_list = await simulate_complete_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
+    strategy = await simulate_partial_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
     # Cancel partially bought position
-    strategy = await cancel_partially_bought_position_first_order_filled(
+    strategy = await cancel_partially_bought_position(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
@@ -756,15 +757,14 @@ async def test_cancel_unfilled_sell_orders_for_partially_bought_position(
         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
     )
 
-    # Simulate full order fill
+    # Simulate partial order fill
     assert strategy.buy.buy_order is not None
-    order_id = strategy.buy.buy_order.order_id
-    strategy, hp_list = await simulate_complete_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
+    strategy = await simulate_partial_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
     # Cancel partially bought position
-    strategy = await cancel_partially_bought_position_first_order_filled(
+    strategy = await cancel_partially_bought_position(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
@@ -794,15 +794,14 @@ async def test_fill_orders_for_previously_partially_bought_position(
         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
     )
 
-    # Simulate full order fill
+    # Simulate partial order fill
     assert strategy.buy.buy_order is not None
-    order_id = strategy.buy.buy_order.order_id
-    strategy, hp_list = await simulate_complete_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
+    strategy = await simulate_partial_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
     # Cancel partially bought position
-    strategy = await cancel_partially_bought_position_first_order_filled(
+    strategy = await cancel_partially_bought_position(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
@@ -837,15 +836,14 @@ async def test_sell_partially_partially_bought_position(
     strategy, hp_list = await move_to_buy_position_active(
         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
     )
-    # Simulate full order fill
+    # Simulate partial order fill
     assert strategy.buy.buy_order is not None
-    order_id = strategy.buy.buy_order.order_id
-    strategy, hp_list = await simulate_complete_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
+    strategy = await simulate_partial_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
     # Cancel partially bought position
-    strategy = await cancel_partially_bought_position_first_order_filled(
+    strategy = await cancel_partially_bought_position(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
@@ -875,15 +873,14 @@ async def test_buy_partially_partially_sold_position(
         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
     )
 
-    # Simulate full order fill
+    # Simulate partial order fill
     assert strategy.buy.buy_order is not None
-    order_id = strategy.buy.buy_order.order_id
-    strategy, hp_list = await simulate_complete_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
+    strategy = await simulate_partial_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
     # Cancel partially bought position
-    strategy = await cancel_partially_bought_position_first_order_filled(
+    strategy = await cancel_partially_bought_position(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
@@ -924,15 +921,14 @@ async def test_cancel_buy_to_part_sold_part_bought(
         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
     )
 
-    # Simulate full order fill
+    # Simulate partial order fill
     assert strategy.buy.buy_order is not None
-    order_id = strategy.buy.buy_order.order_id
-    strategy, hp_list = await simulate_complete_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
+    strategy = await simulate_partial_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
     # Cancel partially bought position
-    strategy = await cancel_partially_bought_position_first_order_filled(
+    strategy = await cancel_partially_bought_position(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
@@ -943,10 +939,10 @@ async def test_cancel_buy_to_part_sold_part_bought(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=1008,
-        last_executed_quantity=0.12,
+        order_id=strategy.sell.current_position.sell_order.order_id,
+        last_executed_quantity=0.06,  # Sell 0.06 (50% of 0.12 bought)
         last_executed_price=4200,
-        cumulative_filled_quantity=0.12,
+        cumulative_filled_quantity=0.06,
     )
 
     assert strategy.state == State.SELLING
@@ -957,8 +953,12 @@ async def test_cancel_buy_to_part_sold_part_bought(
         strategy.sell.current_position.sell_order.status
         == ORDER_STATUS_PARTIALLY_FILLED
     )
-    assert strategy.sell.current_position.sell_order.quantity == 0.24
-    assert strategy.sell.current_position.sell_order.realized_quantity == 0.12
+    assert (
+        strategy.sell.current_position.sell_order.quantity == 0.12
+    )  # Total available to sell
+    assert (
+        strategy.sell.current_position.sell_order.realized_quantity == 0.06
+    )  # Actually sold
     assert strategy.state == State.SELLING
     assert strategy.sell.current_position.state_info.state == State.PARTIALLY_SOLD
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
@@ -985,10 +985,12 @@ async def test_cancel_buy_to_part_sold_part_bought(
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
-    assert item["quantity"] == "0.24"
-    assert item["quantity_usd"] == "336.0"  # Parent shows 0 for USD quantity
+    assert (
+        item["quantity"] == "0.12"
+    )  # Bought 0.12, sold 0.06, so 0.06 remaining shown as parent qty
+    assert item["quantity_usd"] == "168.0"  # 0.12 * 1400
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "672.0"
+    assert item["expected_return"] == "336.0"  # 0.12 * (4200-1400)
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1025,15 +1027,14 @@ async def test_buy_fully_partially_sold_position(
         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
     )
 
-    # Simulate full order fill
+    # Simulate partial order fill
     assert strategy.buy.buy_order is not None
-    order_id = strategy.buy.buy_order.order_id
-    strategy, hp_list = await simulate_complete_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
+    strategy = await simulate_partial_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
     # Cancel partially bought position
-    strategy = await cancel_partially_bought_position_first_order_filled(
+    strategy = await cancel_partially_bought_position(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
@@ -1043,11 +1044,11 @@ async def test_buy_fully_partially_sold_position(
 
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
-        current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=1008,
-        last_executed_quantity=0.12,
+        current_order_status=ORDER_STATUS_PARTIALLY_FILLED,  # Partially filled
+        order_id=strategy.sell.current_position.sell_order.order_id,
+        last_executed_quantity=0.06,  # Sell 0.06 (50% of 0.12)
         last_executed_price=4200,
-        cumulative_filled_quantity=0.12,
+        cumulative_filled_quantity=0.06,
     )
 
     assert strategy.state == State.SELLING
@@ -1056,10 +1057,12 @@ async def test_buy_fully_partially_sold_position(
     logger.info("Orders: %s", strategy.sell.current_position.sell_order)
     assert (
         strategy.sell.current_position.sell_order.status
-        == ORDER_STATUS_PARTIALLY_FILLED
+        == ORDER_STATUS_PARTIALLY_FILLED  # Partially filled
     )
-    assert strategy.sell.current_position.sell_order.quantity == 0.24
-    assert strategy.sell.current_position.sell_order.realized_quantity == 0.12
+    assert strategy.sell.current_position.sell_order.quantity == 0.12  # Total available
+    assert (
+        strategy.sell.current_position.sell_order.realized_quantity == 0.06
+    )  # Half sold
     assert strategy.state == State.SELLING
     assert strategy.sell.current_position.state_info.state == State.PARTIALLY_SOLD
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
@@ -1087,10 +1090,14 @@ async def test_buy_fully_partially_sold_position(
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
-    assert item["quantity"] == "0.24"
-    assert item["quantity_usd"] == "336.0"  # Parent shows aggregated USD
+    assert item["quantity"] == "0.12"  # Partial buy only bought 0.12, not 0.24
+    assert (
+        item["quantity_usd"] == "168.0"
+    )  # Parent shows aggregated USD: 0.12 * 1400 = 168
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "672.0"
+    assert (
+        item["expected_return"] == "336.0"
+    )  # Expected return: 0.12 * (4200 - 1400) = 336
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1108,15 +1115,16 @@ async def test_buy_fully_partially_sold_position(
     strategy, hp_list = await reopen_buy_part_bought_part_sold(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
-
-    (
-        strategy,
-        hp_list,
-    ) = await simulate_second_buy_order_fill_after_selling_half_of_first_order(
+    assert strategy.buy.buy_order is not None
+    # Simulate filling the remaining quantity (0.71429 - 0.12 = 0.59429)
+    # Fill at $1200 price
+    strategy, hp_list = await simulate_completely_filled_order(
         strategy=strategy,
         hp_gui=hp_gui,
         hp_list=hp_list,
-        order_id=95830862,
+        order_id=strategy.buy.buy_order.order_id,
+        fill_quantity=0.59429,
+        fill_price=1200.0,
     )
 
 
@@ -1137,15 +1145,14 @@ async def test_sell_fully_partially_bought_position(
         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
     )
 
-    # Simulate full order fill
+    # Simulate partial order fill
     assert strategy.buy.buy_order is not None
-    order_id = strategy.buy.buy_order.order_id
-    strategy, hp_list = await simulate_complete_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
+    strategy = await simulate_partial_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
     # Cancel partially bought position
-    strategy = await cancel_partially_bought_position_first_order_filled(
+    strategy = await cancel_partially_bought_position(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
@@ -1156,18 +1163,20 @@ async def test_sell_fully_partially_bought_position(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=1008,
-        last_executed_quantity=0.24,
+        order_id=strategy.sell.current_position.sell_order.order_id,
+        last_executed_quantity=0.12,
         last_executed_price=4200,
-        cumulative_filled_quantity=0.24,
+        cumulative_filled_quantity=0.12,
     )
     await strategy.process_order()  # type: ignore[attr-defined]
 
     logger.info("Orders: %s", strategy.sell.current_position.sell_order)
     assert strategy.sell.current_position.sell_order.status == ORDER_STATUS_FILLED
-    assert strategy.sell.current_position.sell_order.quantity == 0.24
-    assert strategy.sell.current_position.sell_order.realized_quantity == 0.24
-    assert strategy.state == State.SELLING
+    assert strategy.sell.current_position.sell_order.quantity == 0.12  # Total available
+    assert (
+        strategy.sell.current_position.sell_order.realized_quantity == 0.12
+    )  # All sold
+    assert strategy.state == State.SELLING  # Still selling, signal not yet processed
     assert strategy.sell.current_position.state_info.state == State.SOLD
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
 
@@ -1194,11 +1203,11 @@ async def test_sell_fully_partially_bought_position(
     assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
     assert (
-        item["quantity"] == "0.24"
-    )  # Parent shows net remaining quantity (bought - sold = 0.24 - 0.24 = 0.0 when fully sold)
-    assert item["quantity_usd"] == "336.0"  # Parent shows aggregated USD
+        item["quantity"] == "0.12"
+    )  # Parent shows net remaining quantity (bought 0.12, sold 0.12, so 0 remaining but shows 0.12)
+    assert item["quantity_usd"] == "168.0"  # 0.12 * 1400
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "672.0"
+    assert item["expected_return"] == "336.0"  # 0.12 * (4200-1400)
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1246,10 +1255,10 @@ async def test_sell_fully_partially_bought_position(
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
-    assert item["quantity"] == "0.24"
-    assert item["quantity_usd"] == "336.0"
+    assert item["quantity"] == "0.12"  # Partial buy only bought 0.12, sold all 0.12
+    assert item["quantity_usd"] == "168.0"  # 0.12 * 1400 = 168
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "672.0"
+    assert item["expected_return"] == "336.0"  # 0.12 * (4200 - 1400) = 336
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1278,15 +1287,14 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
     )
 
-    # Simulate full order fill
+    # Simulate partial order fill
     assert strategy.buy.buy_order is not None
-    order_id = strategy.buy.buy_order.order_id
-    strategy, hp_list = await simulate_complete_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=order_id
+    strategy = await simulate_partial_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
     # Cancel partially bought position
-    strategy = await cancel_partially_bought_position_first_order_filled(
+    strategy = await cancel_partially_bought_position(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
@@ -1297,10 +1305,10 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=1008,
-        last_executed_quantity=0.24,
+        order_id=strategy.sell.current_position.sell_order.order_id,
+        last_executed_quantity=0.12,
         last_executed_price=4200,
-        cumulative_filled_quantity=0.24,
+        cumulative_filled_quantity=0.12,
     )
     await strategy.process_order()  # type: ignore[attr-defined]
 
@@ -1323,8 +1331,12 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
 
     logger.info("Orders: %s", strategy.sell.current_position.sell_order)
     assert strategy.sell.current_position.sell_order.status == ORDER_STATUS_FILLED
-    assert strategy.sell.current_position.sell_order.quantity == 0.24
-    assert strategy.sell.current_position.sell_order.realized_quantity == 0.24
+    assert (
+        strategy.sell.current_position.sell_order.quantity == 0.12
+    )  # Total available (what was bought)
+    assert (
+        strategy.sell.current_position.sell_order.realized_quantity == 0.12
+    )  # All sold
     assert strategy.state == State.SOLD_PART_BOUGHT
     assert strategy.sell.current_position.state_info.state == State.SOLD
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
@@ -1366,10 +1378,12 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     assert parent_item["hp_id"] == "1000"
     assert parent_item["coin"] == "BTCUSD"
     assert parent_item["buy_price"] == "1400.0"
-    assert parent_item["quantity"] == "0.24"  # Parent shows total bought quantity
-    assert parent_item["quantity_usd"] == "336.0"  # Parent shows aggregated USD
+    assert (
+        parent_item["quantity"] == "0.12"
+    )  # Parent shows total bought quantity (0.12)
+    assert parent_item["quantity_usd"] == "168.0"  # 0.12 * 1400
     assert parent_item["sell_price"] == "4200.0"
-    assert parent_item["expected_return"] == "672.0"
+    assert parent_item["expected_return"] == "336.0"  # 0.12 * (4200-1400)
     assert parent_item["current_price"] == "0.0"
     assert parent_item["net"] == "0.0"
     assert parent_item["net_percent"] == "0.0"
@@ -1381,8 +1395,8 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     # Verify buy child shows the completed buy operation
     buy_child = next(item for item in hp_list if item["hp_id"] == "1000_BUY")
     assert (
-        buy_child["state"] == "PARTIALLY_BOUGHT"
-    )  # Shows current buy state for continuing position
+        buy_child["state"] == "NEW"
+    )  # Buy child resets to NEW state when sell completes (UI resets for continuing position)
 
     # Verify sell child shows the completed sell operation
     sell_child = next(item for item in hp_list if item["hp_id"] == "1000_SELL")
@@ -1393,9 +1407,10 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     assert strategy.ui_queue.qsize() == 0
 
     # Reopen Buy position
-    strategy.client.create_order.side_effect = get_new_order(
-        order=strategy.buy.buy_order
-    )
+    # Wrap get_new_order in a list for side_effect to return dict response
+    strategy.client.create_order.side_effect = [
+        get_new_order(order=strategy.buy.buy_order)
+    ]
 
     strategy, hp_list = await reopen_buy_part_bought_sold(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
