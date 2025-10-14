@@ -39,8 +39,7 @@ class HPBuyPositionCreated:
     hp_id: str
     coin: str
     budget: float
-    price_low: float
-    price_high: float
+    buy_price: float
     end_currency: str  # Usually USDC
 
 
@@ -356,19 +355,10 @@ class StateInfo:
     def generate_open_time(self):
         self.open_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    def get_completeness(self, orders: Union[Order, List[Order]]):
-        if isinstance(orders, List):
-            realized_quantity = sum(order.realized_quantity for order in orders)
-            quantity = sum(order.quantity for order in orders)
-        else:
-            assert isinstance(orders, Order)
-            realized_quantity = orders.realized_quantity
-            quantity = orders.quantity
-
-        if quantity:
-            self.completeness = round(float(realized_quantity) / float(quantity), 2)
-        else:
-            self.completeness = 0.0
+    def get_completeness(self, order: Order):
+        self.completeness = round(
+            float(order.realized_quantity) / float(order.quantity), 2
+        )
 
 
 @dataclass
@@ -376,12 +366,10 @@ class HPBuyConfig:
     symbol: Symbol
     coin: str
     hp_id: str = "0"
-    price_low: float = 0
-    price_high: float = 0
+    buy_price: float = 0
     order_trigger: float = 0
     order_cancel: float = 0
     budget: float = 0
-    mode: Mode = Mode.DCA
 
     def __post_init__(self):
         """Ensure order_cancel is always set correctly based on order_trigger"""
@@ -391,8 +379,8 @@ class HPBuyConfig:
     def __str__(self):
         return (
             f"HPBuyConfig(hp_id={self.hp_id}, symbol={self.symbol}"
-            f"price_low={self.price_low}, price_high={self.price_high}, "
-            f"order_trigger={self.order_trigger}, budget={self.budget}, mode={self.mode})"
+            f"buy_price={self.buy_price}, "
+            f"order_trigger={self.order_trigger}, budget={self.budget})"
         )
 
 

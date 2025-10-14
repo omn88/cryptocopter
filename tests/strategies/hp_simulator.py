@@ -26,7 +26,7 @@ from src.common.identifiers import (
 )
 from src.strategies.hp_manager.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor
-from tests.helpers import get_new_orders
+from tests.helpers import get_new_order
 from tests.strategies.hp_manager_helpers import (
     wait_for_condition,
     get_buy_positions,
@@ -44,41 +44,6 @@ logger = logging.getLogger("hp_simulator")
 
 
 class HPSimulator:
-    async def simulate_convert_only_position(
-        self,
-        coin="DYM",
-        end_currency="USDC",
-        quantity=10.0,
-        buy_price=2.0,
-        sell_price=2.0,
-    ) -> HPSell:
-        """
-        Simulates a convert-only position (e.g., DYM/USDC) for E2E tests.
-        - Assumes the config queue and backend are ready.
-        - Mocks the convert quote/accept and market price.
-        - Waits for the frontend to reflect the expected state.
-        """
-        name = f"{coin}{end_currency}"
-
-        # Simulate sending config for convert-only position
-        hp_sell_data = HPSell(
-            config=HPSellConfig(
-                coin=coin,
-                buy_price=buy_price,
-                sell_price=sell_price,
-                quantity=quantity,
-                end_currency=end_currency,
-                symbol=Symbol(name=name, precision=5, price_precision=2),
-            ),
-            state_info=StateInfo(side=PositionSide.SHORT),
-        )
-        self.front.config_queue.put_nowait(hp_sell_data)
-        logger.info(
-            "Convert-only sell config added to the queue: %s", hp_sell_data.config
-        )
-
-        return hp_sell_data
-
     def __init__(self, front: HpFront, back: StrategyExecutor):
         self.front = front
         self.back = back
@@ -94,23 +59,20 @@ class HPSimulator:
     def simulate_buy_position(
         self,
         symbol: str,
-        mode: Mode = Mode.DCA,
         budget: float = 1000.0,
-        price_low: float = 1000.0,
-        price_high: float = 1400.0,  # Reverted back to 1400.0
+        buy_price: float = 1400.0,
         order_trigger: float = 1.0,
         hp_id: str = "0",
         coin: str = "BTC",
+        mode: str = "",
     ):
         hp = HPBuy(
             HPBuyConfig(
                 hp_id=hp_id,
                 symbol=Symbol(name=symbol, precision=5, price_precision=2),
-                price_low=price_low,
-                price_high=price_high,
+                buy_price=buy_price,
                 order_trigger=order_trigger,
                 budget=budget,
-                mode=mode,
                 coin=coin,
             ),
             state_info=StateInfo(),
@@ -133,7 +95,7 @@ class HPSimulator:
 
         assert isinstance(strategy, HpStrategy)
         assert strategy.state == State.NEW, strategy.state
-        assert len(strategy.buy.orders) == 3
+        assert strategy.buy.buy_order is not None
 
         await wait_for_no_active_buy_positions(self.front)
         await wait_for_idle_buy_positions(self.front)
@@ -149,17 +111,17 @@ class HPSimulator:
 
         self.validate_child_buy(
             "1000",
-            quantity="0.84921",
+            quantity="0.71429",
             realized_quantity="0.0",
-            state="NEW",  # 0.84921 is correct with precision=5 rounding
+            state="NEW",  # 0.71429 is correct with precision=5 rounding
         )
 
     async def move_to_position_active_buy(self):
         # Open position and send orders
         strategy = self.back.strategies["1000"]
-        strategy.client.create_order.side_effect = get_new_orders(
-            orders=strategy.buy.orders
-        )
+        strategy.client.create_order.side_effect = [
+            get_new_order(order=strategy.buy.buy_order)
+        ]
         self.new_price(price=1410.0, symbol="BTCUSDC")
 
         # Assert new opened position data
@@ -167,8 +129,8 @@ class HPSimulator:
         await wait_for_active_buy_positions(self.front)
         await wait_for_no_idle_buy_positions(self.front)
         assert strategy.buy.data.state_info.state == State.NEW
-        assert all(order.order_id for order in strategy.buy.orders)
-        assert all(order.status == ORDER_STATUS_NEW for order in strategy.buy.orders)
+        assert strategy.buy.buy_order.order_id
+        assert strategy.buy.buy_order.status == ORDER_STATUS_NEW
 
         logger.info(
             "Active buy positions: %s", get_buy_positions(self.front, state="BUYING")
@@ -180,16 +142,15 @@ class HPSimulator:
     async def cancel_buy_position_untouched(self):
         strategy = self.back.strategies["1000"]
 
-        assert strategy.buy.orders_cancel_price == 1428.0
+        assert strategy.buy.order_cancel_price == 1428.0
         self.new_price(price=1428.0, symbol="BTCUSDC")
 
         await wait_for_condition(
-            condition_func=lambda: all(
-                order.status == ORDER_STATUS_CANCELED for order in strategy.buy.orders
-            )
+            condition_func=lambda: strategy.buy.buy_order.status
+            == ORDER_STATUS_CANCELED
         )
 
-        assert len(strategy.buy.orders) == 3
+        assert strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
         assert strategy.buy.data.state_info.state == State.NEW
         assert strategy.state == State.NEW
 
@@ -208,57 +169,61 @@ class HPSimulator:
             quantity_usd="0.0",
         )
 
-        # Child buy validation - quantity should always be total expected (0.84921)
+        # Child buy validation - quantity should always be total expected (0.71429)
         self.validate_child_buy(
-            "1000", quantity="0.84921", realized_quantity="0.0", state="NEW"
+            "1000", quantity="0.71429", realized_quantity="0.0", state="NEW"
         )
 
-    async def simulate_partial_fill(self) -> HpStrategy:
+    async def simulate_partial_fill(
+        self, last: float = 0.12, cumulative: float = 0.12, sold: float = 0.0
+    ) -> HpStrategy:
         strategy = self.back.strategies["1000"]
 
+        price = 1400.0
+
+        assert strategy.buy.buy_order is not None
+
         # Get the actual order ID from the first order
-        first_order_id = strategy.buy.orders[0].order_id
+        first_order_id = strategy.buy.buy_order.order_id
 
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
             order_id=first_order_id,
-            last_executed_quantity=0.12,
-            last_executed_price=1400,
-            cumulative_filled_quantity=0.12,
+            last_executed_quantity=last,
+            last_executed_price=price,
+            cumulative_filled_quantity=cumulative,
         )
         strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
         logger.info("Put event to the worker: %s", exc_report)
 
         assert strategy.state == State.BUYING
-        logger.info("Orders: %s", strategy.buy.orders)
+        logger.info("Order: %s", strategy.buy.buy_order)
         await wait_for_condition(
-            condition_func=lambda: strategy.buy.orders[0].status
+            condition_func=lambda: strategy.buy.buy_order.status
             == ORDER_STATUS_PARTIALLY_FILLED
         )
-        assert strategy.buy.orders[1].status == ORDER_STATUS_NEW
-        assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
 
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["quantity"]
-            == str(exc_report.last_executed_quantity)
+            == str(cumulative)
         )
 
         # Comprehensive validation for partial fill
         self.validate_parent(
             "1000",
-            quantity="0.12",
-            realized_quantity="0.0",
+            quantity=f"{cumulative}",
+            realized_quantity=f"{sold}",
             state="BUYING",
-            buy_price="1400.0",
-            quantity_usd="168.0",
+            buy_price=f"{price}",
+            quantity_usd=f"{round(price * cumulative, 2)}",
         )
 
-        # Child buy validation - quantity should always be total expected (0.84921)
+        # Child buy validation - quantity should always be total expected (0.71429)
         self.validate_child_buy(
             "1000",
-            quantity="0.84921",
-            realized_quantity="0.12",
+            quantity="0.71429",
+            realized_quantity=f"{cumulative}",
             state="PARTIALLY_BOUGHT",
         )
 
@@ -269,8 +234,10 @@ class HPSimulator:
     async def simulate_partial_fill_with_sell_price(self) -> HpStrategy:
         strategy = self.back.strategies["1000"]
 
+        assert strategy.buy.buy_order is not None
+
         # Use dynamic order ID from the first order
-        first_order_id = strategy.buy.orders[0].order_id
+        first_order_id = strategy.buy.buy_order.order_id
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
@@ -283,13 +250,11 @@ class HPSimulator:
         logger.info("Put event to the worker: %s", exc_report)
 
         assert strategy.state == State.BUYING
-        logger.info("Orders: %s", strategy.buy.orders)
+        logger.info("Order: %s", strategy.buy.buy_order)
         await wait_for_condition(
-            condition_func=lambda: strategy.buy.orders[0].status
+            condition_func=lambda: strategy.buy.buy_order.status
             == ORDER_STATUS_PARTIALLY_FILLED
         )
-        assert strategy.buy.orders[1].status == ORDER_STATUS_NEW
-        assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
 
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["quantity"]
@@ -311,489 +276,12 @@ class HPSimulator:
             net_percent="0.0",
         )
 
-        # Child buy validation - quantity should always be total expected (0.84921)
+        # Child buy validation - quantity should always be total expected (0.71429)
         self.validate_child_buy(
             "1000",
-            quantity="0.84921",
+            quantity="0.71429",
             realized_quantity="0.12",
             state="PARTIALLY_BOUGHT",
-        )
-
-        logger.info("HP List after the update: %s", self.front.hp_list_data)
-
-        return strategy
-
-    async def simulate_first_buy_order_fill(self) -> HpStrategy:
-        strategy = self.back.strategies["1000"]
-
-        exc_report = ExecutionReport(
-            order_type=ORDER_TYPE_LIMIT,
-            current_order_status=ORDER_STATUS_FILLED,
-            order_id=strategy.buy.orders[0].order_id,  # Use actual order ID
-            last_executed_quantity=0.24,
-            last_executed_price=1400,
-            cumulative_filled_quantity=0.24,
-            price=1400.0,
-        )
-        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
-        logger.info("Put event to the worker: %s", exc_report)
-
-        # Validate strategy state and order status
-        self.validate_strategy_state(strategy, "BUYING")
-        logger.info("Orders: %s", strategy.buy.orders)
-        await wait_for_condition(
-            condition_func=lambda: strategy.buy.orders[0].status == ORDER_STATUS_FILLED
-        )
-        # Validate order states
-        self.validate_buy_orders(
-            strategy,
-            expected_order_data=[
-                {"status": ORDER_STATUS_FILLED},
-                {"status": ORDER_STATUS_NEW},
-                {"status": ORDER_STATUS_NEW},
-            ],
-        )
-
-        await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
-            == str(exc_report.last_executed_quantity)
-        )
-
-        # Comprehensive validation for first buy order fill
-        self.validate_parent(
-            "1000",
-            quantity="0.24",
-            realized_quantity="0.0",
-            state="BUYING",
-            buy_price="1400.0",
-            quantity_usd="336.0",
-            sell_price="0.0",
-            expected_return="0.0",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
-        )
-
-        # Child buy validation - quantity should always be total expected (0.84921)
-        self.validate_child_buy(
-            "1000",
-            quantity="0.84921",
-            realized_quantity="0.24",
-            state="PARTIALLY_BOUGHT",
-        )
-
-        logger.info("HP List after the update: %s", self.front.hp_list_data)
-
-        return strategy
-
-    async def simulate_second_buy_order_fill(self) -> HpStrategy:
-        strategy = self.back.strategies["1000"]
-
-        # Get the actual second order ID from the strategy instead of hardcoded value
-        second_order_id = strategy.buy.orders[1].order_id
-        exc_report = ExecutionReport(
-            order_type=ORDER_TYPE_LIMIT,
-            current_order_status=ORDER_STATUS_FILLED,
-            order_id=second_order_id,
-            last_executed_quantity=0.28,
-            last_executed_price=1200,
-            cumulative_filled_quantity=0.28,
-            price=1200,
-        )
-        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
-        logger.info("Put event to the worker: %s", exc_report)
-
-        # Validate strategy state
-        self.validate_strategy_state(strategy, "BUYING")
-        logger.info("Orders: %s", strategy.buy.orders)
-
-        await wait_for_condition(
-            condition_func=lambda: strategy.buy.orders[1].status == ORDER_STATUS_FILLED
-        )
-
-        # Validate order states after waiting for the condition
-        self.validate_buy_orders(
-            strategy,
-            expected_order_data=[
-                {"status": ORDER_STATUS_FILLED},
-                {"status": ORDER_STATUS_FILLED},
-                {"status": ORDER_STATUS_NEW},
-            ],
-        )
-
-        realized_quantity = str(
-            strategy.buy.orders[0].realized_quantity
-            + strategy.buy.orders[1].realized_quantity
-        )
-        await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
-            == realized_quantity
-        )
-
-        logger.info(
-            "a: %s, b: %s", self.front.hp_list_data[0]["quantity"], realized_quantity
-        )
-
-        # Comprehensive validation for second buy order fill
-        self.validate_parent(
-            "1000",
-            quantity="0.52",
-            realized_quantity="0.0",
-            state="BUYING",
-            buy_price="1292.31",
-            quantity_usd="672.0",
-            sell_price="0.0",
-            expected_return="0.0",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
-        )
-
-        # Child buy validation - quantity should always be total expected (0.85)
-        self.validate_child_buy(
-            "1000",
-            quantity="0.84921",
-            realized_quantity="0.52",
-            state="PARTIALLY_BOUGHT",
-        )
-
-        logger.info("HP List after the update: %s", self.front.hp_list_data)
-
-        return strategy
-
-    async def simulate_third_buy_order_fill(self) -> HpStrategy:
-        strategy = self.back.strategies["1000"]
-
-        # Get the actual third order ID from the strategy instead of hardcoded value
-        third_order_id = strategy.buy.orders[2].order_id
-        exc_report = ExecutionReport(
-            order_type=ORDER_TYPE_LIMIT,
-            current_order_status=ORDER_STATUS_FILLED,
-            order_id=third_order_id,
-            last_executed_quantity=0.33,
-            last_executed_price=1000,
-            cumulative_filled_quantity=0.33,
-            price=1000,
-        )
-        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
-        logger.info("Put event to the worker: %s", exc_report)
-
-        assert strategy.state == State.BUYING
-        logger.info("Orders: %s", strategy.buy.orders)
-        assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
-        assert strategy.buy.orders[1].status == ORDER_STATUS_FILLED
-        await wait_for_condition(
-            condition_func=lambda: strategy.buy.orders[2].status == ORDER_STATUS_FILLED
-        )
-
-        realized_quantity = str(
-            round(sum(order.realized_quantity for order in strategy.buy.orders), 2)
-        )
-
-        await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
-            == realized_quantity
-        )
-
-        # Wait for final state transition to BOUGHT
-        await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["state"] == "BOUGHT"
-        )
-
-        assert len(self.front.hp_list_data) == 2
-        item = self.front.hp_list_data[0]
-        assert item["hp_id"] == "1000"
-        assert item["coin"] == "BTCUSD"
-        assert item["buy_price"] == "1178.82"
-        assert item["quantity"] == "0.85"
-        assert item["quantity_usd"] == "1002.0"
-        assert item["sell_price"] == "0.0"
-        assert item["expected_return"] == "0.0"
-        assert item["current_price"] == "0.0"
-        assert item["net"] == "0.0"
-        assert item["net_percent"] == "0.0"
-        assert item["state"] == "BOUGHT"
-
-        # Child buy validation - quantity should always be total expected (0.85), all filled
-        self.validate_child_buy(
-            "1000", quantity="0.84921", realized_quantity="0.85", state="BOUGHT"
-        )
-
-        logger.info("HP List after the update: %s", self.front.hp_list_data)
-
-        return strategy
-
-    async def simulate_second_buy_order_fill_with_sell_price(self) -> HpStrategy:
-        strategy = self.back.strategies["1000"]
-
-        # Get the dynamic order ID for the second order (price=1200)
-        second_order_id = None
-        for order in strategy.buy.orders:
-            if order.price == 1200 and order.status in [
-                ORDER_STATUS_NEW,
-                ORDER_STATUS_PARTIALLY_FILLED,
-            ]:
-                second_order_id = order.order_id
-                break
-
-        if second_order_id is None:
-            logger.warning("Second order not found")
-            return strategy
-        exc_report = ExecutionReport(
-            order_type=ORDER_TYPE_LIMIT,
-            current_order_status=ORDER_STATUS_FILLED,
-            order_id=second_order_id,
-            last_executed_quantity=0.28,
-            last_executed_price=1200,
-            cumulative_filled_quantity=0.28,
-            price=1200,
-        )
-        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
-        logger.info("Put event to the worker: %s", exc_report)
-
-        assert strategy.state == State.BUYING
-        logger.info("Orders: %s", strategy.buy.orders)
-        assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
-        await wait_for_condition(
-            condition_func=lambda: strategy.buy.orders[1].status == ORDER_STATUS_FILLED
-        )
-        assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
-
-        # Calculate realized buy quantity minus realized sell quantity (always one sell order)
-        realized_buy_quantity = str(
-            round(sum(order.realized_quantity for order in strategy.buy.orders), 2)
-        )
-
-        # Wait for frontend to process all updates before asserting
-        await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
-            == realized_buy_quantity
-        )
-
-        # Note: expected_return is correctly calculated as 1512.0 in logs
-        # Frontend list updates are skipped during tests due to container unavailability
-
-        logger.info("Front quantity: %s", self.front.hp_list_data[0]["quantity"])
-        assert (
-            self.front.hp_list_data[0]["quantity"] == realized_buy_quantity
-        ), realized_buy_quantity
-
-        assert len(self.front.hp_list_data) == 3
-        item = self.front.hp_list_data[0]
-        assert item["hp_id"] == "1000"
-        assert item["coin"] == "BTCUSD"
-        assert item["buy_price"] == "1292.31"
-        assert item["quantity"] == "0.52"
-        assert item["quantity_usd"] == "672.0", item["quantity_usd"]
-        assert item["sell_price"] == "4200.0", item["sell_price"]
-        assert item["expected_return"] == "1512.0", item["expected_return"]
-        assert item["current_price"] == "0.0"
-        assert item["net"] == "0.0"
-        assert item["net_percent"] == "0.0"
-        assert item["state"] == "BUYING"
-
-        logger.info("HP List after the update: %s", self.front.hp_list_data)
-
-        return strategy
-
-    async def simulate_third_buy_order_fill_with_sell_price(self) -> HpStrategy:
-        strategy = self.back.strategies["1000"]
-
-        exc_report = ExecutionReport(
-            order_type=ORDER_TYPE_LIMIT,
-            current_order_status=ORDER_STATUS_FILLED,
-            order_id=strategy.buy.orders[2].order_id,
-            last_executed_quantity=0.33,
-            last_executed_price=1000,
-            cumulative_filled_quantity=0.33,
-            price=1000,
-        )
-        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
-        logger.info("Put event to the worker: %s", exc_report)
-
-        assert strategy.state == State.BUYING
-        logger.info("Orders: %s", strategy.buy.orders)
-        assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
-        assert strategy.buy.orders[1].status == ORDER_STATUS_FILLED
-        await wait_for_condition(
-            condition_func=lambda: strategy.buy.orders[2].status == ORDER_STATUS_FILLED
-        )
-
-        realized_quantity = str(
-            round(
-                (sum(order.realized_quantity for order in strategy.buy.orders)),
-                2,
-            )
-        )
-
-        await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
-            == realized_quantity
-        )
-
-        await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["state"]
-            == "PARTIALLY_SOLD"
-        )
-
-        logger.info("Front parent: %s", self.front.hp_list_data[0])
-
-        # Comprehensive validation using framework
-        assert len(self.front.hp_list_data) == 3
-        self.validate_parent(
-            "1000",
-            quantity="0.85",
-            realized_quantity="0.24",
-            state="PARTIALLY_SOLD",
-            buy_price="1178.82",
-            sell_price="4200.0",
-            quantity_usd="1002.0",
-            expected_return="2568.0",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
-        )
-
-        # Child buy validation - quantity should always be total expected (0.85)
-        self.validate_child_buy(
-            "1000", quantity="0.84921", realized_quantity="0.85", state="BOUGHT"
-        )
-
-        logger.info("HP List after the update: %s", self.front.hp_list_data)
-
-        return strategy
-
-    async def simulate_second_buy_order_fill_with_sell_price_no_fill(
-        self,
-    ) -> HpStrategy:
-        strategy = self.back.strategies["1000"]
-
-        # Get the second order's dynamic ID
-        second_order_id = strategy.buy.orders[1].order_id
-
-        exc_report = ExecutionReport(
-            order_type=ORDER_TYPE_LIMIT,
-            current_order_status=ORDER_STATUS_FILLED,
-            order_id=second_order_id,
-            last_executed_quantity=0.28,
-            last_executed_price=1200,
-            cumulative_filled_quantity=0.28,
-            price=1200,
-        )
-        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
-        logger.info("Put event to the worker: %s", exc_report)
-
-        assert strategy.state == State.BUYING
-        logger.info("Orders: %s", strategy.buy.orders)
-        assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
-        await wait_for_condition(
-            condition_func=lambda: strategy.buy.orders[1].status == ORDER_STATUS_FILLED
-        )
-        assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
-
-        # Calculate realized buy quantity minus realized sell quantity (always one sell order)
-        realized_buy_quantity = str(
-            strategy.buy.orders[0].realized_quantity
-            + strategy.buy.orders[1].realized_quantity
-        )
-        logger.info("Realized buy quantity: %s", realized_buy_quantity)
-        await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
-            == realized_buy_quantity
-        )
-
-        # With hierarchical structure: parent + BUY child + SELL child = 3 items
-        assert len(self.front.hp_list_data) == 3
-
-        # Comprehensive validation using framework
-        self.validate_parent(
-            "1000",
-            quantity="0.52",
-            realized_quantity="0.0",
-            state="BUYING",
-            buy_price="1292.31",
-            sell_price="4200.0",
-            quantity_usd="672.0",
-            expected_return="1512.0",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
-        )
-
-        # Child buy validation - quantity should always be total expected (0.84921)
-        self.validate_child_buy(
-            "1000",
-            quantity="0.84921",
-            realized_quantity="0.52",
-            state="PARTIALLY_BOUGHT",
-        )
-
-        logger.info("HP List after the update: %s", self.front.hp_list_data)
-
-        return strategy
-
-    async def simulate_third_buy_order_fill_with_sell_price_no_fill(self) -> HpStrategy:
-        strategy = self.back.strategies["1000"]
-
-        # Get the third order's dynamic ID
-        third_order_id = strategy.buy.orders[2].order_id
-
-        exc_report = ExecutionReport(
-            order_type=ORDER_TYPE_LIMIT,
-            current_order_status=ORDER_STATUS_FILLED,
-            order_id=third_order_id,
-            last_executed_quantity=0.33,
-            last_executed_price=1000,
-            cumulative_filled_quantity=0.33,
-            price=1000,
-        )
-        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
-        logger.info("Put event to the worker: %s", exc_report)
-
-        assert strategy.state == State.BUYING
-        logger.info("Orders: %s", strategy.buy.orders)
-        assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
-        assert strategy.buy.orders[1].status == ORDER_STATUS_FILLED
-        await wait_for_condition(
-            condition_func=lambda: strategy.buy.orders[2].status == ORDER_STATUS_FILLED
-        )
-
-        realized_quantity = str(
-            round(
-                (sum(order.realized_quantity for order in strategy.buy.orders)),
-                2,
-            )
-        )
-
-        await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
-            == realized_quantity
-        )
-
-        # Wait for state transition to BOUGHT before validation
-        await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["state"] == "BOUGHT"
-        )
-
-        # Comprehensive validation using framework
-        assert len(self.front.hp_list_data) == 3
-        self.validate_parent(
-            "1000",
-            quantity="0.85",
-            realized_quantity="0.0",
-            state="BOUGHT",
-            buy_price="1178.82",
-            sell_price="4200.0",
-            quantity_usd="1002.0",
-            expected_return="2568.0",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
-        )
-
-        # Child buy validation - quantity should always be total expected (0.85)
-        self.validate_child_buy(
-            "1000", quantity="0.84921", realized_quantity="0.85", state="BOUGHT"
         )
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
@@ -805,10 +293,30 @@ class HPSimulator:
         self.simulate_buy_position(symbol=symbol)
         await self.assert_default_buy_position()
         await self.move_to_position_active_buy()
-        # Simulate all three buy order fills
-        strategy = await self.simulate_first_buy_order_fill()
-        strategy = await self.simulate_second_buy_order_fill()
-        strategy = await self.simulate_third_buy_order_fill()
+        # Simulate full buy order fill (single order system)
+        strategy = self.back.strategies["1000"]
+        assert strategy.buy.buy_order is not None
+        exc_report = ExecutionReport(
+            order_type=ORDER_TYPE_LIMIT,
+            current_order_status=ORDER_STATUS_FILLED,
+            order_id=strategy.buy.buy_order.order_id,
+            last_executed_quantity=0.71429,
+            last_executed_price=1400,
+            cumulative_filled_quantity=0.71429,
+            price=1400.0,
+        )
+        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
+        logger.info("Put event to the worker: %s", exc_report)
+
+        await wait_for_condition(
+            condition_func=lambda: strategy.buy.buy_order.status == ORDER_STATUS_FILLED
+        )
+
+        await wait_for_condition(
+            condition_func=lambda: len(self.front.hp_list_data) > 0
+            and self.front.hp_list_data[0].get("state") == "BOUGHT"
+        )
+
         return strategy
 
     async def setup_sell_position(
@@ -840,25 +348,8 @@ class HPSimulator:
             condition_func=lambda: self.front.hp_list_data[0]["sell_price"] == "4200.0"
         )
 
-        # Comprehensive validation using framework
-        self.validate_parent(
-            "1000",
-            quantity="0.85",
-            realized_quantity="0.0",
-            state="BOUGHT",
-            buy_price="1178.82",
-            sell_price="4200.0",
-            quantity_usd="1002.0",
-            expected_return="2568.0",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
-        )
-
-        # Child buy validation - quantity should always be total expected (0.85)
-        self.validate_child_buy(
-            "1000", quantity="0.84921", realized_quantity="0.85", state="BOUGHT"
-        )
+        # The test itself will perform detailed validation after this method returns
+        # We just wait for the basic sell position setup to complete
 
         await wait_for_condition(
             condition_func=lambda: self.back.strategies[
@@ -869,9 +360,9 @@ class HPSimulator:
     async def send_sell_order_for_bought_position(self):
         strategy = self.back.strategies["1000"]
         logger.info("Sell order: %s", strategy.sell.current_position.sell_order)
-        strategy.client.create_order.side_effect = get_new_orders(
-            [strategy.sell.current_position.sell_order]
-        )
+        strategy.client.create_order.side_effect = [
+            get_new_order(order=strategy.sell.current_position.sell_order)
+        ]
         self.new_price(price=4156.0, symbol="BTCUSDC")
 
         await wait_for_condition(
@@ -881,13 +372,13 @@ class HPSimulator:
         # Comprehensive validation using framework
         self.validate_parent(
             "1000",
-            quantity="0.85",
+            quantity="0.71429",
             realized_quantity="0.0",
             state="SELLING",
-            buy_price="1178.82",
+            buy_price="1400.0",
             sell_price="4200.0",
-            quantity_usd="1002.0",
-            expected_return="2568.0",
+            quantity_usd="1000.01",
+            expected_return="2000.01",
             current_price="0.0",
             net="0.0",
             net_percent="0.0",
@@ -897,7 +388,7 @@ class HPSimulator:
             condition_func=lambda: strategy.sell.current_position.sell_order.status
             == ORDER_STATUS_NEW
         )
-        assert strategy.sell.current_position.sell_order.quantity == 0.85
+        assert strategy.sell.current_position.sell_order.quantity == 0.71429
         assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
         # Wait for sell child to be created in hierarchical structure
@@ -928,8 +419,8 @@ class HPSimulator:
         assert (
             active_sell_item["coin"] == "BTCUSDC"
         )  # sell child uses 'coin' not 'symbol'
-        assert active_sell_item["buy_price"] == "1178.82"
-        assert active_sell_item["quantity"] == "0.85"
+        assert active_sell_item["buy_price"] == "1400.0"
+        assert active_sell_item["quantity"] == "0.71429"
         # Note: end_currency is not available in sell child structure
         assert (
             active_sell_item["sell_price"] == "4200.0"
@@ -946,7 +437,7 @@ class HPSimulator:
             == ORDER_STATUS_CANCELED
         )
 
-        assert strategy.sell.current_position.sell_order.quantity == 0.85
+        assert strategy.sell.current_position.sell_order.quantity == 0.71429
         assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
         assert strategy.sell.current_position.state_info.state == State.NEW
@@ -959,13 +450,13 @@ class HPSimulator:
         # Comprehensive validation using framework
         self.validate_parent(
             "1000",
-            quantity="0.85",
+            quantity="0.71429",
             realized_quantity="0.0",
             state="BOUGHT",
-            buy_price="1178.82",
+            buy_price="1400.0",
             sell_price="4200.0",
-            quantity_usd="1002.0",
-            expected_return="2568.0",
+            quantity_usd="1000.01",
+            expected_return="2000.01",
             current_price="0.0",
             net="0.0",
             net_percent="0.0",
@@ -979,7 +470,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=3570,
+            order_id=strategy.sell.current_position.sell_order.order_id,
             last_executed_quantity=0.42,
             last_executed_price=4200,
             cumulative_filled_quantity=0.42,
@@ -996,7 +487,7 @@ class HPSimulator:
         )
 
         await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"] == "0.85"
+            condition_func=lambda: self.front.hp_list_data[0]["quantity"] == "0.71429"
         )
 
         # Wait for the parent position to stabilize with correct realized_quantity
@@ -1012,13 +503,13 @@ class HPSimulator:
         # Comprehensive validation using framework
         self.validate_parent(
             "1000",
-            quantity="0.85",
+            quantity="0.71429",
             realized_quantity="0.42",
             state="SELLING",
-            buy_price="1178.82",
+            buy_price="1400.0",
             sell_price="4200.0",
-            quantity_usd="1002.0",
-            expected_return="2568.0",
+            quantity_usd="1000.01",
+            expected_return="2000.01",
             current_price="0.0",
             net="0.0",
             net_percent="0.0",
@@ -1034,10 +525,10 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=3570,
-            last_executed_quantity=0.85,
+            order_id=strategy.sell.current_position.sell_order.order_id,
+            last_executed_quantity=0.71429,
             last_executed_price=4200,
-            cumulative_filled_quantity=0.85,
+            cumulative_filled_quantity=0.71429,
             price=4200.0,
         )
         strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
@@ -1051,7 +542,7 @@ class HPSimulator:
         )
 
         await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"] == "0.85"
+            condition_func=lambda: self.front.hp_list_data[0]["quantity"] == "0.71429"
         )
 
         await wait_for_condition(
@@ -1061,13 +552,13 @@ class HPSimulator:
         # Comprehensive validation using framework
         self.validate_parent(
             "1000",
-            quantity="0.85",
-            realized_quantity="0.85",
+            quantity="0.71429",
+            realized_quantity="0.71429",
             state="SOLD",
-            buy_price="1178.82",
+            buy_price="1400.0",
             sell_price="4200.0",
-            quantity_usd="1002.0",
-            expected_return="2568.0",
+            quantity_usd="1000.01",
+            expected_return="2000.01",
             current_price="0.0",
             net="0.0",
             net_percent="0.0",
@@ -1086,7 +577,7 @@ class HPSimulator:
             == ORDER_STATUS_CANCELED
         )
 
-        assert strategy.sell.current_position.sell_order.quantity == 0.85
+        assert strategy.sell.current_position.sell_order.quantity == 0.71429
         assert strategy.sell.current_position.sell_order.realized_quantity == 0.42
 
         assert strategy.sell.current_position.state_info.state == State.PARTIALLY_SOLD
@@ -1100,13 +591,13 @@ class HPSimulator:
         # Comprehensive validation using framework
         self.validate_parent(
             "1000",
-            quantity="0.85",
+            quantity="0.71429",
             realized_quantity="0.42",
             state="PARTIALLY_SOLD",
-            buy_price="1178.82",
+            buy_price="1400.0",
             sell_price="4200.0",
-            quantity_usd="1002.0",
-            expected_return="2568.0",
+            quantity_usd="1000.01",
+            expected_return="2000.01",
             current_price="0.0",
             net="0.0",
             net_percent="0.0",
@@ -1117,9 +608,9 @@ class HPSimulator:
     async def resend_sell_order_for_partially_sold_position(self):
         strategy = self.back.strategies["1000"]
         logger.info("Sell orders: %s", strategy.sell.current_position.sell_order)
-        strategy.client.create_order.side_effect = get_new_orders(
-            [strategy.sell.current_position.sell_order]
-        )
+        strategy.client.create_order.side_effect = [
+            get_new_order(order=strategy.sell.current_position.sell_order)
+        ]
         self.new_price(price=4156.0, symbol="BTCUSDC")
 
         await wait_for_condition(
@@ -1129,13 +620,13 @@ class HPSimulator:
         # Comprehensive validation using framework
         self.validate_parent(
             "1000",
-            quantity="0.85",
+            quantity="0.71429",
             realized_quantity="0.42",
             state="SELLING",
-            buy_price="1178.82",
+            buy_price="1400.0",
             sell_price="4200.0",
-            quantity_usd="1002.0",
-            expected_return="2568.0",
+            quantity_usd="1000.01",
+            expected_return="2000.01",
             current_price="0.0",
             net="0.0",
             net_percent="0.0",
@@ -1145,7 +636,7 @@ class HPSimulator:
             condition_func=lambda: strategy.sell.current_position.sell_order.status
             == ORDER_STATUS_NEW
         )
-        assert strategy.sell.current_position.sell_order.quantity == 0.85
+        assert strategy.sell.current_position.sell_order.quantity == 0.71429
         assert strategy.sell.current_position.sell_order.realized_quantity == 0.42
 
         # Wait for sell state to be SELLING after resending order
@@ -1158,9 +649,9 @@ class HPSimulator:
 
         assert selling_parent_item["hp_id"] == "1000"
         assert selling_parent_item["coin"] == "BTCUSD"  # Parent shows simplified symbol
-        assert selling_parent_item["buy_price"] == "1178.82"
+        assert selling_parent_item["buy_price"] == "1400.0"
         assert (
-            selling_parent_item["quantity"] == "0.85"
+            selling_parent_item["quantity"] == "0.71429"
         )  # Remaining quantity after partial fill
         assert selling_parent_item["sell_price"] == "4200.0"
         assert selling_parent_item["side"] == "PARENT"
@@ -1169,9 +660,9 @@ class HPSimulator:
     async def send_sell_order_for_part_bought_position(self):
         strategy = self.back.strategies["1000"]
 
-        strategy.client.create_order.side_effect = get_new_orders(
-            [strategy.sell.current_position.sell_order]
-        )
+        strategy.client.create_order.side_effect = [
+            get_new_order(order=strategy.sell.current_position.sell_order)
+        ]
         self.new_price(price=4156, symbol="BTCUSDC")
 
         await wait_for_condition(
@@ -1191,13 +682,13 @@ class HPSimulator:
         # Comprehensive validation using framework
         self.validate_parent(
             "1000",
-            quantity="0.24",
+            quantity="0.12",
             realized_quantity="0.0",
             state="SELLING",
             buy_price="1400.0",
             sell_price="4200.0",
-            quantity_usd="336.0",
-            expected_return="672.0",
+            quantity_usd="168.0",
+            expected_return="336.0",
             current_price="0.0",
             net="0.0",
             net_percent="0.0",
@@ -1207,7 +698,7 @@ class HPSimulator:
             condition_func=lambda: strategy.sell.current_position.sell_order.status
             == ORDER_STATUS_NEW
         )
-        assert strategy.sell.current_position.sell_order.quantity == 0.24
+        assert strategy.sell.current_position.sell_order.quantity == 0.12
         assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
         # Wait for sell child to be created
@@ -1228,17 +719,17 @@ class HPSimulator:
         # Comprehensive validation for sell position setup
         self.validate_parent(
             "1000",
-            quantity="0.24",
+            quantity="0.12",
             realized_quantity="0.0",
             state="SELLING",
             buy_price="1400.0",
             sell_price="4200.0",
         )
         self.validate_child_sell(
-            "1000", quantity="0.24", realized_quantity="0.0", state="SELLING"
+            "1000", quantity="0.12", realized_quantity="0.0", state="SELLING"
         )
 
-    async def setup_sell_position_after_first_buy_order_filled(
+    async def setup_sell_position_after_buy_order_filled_partially(
         self,
         hp_id: str,
         symbol: str,
@@ -1270,13 +761,13 @@ class HPSimulator:
         # Comprehensive validation using framework
         self.validate_parent(
             "1000",
-            quantity="0.24",
+            quantity="0.12",
             realized_quantity="0.0",
             state="PARTIALLY_BOUGHT",
             buy_price="1400.0",
             sell_price="4200.0",
-            quantity_usd="336.0",
-            expected_return="672.0",
+            quantity_usd="168.0",
+            expected_return="336.0",
             current_price="0.0",
             net="0.0",
             net_percent="0.0",
@@ -1288,31 +779,26 @@ class HPSimulator:
             ].sell.current_position.sell_order
         )
 
-    async def cancel_buy_position_after_first_order_filled(self):
+    async def cancel_buy_position_after_order_partial_fill(self):
         strategy = self.back.strategies["1000"]
 
-        assert strategy.buy.orders_cancel_price == 1428.0
+        assert strategy.buy.order_cancel_price == 1428.0
         self.new_price(price=1428.0, symbol="BTCUSDC")
 
-        assert len(strategy.buy.orders) == 3
-
-        assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
-
+        # Wait for the state transition to complete
         await wait_for_condition(
-            condition_func=lambda: strategy.buy.orders[1].status
-            == ORDER_STATUS_CANCELED
-        )
-        await wait_for_condition(
-            condition_func=lambda: strategy.buy.orders[2].status
-            == ORDER_STATUS_CANCELED
+            condition_func=lambda: strategy.state == State.PARTIALLY_BOUGHT
         )
 
-        assert strategy.buy.orders[0].realized_quantity == 0.24
-        assert strategy.buy.orders[1].realized_quantity == 0.0
-        assert strategy.buy.orders[2].realized_quantity == 0.0
+        # After cancellation, order status should be CANCELED
+        await wait_for_condition(
+            condition_func=lambda: strategy.buy.buy_order.status
+            == ORDER_STATUS_CANCELED
+        )
+
+        assert strategy.buy.buy_order.realized_quantity == 0.12
 
         assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
-        assert strategy.state == State.PARTIALLY_BOUGHT
 
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["state"]
@@ -1322,12 +808,12 @@ class HPSimulator:
         # Comprehensive validation using framework
         self.validate_parent(
             "1000",
-            quantity="0.24",
+            quantity="0.12",
             realized_quantity="0.0",
             state="PARTIALLY_BOUGHT",
             buy_price="1400.0",
             sell_price="0.0",
-            quantity_usd="336.0",
+            quantity_usd="168.0",
             expected_return="0.0",
             current_price="0.0",
             net="0.0",
@@ -1337,8 +823,8 @@ class HPSimulator:
         # Child buy validation - quantity should always be total expected (0.85)
         self.validate_child_buy(
             "1000",
-            quantity="0.84921",
-            realized_quantity="0.24",
+            quantity="0.71429",
+            realized_quantity="0.12",
             state="PARTIALLY_BOUGHT",
         )
 
@@ -1353,7 +839,7 @@ class HPSimulator:
             == ORDER_STATUS_CANCELED
         )
 
-        assert strategy.sell.current_position.sell_order.quantity == 0.24
+        assert strategy.sell.current_position.sell_order.quantity == 0.12
         assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
         assert strategy.sell.current_position.state_info.state == State.NEW
@@ -1367,13 +853,13 @@ class HPSimulator:
         # Comprehensive validation using framework
         self.validate_parent(
             "1000",
-            quantity="0.24",
+            quantity="0.12",
             realized_quantity="0.0",
             state="PARTIALLY_BOUGHT",
             buy_price="1400.0",
             sell_price="4200.0",
-            quantity_usd="336.0",
-            expected_return="672.0",
+            quantity_usd="168.0",
+            expected_return="336.0",
             current_price="0.0",
             net="0.0",
             net_percent="0.0",
@@ -1387,10 +873,10 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=1008,
-            last_executed_quantity=0.14,
+            order_id=strategy.sell.current_position.sell_order.order_id,
+            last_executed_quantity=0.06,
             last_executed_price=4200,
-            cumulative_filled_quantity=0.14,
+            cumulative_filled_quantity=0.06,
             price=4200.0,
         )
         strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
@@ -1405,7 +891,7 @@ class HPSimulator:
 
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["realized_quantity"]
-            == "0.14"
+            == "0.06"
         )
 
         await wait_for_condition(
@@ -1419,13 +905,13 @@ class HPSimulator:
         # Comprehensive validation using framework
         self.validate_parent(
             "1000",
-            quantity="0.24",
-            realized_quantity="0.14",
+            quantity="0.12",
+            realized_quantity="0.06",
             state="SELLING",
             buy_price="1400.0",
             sell_price="4200.0",
-            quantity_usd="336.0",
-            expected_return="672.0",
+            quantity_usd="168.0",
+            expected_return="336.0",
             current_price="0.0",
             net="0.0",
             net_percent="0.0",
@@ -1444,8 +930,8 @@ class HPSimulator:
             == ORDER_STATUS_CANCELED
         )
 
-        assert strategy.sell.current_position.sell_order.quantity == 0.24
-        assert strategy.sell.current_position.sell_order.realized_quantity == 0.14
+        assert strategy.sell.current_position.sell_order.quantity == 0.12
+        assert strategy.sell.current_position.sell_order.realized_quantity == 0.06
 
         assert strategy.sell.current_position.state_info.state == State.PARTIALLY_SOLD
         assert strategy.state == State.PART_SOLD_PART_BOUGHT
@@ -1458,83 +944,24 @@ class HPSimulator:
         # Comprehensive validation using framework
         self.validate_parent(
             "1000",
-            quantity="0.24",
-            realized_quantity="0.14",
+            quantity="0.12",
+            realized_quantity="0.06",
             state="PART_SOLD_PART_BOUGHT",
             buy_price="1400.0",
             sell_price="4200.0",
-            quantity_usd="336.0",
-            expected_return="672.0",
+            quantity_usd="168.0",
+            expected_return="336.0",
             current_price="0.0",
             net="0.0",
             net_percent="0.0",
         )
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
-
-    async def simulate_second_buy_order_partial_fill(self) -> HpStrategy:
-        strategy = self.back.strategies["1000"]
-
-        # Get the dynamic order ID for the second buy order
-        second_order_id = strategy.buy.orders[1].order_id
-
-        exc_report = ExecutionReport(
-            order_type=ORDER_TYPE_LIMIT,
-            current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=second_order_id,
-            last_executed_quantity=0.14,
-            last_executed_price=1200,
-            cumulative_filled_quantity=0.14,
-            price=1200,
-        )
-        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
-        logger.info("Put event to the worker: %s", exc_report)
-
-        assert strategy.state == State.BUYING
-        logger.info("Orders: %s", strategy.buy.orders)
-        assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
-        await wait_for_condition(
-            condition_func=lambda: strategy.buy.orders[1].status
-            == ORDER_STATUS_PARTIALLY_FILLED
-        )
-        assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
-
-        realized_quantity = str(
-            strategy.buy.orders[0].realized_quantity
-            + strategy.buy.orders[1].realized_quantity
-        )
-        await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
-            == realized_quantity
-        )
-
-        logger.info(
-            "a: %s, b: %s", self.front.hp_list_data[0]["quantity"], realized_quantity
-        )
-
-        assert len(self.front.hp_list_data) == 3
-        self.validate_parent(
-            "1000",
-            quantity="0.38",
-            realized_quantity="0.14",
-            state="BUYING",
-            buy_price="1326.32",
-            sell_price="4200.0",
-            quantity_usd="504.0",
-            expected_return="1092.0",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
-        )
-
-        logger.info("HP List after the update: %s", self.front.hp_list_data)
-
-        return strategy
 
     async def cancel_buy_position_filled_partially_sold_partially(self):
         strategy = self.back.strategies["1000"]
 
-        assert strategy.buy.orders_cancel_price == 1224.0
+        assert strategy.buy.order_cancel_price == 1224.0
         strategy.ticker_update = TickerUpdate(last_price=1428.0)
         assert (
             strategy.conditions_for_cancelling_partially_sold_and_bought_orders_buy_position()
@@ -1563,143 +990,16 @@ class HPSimulator:
             net_percent="0.0",
         )
 
-    async def simulate_second_buy_order_fill_after_selling_half_of_first_order(
-        self,
-    ) -> HpStrategy:
-        strategy = self.back.strategies["1000"]
-
-        # Get the dynamic order ID for the second buy order
-        second_order_id = strategy.buy.orders[1].order_id
-
-        exc_report = ExecutionReport(
-            order_type=ORDER_TYPE_LIMIT,
-            current_order_status=ORDER_STATUS_FILLED,
-            order_id=second_order_id,
-            last_executed_quantity=0.28,
-            last_executed_price=1200,
-            cumulative_filled_quantity=0.28,
-            price=1200,
-        )
-        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
-        logger.info("Put event to the worker: %s", exc_report)
-
-        assert strategy.state == State.BUYING
-        logger.info("Orders: %s", strategy.buy.orders)
-        assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
-        await wait_for_condition(
-            condition_func=lambda: strategy.buy.orders[1].status == ORDER_STATUS_FILLED
-        )
-        assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
-
-        realized_quantity = str(
-            strategy.buy.orders[0].realized_quantity
-            + strategy.buy.orders[1].realized_quantity
-        )
-        await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
-            == realized_quantity
-        )
-
-        logger.info(
-            "a: %s, b: %s", self.front.hp_list_data[0]["quantity"], realized_quantity
-        )
-
-        # Comprehensive validation using framework
-        assert len(self.front.hp_list_data) == 3
-
-        # Validate parent with 2 buy orders filled after selling half of first order
-        self.validate_parent(
-            "1000",
-            quantity="0.52",
-            realized_quantity="0.14",
-            state="BUYING",
-            buy_price="1292.31",
-            sell_price="4200.0",
-            quantity_usd="672.0",
-            expected_return="1512.0",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
-        )
-
-        logger.info("HP List after the update: %s", self.front.hp_list_data)
-
-        return strategy
-
-    async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
-        self,
-    ) -> HpStrategy:
-        strategy = self.back.strategies["1000"]
-
-        # Get dynamic third order ID
-        third_order_id = strategy.buy.orders[2].order_id
-
-        exc_report = ExecutionReport(
-            order_type=ORDER_TYPE_LIMIT,
-            current_order_status=ORDER_STATUS_FILLED,
-            order_id=third_order_id,
-            last_executed_quantity=0.33,
-            last_executed_price=1000,
-            cumulative_filled_quantity=0.33,
-            price=1000,
-        )
-        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
-        logger.info("Put event to the worker: %s", exc_report)
-
-        assert strategy.state == State.BUYING
-        logger.info("Orders: %s", strategy.buy.orders)
-        assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
-        assert strategy.buy.orders[1].status == ORDER_STATUS_FILLED
-        await wait_for_condition(
-            condition_func=lambda: strategy.buy.orders[2].status == ORDER_STATUS_FILLED
-        )
-
-        realized_quantity = str(
-            round(sum(order.realized_quantity for order in strategy.buy.orders), 2)
-        )
-
-        await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
-            == realized_quantity
-        )
-
-        await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["state"]
-            == "PARTIALLY_SOLD"
-        )
-
-        # Comprehensive validation using framework
-        assert len(self.front.hp_list_data) == 3
-
-        # Validate parent with all 3 buy orders filled after selling half of first order
-        self.validate_parent(
-            "1000",
-            quantity="0.85",
-            realized_quantity="0.14",
-            state="PARTIALLY_SOLD",
-            buy_price="1178.82",
-            sell_price="4200.0",
-            quantity_usd="1002.0",
-            expected_return="2568.0",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
-        )
-
-        logger.info("HP List after the update: %s", self.front.hp_list_data)
-
-        return strategy
-
     async def simulate_sell_order_fill_from_part_bought(self) -> HpStrategy:
         strategy = self.back.strategies["1000"]
 
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=1008,
-            last_executed_quantity=0.24,
+            order_id=strategy.sell.current_position.sell_order.order_id,
+            last_executed_quantity=0.12,
             last_executed_price=4200,
-            cumulative_filled_quantity=0.24,
+            cumulative_filled_quantity=0.12,
             price=4200.0,
         )
         strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
@@ -1713,7 +1013,7 @@ class HPSimulator:
         )
 
         await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"] == "0.24"
+            condition_func=lambda: self.front.hp_list_data[0]["quantity"] == "0.12"
         )
 
         await wait_for_condition(
@@ -1724,78 +1024,13 @@ class HPSimulator:
         # Comprehensive validation using framework
         self.validate_parent(
             "1000",
-            quantity="0.24",
-            realized_quantity="0.24",
+            quantity="0.12",
+            realized_quantity="0.12",
             state="SOLD_PART_BOUGHT",
             buy_price="1400.0",
             sell_price="4200.0",
-            quantity_usd="336.0",
-            expected_return="672.0",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
-        )
-
-        logger.info("HP List after the update: %s", self.front.hp_list_data)
-
-        return strategy
-
-    async def simulate_second_buy_order_fill_after_selling_first_order(
-        self,
-    ) -> HpStrategy:
-        strategy = self.back.strategies["1000"]
-
-        # Get the dynamic second order ID
-        second_order_id = strategy.buy.orders[1].order_id
-
-        exc_report = ExecutionReport(
-            order_type=ORDER_TYPE_LIMIT,
-            current_order_status=ORDER_STATUS_FILLED,
-            order_id=second_order_id,
-            last_executed_quantity=0.28,
-            last_executed_price=1200,
-            cumulative_filled_quantity=0.28,
-            price=1200,
-        )
-        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
-        logger.info("Put event to the worker: %s", exc_report)
-
-        assert strategy.state == State.BUYING
-        logger.info("Orders: %s", strategy.buy.orders)
-        assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
-        await wait_for_condition(
-            condition_func=lambda: strategy.buy.orders[1].status == ORDER_STATUS_FILLED
-        )
-        assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
-
-        realized_quantity = str(
-            strategy.buy.orders[0].realized_quantity
-            + strategy.buy.orders[1].realized_quantity
-        )
-        await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
-            == realized_quantity
-        )
-
-        logger.info(
-            "a: %s, b: %s", self.front.hp_list_data[0]["quantity"], realized_quantity
-        )
-
-        logger.info("HP List after the update: %s", self.front.hp_list_data)
-
-        # Comprehensive validation using framework
-        assert len(self.front.hp_list_data) == 3, len(self.front.hp_list_data)
-
-        # Validate parent with 2 buy orders filled after selling first order
-        self.validate_parent(
-            "1000",
-            quantity="0.52",
-            realized_quantity="0.24",
-            state="BUYING",
-            buy_price="1292.31",
-            sell_price="4200.0",
-            quantity_usd="672.0",
-            expected_return="1512.0",
+            quantity_usd="168.0",
+            expected_return="336.0",
             current_price="0.0",
             net="0.0",
             net_percent="0.0",
@@ -1810,8 +1045,10 @@ class HPSimulator:
     ) -> HpStrategy:
         strategy = self.back.strategies["1000"]
 
+        assert strategy.buy.buy_order is not None
+
         # Get the dynamic third order ID
-        third_order_id = strategy.buy.orders[2].order_id
+        third_order_id = strategy.buy.buy_order.order_id
 
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
@@ -1826,23 +1063,16 @@ class HPSimulator:
         logger.info("Put event to the worker: %s", exc_report)
 
         assert strategy.state == State.BUYING
-        logger.info("Orders: %s", strategy.buy.orders)
-        assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
-        assert strategy.buy.orders[1].status == ORDER_STATUS_FILLED
-        await wait_for_condition(
-            condition_func=lambda: strategy.buy.orders[2].status == ORDER_STATUS_FILLED
-        )
-
-        realized_quantity = str(
-            round(
-                (sum(order.realized_quantity for order in strategy.buy.orders)),
-                2,
-            )
-        )
+        logger.info("Order: %s", strategy.buy.buy_order)
+        assert strategy.buy.buy_order.status == ORDER_STATUS_FILLED
 
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["quantity"]
-            == realized_quantity
+            == (
+                strategy.buy.buy_order.realized_quantity
+                if strategy.buy.buy_order
+                else 0
+            )
         )
 
         # Wait for final state transition to PARTIALLY_SOLD
@@ -1857,13 +1087,13 @@ class HPSimulator:
         # Validate parent with all 3 buy orders filled after selling first order
         self.validate_parent(
             "1000",
-            quantity="0.85",
+            quantity="0.71429",
             realized_quantity="0.24",
             state="PARTIALLY_SOLD",
-            buy_price="1178.82",
+            buy_price="1400.0",
             sell_price="4200.0",
-            quantity_usd="1002.0",
-            expected_return="2568.0",
+            quantity_usd="1000.01",
+            expected_return="2000.01",
             current_price="0.0",
             net="0.0",
             net_percent="0.0",
@@ -1951,9 +1181,9 @@ class HPSimulator:
     async def send_orders_for_first_position_from_two_hop_trade(self):
         # Open position and send orders
         strategy = self.back.strategies["1000"]
-        strategy.client.create_order.side_effect = get_new_orders(
-            orders=[strategy.sell.current_position.sell_order]
-        )
+        strategy.client.create_order.side_effect = [
+            get_new_order(order=strategy.sell.current_position.sell_order)
+        ]
         self.new_price(price=1.14, symbol="AXLUSDT")
 
         sell_order = strategy.sell.current_position.sell_order
@@ -2041,9 +1271,9 @@ class HPSimulator:
     async def simulate_sell_order_fill_in_first_hop(self) -> None:
         strategy = self.back.strategies["1000"]
 
-        strategy.client.create_order.side_effect = get_new_orders(
-            orders=[strategy.sell.sell_positions[1].sell_order]
-        )
+        strategy.client.create_order.side_effect = [
+            get_new_order(order=strategy.sell.sell_positions[1].sell_order)
+        ]
 
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
@@ -2093,9 +1323,9 @@ class HPSimulator:
         # After first hop completes, current position should be the second position (index 1)
         assert strategy.sell.current_position is strategy.sell.sell_positions[1]
         # Mock sending the sell order
-        strategy.client.create_order.side_effect = get_new_orders(
-            orders=[strategy.sell.sell_positions[1].sell_order]
-        )
+        strategy.client.create_order.side_effect = [
+            get_new_order(order=strategy.sell.sell_positions[1].sell_order)
+        ]
         logger.info("currente sell position: %s", strategy.sell.current_position)
         await wait_for_condition(
             condition_func=lambda: strategy.sell.current_position.config.symbol.name
@@ -2243,6 +1473,41 @@ class HPSimulator:
         assert main_item["state"] == "SOLD"
         assert first_leg["state"] == "SOLD"
         assert second_leg["state"] == "SOLD"
+
+    async def simulate_convert_only_position(
+        self,
+        coin="DYM",
+        end_currency="USDC",
+        quantity=10.0,
+        buy_price=2.0,
+        sell_price=2.0,
+    ) -> HPSell:
+        """
+        Simulates a convert-only position (e.g., DYM/USDC) for E2E tests.
+        - Assumes the config queue and backend are ready.
+        - Mocks the convert quote/accept and market price.
+        - Waits for the frontend to reflect the expected state.
+        """
+        name = f"{coin}{end_currency}"
+
+        # Simulate sending config for convert-only position
+        hp_sell_data = HPSell(
+            config=HPSellConfig(
+                coin=coin,
+                buy_price=buy_price,
+                sell_price=sell_price,
+                quantity=quantity,
+                end_currency=end_currency,
+                symbol=Symbol(name=name, precision=5, price_precision=2),
+            ),
+            state_info=StateInfo(side=PositionSide.SHORT),
+        )
+        self.front.config_queue.put_nowait(hp_sell_data)
+        logger.info(
+            "Convert-only sell config added to the queue: %s", hp_sell_data.config
+        )
+
+        return hp_sell_data
 
     # ============================== COMPREHENSIVE VALIDATION METHODS ==============================
 
@@ -2525,21 +1790,22 @@ class HPSimulator:
                 child["net_percent"] == net_percent
             ), f"Multihop child net_percent: expected {net_percent}, got {child['net_percent']}"
 
-    def validate_buy_orders(self, strategy, expected_order_data):
+    def validate_buy_order(self, strategy, expected_order_data):
         """
         Comprehensive validation for buy orders in the strategy.
         expected_order_data should be a list of dicts with keys: realized_quantity, status, etc.
+        For compatibility, accepts a list but validates the single buy_order against the first entry.
         """
-        assert len(strategy.buy.orders) == len(
-            expected_order_data
-        ), f"Expected {len(expected_order_data)} orders, got {len(strategy.buy.orders)}"
-        for i, expected_data in enumerate(expected_order_data):
-            order = strategy.buy.orders[i]
-            for attr, expected_value in expected_data.items():
-                actual_value = getattr(order, attr)
-                assert (
-                    actual_value == expected_value
-                ), f"Order {i} {attr}: expected {expected_value}, got {actual_value}"
+        assert strategy.buy.buy_order is not None, "Expected buy_order to exist"
+
+        # Use first entry from expected_order_data (legacy format had 3 orders)
+        expected_data = expected_order_data[0] if expected_order_data else {}
+
+        for attr, expected_value in expected_data.items():
+            actual_value = getattr(strategy.buy.buy_order, attr)
+            assert (
+                actual_value == expected_value
+            ), f"buy_order {attr}: expected {expected_value}, got {actual_value}"
 
     def validate_sell_orders(self, strategy, expected_order_data):
         """

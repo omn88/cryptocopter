@@ -21,8 +21,7 @@ class HPConfiguration:
     hp_id: Optional[str] = None  # Generated if not provided
 
     # Buy-specific fields
-    price_low: Optional[float] = None
-    price_high: Optional[float] = None
+    buy_price: Optional[float] = None
     budget: Optional[float] = None
     order_trigger: Optional[float] = None
     mode: Optional[str] = None

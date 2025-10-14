@@ -180,17 +180,21 @@ class RecoveryService:
         if portfolio_ui_queue is not None:
             portfolio_event_helper._callback = strategy.send_hp_event_to_portfolio
 
-        # Restore existing buy orders from database instead of creating new ones
-        strategy.buy.orders = await self.order_restorer.restore_buy_orders(
+        # Restore existing buy order from database instead of creating new one
+        restored_orders = await self.order_restorer.restore_buy_orders(
             buy_position=strategy.buy, worker_queue=worker_queue, client=client
         )
+        if restored_orders:
+            strategy.buy.buy_order = restored_orders[0]
 
-        # --- Patch: recalculate state from orders after restoration ---
-        # Completeness calculation for buy orders
-        all_filled = all(
-            order.status == ORDER_STATUS_FILLED for order in strategy.buy.orders
-        )
-        part_bought = any(order.realized_quantity > 0 for order in strategy.buy.orders)
+        # --- Patch: recalculate state from order after restoration ---
+        # Completeness calculation for buy order
+        if strategy.buy.buy_order:
+            all_filled = strategy.buy.buy_order.status == ORDER_STATUS_FILLED
+            part_bought = strategy.buy.buy_order.realized_quantity > 0
+        else:
+            all_filled = False
+            part_bought = False
 
         strategy.buy.data.state_info.state = (
             State.BOUGHT
@@ -366,35 +370,34 @@ class RecoveryService:
         if sell_order:
             strategy.sell.current_position.sell_order = sell_order
 
-        # --- Restore buy position state and orders if they exist in DB ---
+        # --- Restore buy position state and order if they exist in DB ---
         # Check if there are buy orders for this hp_id
         buy_orders = await self.db.fetch_orders_for_price_level(
             hp_id=parent_hp_id, side=PositionSide.LONG.value
         )
         if buy_orders:
-            # Use the existing restore_buy_orders logic to populate strategy.buy.orders
-            strategy.buy.orders = await self.order_restorer.restore_buy_orders(
+            # Use the existing restore_buy_orders logic to populate strategy.buy.buy_order
+            restored_orders = await self.order_restorer.restore_buy_orders(
                 buy_position=strategy.buy,
                 worker_queue=worker_queue,
                 client=client,
             )
+            if restored_orders:
+                strategy.buy.buy_order = restored_orders[0]
+
             strategy_state_str = await self.get_strategy_state_from_db(parent_hp_id)
             strategy.state = State(strategy_state_str)
 
-            # Set buy state based on actual buy order statuses
-            all_filled = all(
-                o.status == ORDER_STATUS_FILLED for o in strategy.buy.orders
-            )
-            all_new = all(o.status == ORDER_STATUS_NEW for o in strategy.buy.orders)
-
-            if all_filled:
-                strategy.buy.data.state_info.state = State.BOUGHT
-            elif all_new:
-                strategy.buy.data.state_info.state = State.NEW
-            elif any(o.realized_quantity > 0 for o in strategy.buy.orders):
-                strategy.buy.data.state_info.state = State.PARTIALLY_BOUGHT
-            else:
-                strategy.buy.data.state_info.state = State.CLOSED
+            # Set buy state based on actual buy order status
+            if strategy.buy.buy_order:
+                if strategy.buy.buy_order.status == ORDER_STATUS_FILLED:
+                    strategy.buy.data.state_info.state = State.BOUGHT
+                elif strategy.buy.buy_order.status == ORDER_STATUS_NEW:
+                    strategy.buy.data.state_info.state = State.NEW
+                elif strategy.buy.buy_order.realized_quantity > 0:
+                    strategy.buy.data.state_info.state = State.PARTIALLY_BOUGHT
+                else:
+                    strategy.buy.data.state_info.state = State.CLOSED
 
         logger.info(
             "Before restoration, current_position: %s",

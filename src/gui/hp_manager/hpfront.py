@@ -274,11 +274,9 @@ Side: {side}"""
             config=HPBuyConfig(
                 coin=config.coin,
                 symbol=self.price_resolver.symbols[config.symbol],
-                price_low=config.price_low or 0.0,
-                price_high=config.price_high or 0.0,
+                buy_price=config.buy_price or 0.0,
                 budget=config.budget or 1000.0,
                 order_trigger=config.order_trigger if config.order_trigger else 1.0,
-                mode=Mode.DCA if config.mode == "DCA" else Mode.SINGLE,
             ),
             state_info=StateInfo(),
         )

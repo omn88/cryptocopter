@@ -172,7 +172,7 @@ class StrategyExecutor:
                         close_data, sell_quantity
                     )
             # Handle buy position cancellation
-            elif hasattr(strategy, "buy") and strategy.buy.orders:
+            elif hasattr(strategy, "buy") and strategy.buy.buy_order:
                 remaining_budget = strategy.get_remaining_quantity_buy()
                 strategy.portfolio_event_helper.handle_buy_cancellation(
                     close_data, strategy.state, remaining_budget
@@ -240,7 +240,7 @@ class StrategyExecutor:
             portfolio_event_helper._callback = strategy.send_hp_event_to_portfolio
 
         # Create new orders for normal setup
-        strategy.buy.prepare_orders()
+        strategy.buy.prepare_order()
         strategy.buy.data.state_info.generate_open_time()
 
         self.strategies[new_hp.config.hp_id] = strategy
@@ -249,7 +249,7 @@ class StrategyExecutor:
             config=new_hp.config,
             state_info=new_hp.state_info,
             state=strategy.state,
-            buy_orders=strategy.buy.orders,
+            buy_orders=[strategy.buy.buy_order] if strategy.buy.buy_order else [],
         )
 
         self.broker.setup_subscriptions(
@@ -267,8 +267,7 @@ class StrategyExecutor:
             hp_id=str(new_hp.config.hp_id),
             coin=new_hp.config.coin,
             budget=new_hp.config.budget,
-            price_low=new_hp.config.price_low,
-            price_high=new_hp.config.price_high,
+            buy_price=new_hp.config.buy_price,
         )
 
         strategy.worker_task = asyncio.create_task(strategy.worker())
@@ -283,47 +282,10 @@ class StrategyExecutor:
     ) -> None:
         total_quant = sum(order.realized_quantity for order in buy_orders)
         orders_total_quantity = sum(order.quantity for order in buy_orders)
-        # Calculate expected quantity from budget and price configuration
-        # For DCA mode, this is the total across all orders
+        # Calculate expected quantity from budget and buy price
         expected_qty = 0.0
-        if config.budget > 0:
-            if config.mode.value == "DCA":
-                # DCA calculation: sum of quantities across all price levels
-                num_orders = 3
-                min_budget_for_max_orders = num_orders * config.symbol.min_notional
-
-                if config.budget >= min_budget_for_max_orders:
-                    order_quantity_stable = config.budget / num_orders
-                else:
-                    order_quantity_stable = config.symbol.min_notional
-                    num_orders = int(config.budget / config.symbol.min_notional)
-                    num_orders = num_orders if num_orders % 2 == 1 else num_orders - 1
-
-                if num_orders == 1:
-                    # Single order fallback
-                    expected_qty = (
-                        config.budget / config.price_high
-                        if config.price_high > 0
-                        else 0.0
-                    )
-                else:
-                    # Calculate total expected quantity across all DCA orders
-                    price_increment = (config.price_high - config.price_low) / (
-                        num_orders - 1
-                    )
-                    for i in range(num_orders):
-                        order_price = config.price_high - i * price_increment
-                        if order_price > 0:
-                            expected_qty += order_quantity_stable / order_price
-
-                    # Round to symbol precision for consistent formatting
-                    if hasattr(config.symbol, "precision"):
-                        expected_qty = round(expected_qty, config.symbol.precision)
-            else:
-                # SINGLE mode: budget / price_high
-                expected_qty = (
-                    config.budget / config.price_high if config.price_high > 0 else 0.0
-                )
+        if config.budget > 0 and config.buy_price > 0:
+            expected_qty = config.budget / config.buy_price
 
         self.ui_queue.put_nowait(
             HPGuiDataBuy(
@@ -333,7 +295,7 @@ class StrategyExecutor:
                     coin=config.coin,
                     symbol=config.symbol,
                     state=state,
-                    buy_price=config.price_high,
+                    buy_price=config.buy_price,
                     quantity=float(total_quant) if total_quant else None,
                     expected_quantity=expected_qty,
                     orders_total_quantity=orders_total_quantity,
@@ -354,9 +316,9 @@ class StrategyExecutor:
                 and hasattr(strategy.buy, "data")
                 and hasattr(strategy.buy.data, "config")
             ):
-                buy_price = strategy.buy.data.config.price_high
+                buy_price = strategy.buy.data.config.buy_price
                 logger.info(
-                    "Using buy config price_high %s instead of sell config buy_price %s",
+                    "Using buy config buy_price %s instead of sell config buy_price %s",
                     buy_price,
                     config.buy_price,
                 )
@@ -580,8 +542,8 @@ class StrategyExecutor:
         ):
             logger.info("Removing NEW trading system: %s", hp_id)
 
-            # Send cancellation event if orders were sent to exchange
-            if buy.orders and strategy.state != State.NEW:
+            # Send cancellation event if order was sent to exchange
+            if buy.buy_order and strategy.state != State.NEW:
                 budget_amount = strategy.get_remaining_quantity_buy()
                 strategy.portfolio_event_helper.send_cancellation_event(
                     hp_id, "USDC", budget_amount, "BUY"
@@ -606,21 +568,19 @@ class StrategyExecutor:
                     hp_id, "USDC", budget_amount, "BUY"
                 )
 
-                buy.orders = await buy.cancel_remaining_limit_orders(
-                    symbol=buy.data.config.symbol.name,
-                    orders=buy.orders,
-                )
+                # Cancel the buy order
+                await buy.cancel_position()
                 strategy.state = buy.data.state_info.state
 
-                for order in buy.orders:
-                    if order.status == ORDER_STATUS_CANCELED:
-                        await self.db.upsert_order(
-                            order=order, hp_id=buy.data.config.hp_id, side=side
-                        )
+                if buy.buy_order and buy.buy_order.status == ORDER_STATUS_CANCELED:
+                    await self.db.upsert_order(
+                        order=buy.buy_order, hp_id=buy.data.config.hp_id, side=side
+                    )
 
-            buy.data.state_info.completeness = sum(
-                order.realized_quantity for order in buy.orders
-            ) / sum(order.quantity for order in buy.orders)
+            if buy.buy_order:
+                buy.data.state_info.completeness = (
+                    buy.buy_order.realized_quantity / buy.buy_order.quantity
+                )
 
             await self._close_buy_position(strategy, hp_id, side, cancel_orders=False)
 
@@ -771,7 +731,9 @@ class StrategyExecutor:
                     config=buy_data.config,
                     state_info=buy_data.state_info,
                     state=strategy.state,
-                    buy_orders=strategy.buy.orders,
+                    buy_orders=(
+                        [strategy.buy.buy_order] if strategy.buy.buy_order else []
+                    ),
                 )
                 logger.info(
                     "Successfully restored buy position %s", buy_data.config.hp_id
@@ -844,15 +806,13 @@ class StrategyExecutor:
         """Close buy position and update database/UI."""
         buy = strategy.buy
 
-        if cancel_orders and buy.orders:
-            buy.orders = await buy.cancel_remaining_limit_orders(
-                symbol=buy.data.config.symbol.name,
-                orders=buy.orders,
-            )
-            for order in buy.orders:
-                if order.status == ORDER_STATUS_CANCELED:
-                    await self.db.upsert_order(order=order, hp_id=hp_id, side=side)
-            buy.data.state_info.get_completeness(buy.orders)
+        if cancel_orders and buy.buy_order:
+            # Cancel the buy order
+            await buy.cancel_position()
+            if buy.buy_order and buy.buy_order.status == ORDER_STATUS_CANCELED:
+                await self.db.upsert_order(order=buy.buy_order, hp_id=hp_id, side=side)
+            if buy.buy_order:
+                buy.data.state_info.get_completeness(buy.buy_order)
 
         buy.data.state_info.state = State.CLOSED
         buy.data.state_info.ui_state = UiState.CLOSED
@@ -863,7 +823,7 @@ class StrategyExecutor:
             config=buy.data.config,
             state_info=buy.data.state_info,
             state=strategy.state,
-            buy_orders=buy.orders,
+            buy_orders=[buy.buy_order] if buy.buy_order else [],
         )
 
     async def _close_sell_position(
@@ -887,8 +847,9 @@ class StrategyExecutor:
         self, strategy: HpStrategy, sell_realized_qty: float, sell_order_qty: float
     ) -> State:
         """Calculate strategy state after sell cancellation."""
-        fully_bought = all(
-            order.status == ORDER_STATUS_FILLED for order in strategy.buy.orders
+        fully_bought = (
+            strategy.buy.buy_order
+            and strategy.buy.buy_order.status == ORDER_STATUS_FILLED
         )
 
         if not fully_bought:

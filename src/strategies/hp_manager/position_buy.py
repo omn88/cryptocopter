@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import pprint
-from typing import List
+from typing import List, Optional
 from binance.enums import (
     TIME_IN_FORCE_GTC,
     ORDER_STATUS_PARTIALLY_FILLED,
@@ -42,48 +42,37 @@ class HPPositionBuy:
         self.client = client
         self.data = data
         self.db = db
-        self.orders: List[Order] = []
-        self.orders_cancel_price: float = 0
+        self.buy_order: Optional[Order] = None
+        self.order_cancel_price: float = 0
 
-    async def open_position(self) -> List[Order]:
+    async def open_position(self) -> None:
         """Send a list of orders concurrently.
 
         Returns:
             A list of `Order` objects with updated order IDs and statuses.
         """
-        self.orders_cancel_price = self.calculate_trigger_cancel_orders_price()
+        assert self.buy_order is not None, "Buy order not prepared"
+        self.order_cancel_price = self.calculate_trigger_cancel_order_price()
         logger.info(
-            "Orders cancel price set to: %s for position: %s",
-            self.orders_cancel_price,
+            "Order cancel price set to: %s for position: %s",
+            self.order_cancel_price,
             self.data.config.symbol.name,
         )
-        logger.info("Orders: %s", self.orders)
-        for order in self.orders:
-            if order.status != ORDER_STATUS_FILLED:
-                order.status = ORDER_STATUS_NEW
-                order.order_id = 0
+        logger.info("Order: %s", self.buy_order)
+        if self.buy_order.status != ORDER_STATUS_FILLED:
+            await self._create_order()
 
-        logger.info("Orders after update: %s", self.orders)
-
-        results = await asyncio.gather(
-            *[
-                self._create_order(order=order)
-                for order in self.orders
-                if order.status != ORDER_STATUS_FILLED
-            ]
+        logger.info(
+            "New %s order send for %s at price: %s and quantity: %s [id: %s]",
+            self.data.state_info.side.value,
+            self.data.config.symbol.name,
+            self.buy_order.price,
+            self.buy_order.quantity_stable,
+            self.buy_order.order_id,
         )
-        for order in results:
-            logger.info(
-                "New %s order send for %s at price: %s and quantity: %s [id: %s]",
-                self.data.state_info.side.value,
-                self.data.config.symbol.name,
-                order.price,
-                order.quantity_stable,
-                order.order_id,
-            )
-        return results
 
     async def cancel_position(self) -> None:
+        assert self.buy_order is not None, "Buy order not prepared"
         logger.info(
             "Start canceling position: %s %s, hp id: %s",
             self.data.config.symbol.name,
@@ -91,52 +80,63 @@ class HPPositionBuy:
             self.data.config.hp_id,
         )
 
-        self.orders = await self.cancel_remaining_limit_orders(
-            symbol=self.data.config.symbol.name,
-            orders=self.orders,
-        )
-        for order in self.orders:
-            if order.status == ORDER_STATUS_CANCELED:
-                await self.db.upsert_order(
-                    order=order,
-                    hp_id=self.data.config.hp_id,
-                    side=self.data.state_info.side,
-                )
+        if (
+            self.buy_order.status == ORDER_STATUS_PARTIALLY_FILLED
+            and self.buy_order.order_id
+        ):
+            await self._cancel_order(
+                order_id=self.buy_order.order_id, symbol=self.data.config.symbol.name
+            )
+            self.buy_order.status = ORDER_STATUS_CANCELED
+            logger.info(
+                "Cancelled partially filled order with id: %s", self.buy_order.order_id
+            )
+        elif self.buy_order.status == ORDER_STATUS_NEW and self.buy_order.order_id:
+            await self._cancel_order(
+                order_id=self.buy_order.order_id, symbol=self.data.config.symbol.name
+            )
+            self.buy_order.status = ORDER_STATUS_CANCELED
+            logger.info("Cancelled new order with id: %s", self.buy_order.order_id)
+        # No new Order object is created; status is updated in-place
+        if self.buy_order.status == ORDER_STATUS_CANCELED:
+            await self.db.upsert_order(
+                order=self.buy_order,
+                hp_id=self.data.config.hp_id,
+                side=self.data.state_info.side,
+            )
 
-        all_canceled = all(
-            order.status == ORDER_STATUS_CANCELED for order in self.orders
-        )
-        any_filled = any(order.status == ORDER_STATUS_FILLED for order in self.orders)
-        any_partially_filled = any(
-            order.status == ORDER_STATUS_PARTIALLY_FILLED or order.realized_quantity > 0
-            for order in self.orders
-        )
-
-        # If all orders are canceled and none are filled or partially filled, set state to NEW
-        if all_canceled and not any_filled and not any_partially_filled:
+        # If order is canceled and has realized quantity, it was partially filled before cancel
+        if (
+            self.buy_order.status == ORDER_STATUS_CANCELED
+            and self.buy_order.realized_quantity > 0
+        ):
+            self.data.state_info.state = State.PARTIALLY_BOUGHT
+            logger.info(
+                "Order canceled with partial fill (realized_quantity=%.5f): state remains PARTIALLY_BOUGHT",
+                self.buy_order.realized_quantity,
+            )
+        # If order is canceled and has no realized quantity, it was never filled
+        elif self.buy_order.status == ORDER_STATUS_CANCELED:
             self.data.state_info.state = State.NEW
             self.data.state_info.completeness = 0.0
             logger.info(
-                "All buy orders canceled and none filled: setting state to NEW and completeness to 0.0"
+                "Order canceled with no fill: setting state to NEW and completeness to 0.0"
             )
-        # If any order is filled or partially filled, set state to PARTIALLY_BOUGHT, unless all are filled
-        elif any_filled or any_partially_filled:
-            self.data.state_info.get_completeness(orders=self.orders)
-            if all(order.status == ORDER_STATUS_FILLED for order in self.orders):
-                self.data.state_info.state = State.BOUGHT
-                logger.info(
-                    "All buy orders filled: setting state to BOUGHT (completeness=%.4f)",
-                    self.data.state_info.completeness,
-                )
-            else:
-                self.data.state_info.state = State.PARTIALLY_BOUGHT
-                logger.info(
-                    "Some buy orders filled or partially filled: setting state to PARTIALLY_BOUGHT (completeness=%.4f)",
-                    self.data.state_info.completeness,
-                )
-        else:
-            self.data.state_info.get_completeness(orders=self.orders)
+        # If order is filled, set state to BOUGHT
+        elif self.buy_order.status == ORDER_STATUS_FILLED:
 
+            self.data.state_info.state = State.BOUGHT
+            logger.info(
+                "All buy orders filled: setting state to BOUGHT (completeness=%.4f)",
+                self.data.state_info.completeness,
+            )
+        if self.buy_order.status == ORDER_STATUS_PARTIALLY_FILLED:
+            self.data.state_info.state = State.PARTIALLY_BOUGHT
+            logger.info(
+                "Some buy orders filled or partially filled: setting state to PARTIALLY_BOUGHT (completeness=%.4f)",
+                self.data.state_info.completeness,
+            )
+        self.data.state_info.get_completeness(order=self.buy_order)
         self.data.state_info.ui_state = UiState.STAGNATED
 
         await self.db.upsert_buy_price_level(data=self.data)
@@ -144,140 +144,85 @@ class HPPositionBuy:
     async def handle_order_partially_filled(
         self, execution_report: ExecutionReport
     ) -> None:
-        for order in self.orders:
-            if execution_report.order_id == order.order_id:
-                order.status = execution_report.current_order_status
-                order.realized_quantity = execution_report.cumulative_filled_quantity
-                order.quantity_stable -= (
-                    execution_report.last_executed_price
-                    * execution_report.last_executed_quantity
-                )
-                order.price = execution_report.last_executed_price
+        assert self.buy_order is not None, "Buy order not prepared"
+        if execution_report.order_id == self.buy_order.order_id:
+            self.buy_order.status = execution_report.current_order_status
+            self.buy_order.realized_quantity = (
+                execution_report.cumulative_filled_quantity
+            )
+            self.buy_order.quantity_stable -= (
+                execution_report.last_executed_price
+                * execution_report.last_executed_quantity
+            )
+            self.buy_order.price = execution_report.last_executed_price
 
-                await self.db.upsert_order(
-                    order=order,
-                    hp_id=self.data.config.hp_id,
-                    side=self.data.state_info.side,
-                )
-                logger.info("Order: %s partially filled", order.order_id)
+            await self.db.upsert_order(
+                order=self.buy_order,
+                hp_id=self.data.config.hp_id,
+                side=self.data.state_info.side,
+            )
+            logger.info("Order: %s partially filled", self.buy_order.order_id)
 
-        self.data.state_info.get_completeness(self.orders)
+        self.data.state_info.get_completeness(self.buy_order)
         self.data.state_info.ui_state = UiState.OPEN
 
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
-        for order in self.orders:
-            if execution_report.order_id == order.order_id:
-                order.status = execution_report.current_order_status
-                order.price = execution_report.last_executed_price
-                order.realized_quantity = execution_report.cumulative_filled_quantity
-                logger.info(
-                    "Order: %s filled, symbol: %s, price: %s, status: %s",
-                    order.order_id,
-                    execution_report.symbol,
-                    order.price,
-                    order.status,
-                )
+        assert self.buy_order is not None, "Buy order not prepared"
+        if execution_report.order_id == self.buy_order.order_id:
+            self.buy_order.status = execution_report.current_order_status
+            self.buy_order.price = execution_report.last_executed_price
+            self.buy_order.realized_quantity = (
+                execution_report.cumulative_filled_quantity
+            )
+            logger.info(
+                "Order: %s filled, symbol: %s, price: %s, status: %s",
+                self.buy_order.order_id,
+                execution_report.symbol,
+                self.buy_order.price,
+                self.buy_order.status,
+            )
 
-                await self.db.upsert_order(
-                    order=order,
-                    hp_id=self.data.config.hp_id,
-                    side=self.data.state_info.side,
-                )
+            await self.db.upsert_order(
+                order=self.buy_order,
+                hp_id=self.data.config.hp_id,
+                side=self.data.state_info.side,
+            )
 
         self.data.state_info.ui_state = UiState.OPEN
 
-        self.data.state_info.get_completeness(self.orders)
+        self.data.state_info.get_completeness(self.buy_order)
         logger.info("Completeness: %s", self.data.state_info.completeness)
 
-    def prepare_orders(self) -> None:
+    def prepare_order(self) -> None:
         config = self.data.config
 
-        def prepare_single_buy_order():
-            orders.append(
-                Order(
-                    quantity=config.symbol.adjust_quantity(
-                        config.budget / config.price_high
-                    ),
-                    price=config.symbol.adjust_price(config.price_high),
-                    quantity_stable=config.budget,
-                    precision=config.symbol.precision,
-                    price_precision=config.symbol.price_precision,
-                )
-            )
+        # buy_price should already be set in the config
+        assert (
+            config.buy_price > 0
+        ), "buy_price must be set before calling prepare_order"
 
-        orders = []
+        order = Order(
+            quantity=config.symbol.adjust_quantity(config.budget / config.buy_price),
+            price=config.symbol.adjust_price(config.buy_price),
+            quantity_stable=config.budget,
+            precision=config.symbol.precision,
+            price_precision=config.symbol.price_precision,
+        )
 
-        if config.mode == Mode.SINGLE:
-            prepare_single_buy_order()
-
-        if config.mode == Mode.DCA:
-            num_orders = 3
-
-            min_budget_for_max_orders = num_orders * config.symbol.min_notional
-
-            if config.budget >= min_budget_for_max_orders:
-                order_quantity_stable = config.budget / num_orders
-            else:
-                order_quantity_stable = config.symbol.min_notional
-                num_orders = int(config.budget / config.symbol.min_notional)
-                num_orders = num_orders if num_orders % 2 == 1 else num_orders - 1
-
-            if num_orders == 1:
-                prepare_single_buy_order()
-            else:
-                price_increment = (config.price_high - config.price_low) / (
-                    num_orders - 1
-                )
-
-                for i in range(num_orders):
-                    order_price = config.price_high - i * price_increment
-
-                    orders.append(
-                        Order(
-                            quantity=config.symbol.adjust_quantity(
-                                order_quantity_stable / order_price
-                            ),
-                            price=config.symbol.adjust_price(order_price),
-                            quantity_stable=round(order_quantity_stable, 2),
-                            precision=config.symbol.precision,
-                            price_precision=config.symbol.price_precision,
-                        )
-                    )
         logger.info(
             "Buy orders prepared:\n%s\n for position: %s",
-            pprint.pformat(list(orders)),
+            pprint.pformat(order),
             config.symbol.name,
         )
-        self.orders = orders
+        self.buy_order = order
 
-    def calculate_trigger_cancel_orders_price(self):
+    def calculate_trigger_cancel_order_price(self):
+        assert self.buy_order is not None, "Buy order not prepared"
+        if self.buy_order.status == ORDER_STATUS_FILLED:
+            return 0.0
         return self.data.config.symbol.adjust_price(
-            max(
-                order.price
-                for order in self.orders
-                if order.status != ORDER_STATUS_FILLED
-            )
-            * (1 + (2 * self.data.config.order_trigger / 100))
+            self.buy_order.price * (1 + (2 * self.data.config.order_trigger / 100))
         )
-
-    async def cancel_remaining_limit_orders(
-        self, orders: List[Order], symbol: str
-    ) -> List[Order]:
-        logger.info("Cancelling remaining limit orders: %s", orders)
-        assert orders
-        for order in orders:
-            if order.status == ORDER_STATUS_PARTIALLY_FILLED and order.order_id:
-                await self._cancel_order(order_id=order.order_id, symbol=symbol)
-                order.status = ORDER_STATUS_CANCELED
-                logger.info(
-                    "Cancelled partially filled order with id: %s", order.order_id
-                )
-            elif order.status == ORDER_STATUS_NEW and order.order_id:
-                await self._cancel_order(order_id=order.order_id, symbol=symbol)
-                order.status = ORDER_STATUS_CANCELED
-                logger.info("Cancelled new order with id: %s", order.order_id)
-            # No new Order object is created; status is updated in-place
-        return orders
 
     def calculate_avg_buy_price(self) -> float:
         """
@@ -289,12 +234,9 @@ class HPPositionBuy:
         Returns:
             float: Weighted average buy price or 0.0 if no realized quantity
         """
-        total_realized_quantity = 0.0
-        total_cost = 0.0
-
-        for order in self.orders:
-            total_realized_quantity += order.realized_quantity
-            total_cost += order.realized_quantity * order.price
+        assert self.buy_order is not None, "Buy order not prepared"
+        total_realized_quantity = self.buy_order.realized_quantity
+        total_cost = self.buy_order.realized_quantity * self.buy_order.price
 
         if total_realized_quantity == 0:
             return 0.0  # Avoid division by zero
@@ -313,25 +255,24 @@ class HPPositionBuy:
         Returns:
             float: Weighted average buy price or 0.0 if no realized quantity
         """
-        total_realized_quantity = 0.0
-
-        for order in self.orders:
-            total_realized_quantity += order.realized_quantity
+        assert self.buy_order is not None, "Buy order not prepared"
+        total_realized_quantity = self.buy_order.realized_quantity
 
         if total_realized_quantity == 0:
             return 0.0  # Avoid division by zero
 
         return self.data.config.symbol.adjust_quantity(total_realized_quantity)
 
-    async def _create_order(self, order: Order) -> Order:
+    async def _create_order(self) -> Order:
+        assert self.buy_order is not None, "Buy order not prepared"
         max_retries = 10
         last_exception = None
         for _ in range(max_retries):
             try:
                 symbol = self.data.config.symbol
-                price = symbol.format_price(order.price)
+                price = symbol.format_price(self.buy_order.price)
                 quantity = symbol.adjust_quantity(
-                    order.quantity - order.realized_quantity
+                    self.buy_order.quantity - self.buy_order.realized_quantity
                 )
                 symbol.validate_order(price=float(price), quantity=quantity)
                 resp = await self.client.create_order(
@@ -350,17 +291,17 @@ class HPPositionBuy:
                 last_exception = exception
                 logger.error(
                     "Failed to create spot order: %s due to %s: %s",
-                    order,
+                    self.buy_order,
                     type(exception).__name__,
                     exception,
                 )
                 await asyncio.sleep(1)  # wait for a second before retrying
                 continue
             else:
-                order.order_id = int(resp["orderId"])
-                # order.price = resp["price"]
-                order.status = resp["status"]
-                return order
+                self.buy_order.order_id = int(resp["orderId"])
+                # self.buy_order.price = resp["price"]
+                self.buy_order.status = resp["status"]
+                return self.buy_order
 
         assert last_exception is not None
         raise last_exception

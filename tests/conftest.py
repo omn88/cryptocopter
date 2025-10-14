@@ -541,11 +541,9 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
                 hp_id=hp_id,
                 symbol=hp_config.symbol,
                 coin=hp_config.coin,
-                price_low=hp_config.price_low,
-                price_high=hp_config.price_high,
+                buy_price=hp_config.buy_price,
                 order_trigger=hp_config.order_trigger,
                 budget=hp_config.budget,
-                mode=hp_config.mode,
             ),
             state_info=StateInfo(side=PositionSide.LONG),
         )
@@ -602,7 +600,7 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
         portfolio_event_helper._callback = strategy.send_hp_event_to_portfolio
 
         # Prepare orders first (this is needed for proper hp_id resolution)
-        strategy.buy.prepare_orders()
+        strategy.buy.prepare_order()
 
         # Send initial UI message using the strategy's method
         strategy.send_buy_position_to_ui()

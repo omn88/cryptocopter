@@ -63,10 +63,7 @@ class PositionManager:
                 symbol=buy_data.config.symbol.name,
                 coin=buy_data.config.coin,
                 budget=buy_data.config.budget,
-                price_low=buy_data.config.price_low,
-                price_high=buy_data.config.price_high,
                 order_trigger=buy_data.config.order_trigger,
-                mode=buy_data.config.mode.value,
                 completeness=buy_data.state_info.completeness,
                 trade_type=TradeType.DIRECT,
                 created_at=(

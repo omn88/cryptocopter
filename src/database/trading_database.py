@@ -186,11 +186,9 @@ class Database:
                 child_position_ids TEXT,  -- JSON array
                 trade_type TEXT NOT NULL DEFAULT 'DIRECT',
                 hop_sequence INTEGER NOT NULL DEFAULT 0,
-                price_low REAL NOT NULL DEFAULT 0.0,
-                price_high REAL NOT NULL DEFAULT 0.0,
                 order_trigger REAL NOT NULL DEFAULT 0.0,
                 end_currency TEXT NOT NULL DEFAULT 'USDC',
-                mode TEXT NOT NULL DEFAULT 'DCA',
+                mode TEXT NOT NULL DEFAULT 'SINGLE',
                 completeness REAL NOT NULL DEFAULT 0.0,
                 next_monitor_time TIMESTAMP,
                 metadata TEXT,  -- JSON
@@ -315,9 +313,9 @@ class Database:
                     (id, hp_id, strategy_id, position_type, status, strategy_state, symbol, coin,
                      target_price, buy_price, sell_price, quantity, realized_quantity, budget,
                      parent_position_id, child_position_ids, trade_type, hop_sequence,
-                     price_low, price_high, order_trigger, end_currency, mode,
+                     order_trigger, end_currency,
                      completeness, next_monitor_time, metadata, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
                         position_id,  # Use hp_id as the primary key
@@ -338,11 +336,8 @@ class Database:
                         json.dumps(position.child_position_ids),
                         position.trade_type.value,
                         position.hop_sequence,
-                        position.price_low,
-                        position.price_high,
                         position.order_trigger,
                         position.end_currency,
-                        position.mode,
                         position.completeness,
                         (
                             position.next_monitor_time.isoformat()
@@ -551,11 +546,8 @@ class Database:
                 child_position_ids=child_ids,
                 trade_type=TradeType(row["trade_type"]),
                 hop_sequence=row["hop_sequence"],
-                price_low=row["price_low"],
-                price_high=row["price_high"],
                 order_trigger=row["order_trigger"],
                 end_currency=row["end_currency"],
-                mode=row["mode"],
                 completeness=row["completeness"],
                 next_monitor_time=(
                     datetime.fromisoformat(row["next_monitor_time"])
@@ -737,14 +729,8 @@ class Database:
                 symbol=data.config.symbol.name,
                 coin=data.config.coin,
                 budget=data.config.budget,
-                price_low=data.config.price_low,
-                price_high=data.config.price_high,
+                buy_price=data.config.buy_price,
                 order_trigger=data.config.order_trigger,
-                mode=(
-                    data.config.mode.value
-                    if hasattr(data.config.mode, "value")
-                    else str(data.config.mode)
-                ),
                 completeness=data.state_info.completeness,
                 trade_type=TradeType.DIRECT,
                 created_at=(

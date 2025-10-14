@@ -7,35 +7,33 @@ from src.common.identifiers import Order
 logger = logging.getLogger("common_spot")
 
 
-def get_new_orders(orders: List[Order], used_ids: Optional[set] = None):
+def get_new_order(order: Optional[Order], used_ids: Optional[set] = None):
     """
-    Generate new orders with unique order IDs. Optionally accepts a set of used_ids to ensure uniqueness across multiple calls.
+    Generate a new order with unique order ID. Optionally accepts a set of used_ids to ensure uniqueness across multiple calls.
+    Returns None if order is None or already filled.
     """
-    if not orders:
-        return []
+    if not order:
+        return None
 
-    order_list = []
     if used_ids is None:
         used_ids = set()
-    for item, order in enumerate(orders):
-        if order.status != ORDER_STATUS_FILLED:
-            quantity = order.quantity - order.realized_quantity
-            # Start with a hash-based candidate, but increment until unused
-            base_id = int(abs(hash((order.price * quantity + item)))) % 1_000_000_000
-            candidate_id = base_id
-            while candidate_id in used_ids:
-                candidate_id += 1
-            used_ids.add(candidate_id)
-            order_list.append(
-                {
-                    "orderId": candidate_id,
-                    "price": order.price,
-                    "quantity": quantity,
-                    "status": ORDER_STATUS_NEW,
-                    "updateTime": 1566818724722,
-                }
-            )
-    return order_list
+
+    if order.status != ORDER_STATUS_FILLED:
+        quantity = order.quantity - order.realized_quantity
+        # Start with a hash-based candidate, but increment until unused
+        base_id = int(abs(hash((order.price * quantity)))) % 1_000_000_000
+        candidate_id = base_id
+        while candidate_id in used_ids:
+            candidate_id += 1
+        used_ids.add(candidate_id)
+        return {
+            "orderId": candidate_id,
+            "price": order.price,
+            "quantity": quantity,
+            "status": ORDER_STATUS_NEW,
+            "updateTime": 1566818724722,
+        }
+    return None
 
 
 def get_sell_order(sell_price: float):
