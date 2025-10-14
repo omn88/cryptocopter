@@ -49,7 +49,7 @@ from tests.strategies.hp_manager_helpers import (
     simulate_resend_sell_position,
 )
 
-logger = logging.getLogger("test_hp_manager")
+logger = logging.getLogger("hp_basic")
 
 
 async def test_default_buy_position(hp_gui: HpFront, trading_system_factory) -> None:

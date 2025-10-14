@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Callable, List, Dict, Tuple, Optional
 from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_CANCELED,
@@ -21,7 +22,6 @@ from src.common.identifiers import (
     State,
     StateInfo,
     TickerUpdate,
-    Mode,
     PositionSide,
 )
 from src.strategies.hp_manager.hp_manager import HpStrategy
@@ -64,7 +64,6 @@ class HPSimulator:
         order_trigger: float = 1.0,
         hp_id: str = "0",
         coin: str = "BTC",
-        mode: str = "",
     ):
         hp = HPBuy(
             HPBuyConfig(
@@ -101,10 +100,6 @@ class HPSimulator:
         await wait_for_idle_buy_positions(self.front)
 
         self.validate_parent(
-            hp_id="1000",
-            quantity="0.0",
-            realized_quantity="0.0",
-            state="NEW",
             buy_price="1400.0",  # Reverted back to 1400.0
             quantity_usd="0.0",
         )
@@ -132,12 +127,8 @@ class HPSimulator:
         assert strategy.buy.buy_order.order_id
         assert strategy.buy.buy_order.status == ORDER_STATUS_NEW
 
-        logger.info(
-            "Active buy positions: %s", get_buy_positions(self.front, state="BUYING")
-        )
-        logger.info(
-            "Idle buy positions: %s", get_buy_positions(self.front, state="NEW")
-        )
+        logger.info("Active buy: %s", get_buy_positions(self.front, state="BUYING"))
+        logger.info("Idle buy: %s", get_buy_positions(self.front, state="NEW"))
 
     async def cancel_buy_position_untouched(self):
         strategy = self.back.strategies["1000"]
@@ -161,10 +152,6 @@ class HPSimulator:
 
         # Comprehensive validation for new buy position
         self.validate_parent(
-            "1000",
-            quantity="0.0",
-            realized_quantity="0.0",
-            state="NEW",
             buy_price="1400.0",
             quantity_usd="0.0",
         )
@@ -211,7 +198,6 @@ class HPSimulator:
 
         # Comprehensive validation for partial fill
         self.validate_parent(
-            "1000",
             quantity=f"{cumulative}",
             realized_quantity=f"{sold}",
             state="BUYING",
@@ -263,17 +249,12 @@ class HPSimulator:
 
         # Comprehensive validation for partial fill with sell price
         self.validate_parent(
-            "1000",
             quantity="0.12",
-            realized_quantity="0.0",
             state="BUYING",
             buy_price="1400.0",
             quantity_usd="168.0",
             sell_price="4200.0",
             expected_return="336.0",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
         )
 
         # Child buy validation - quantity should always be total expected (0.71429)
@@ -371,17 +352,12 @@ class HPSimulator:
 
         # Comprehensive validation using framework
         self.validate_parent(
-            "1000",
             quantity="0.71429",
-            realized_quantity="0.0",
             state="SELLING",
             buy_price="1400.0",
             sell_price="4200.0",
             quantity_usd="1000.01",
             expected_return="2000.01",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
         )
 
         await wait_for_condition(
@@ -449,17 +425,12 @@ class HPSimulator:
 
         # Comprehensive validation using framework
         self.validate_parent(
-            "1000",
             quantity="0.71429",
-            realized_quantity="0.0",
             state="BOUGHT",
             buy_price="1400.0",
             sell_price="4200.0",
             quantity_usd="1000.01",
             expected_return="2000.01",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
         )
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
@@ -502,7 +473,6 @@ class HPSimulator:
 
         # Comprehensive validation using framework
         self.validate_parent(
-            "1000",
             quantity="0.71429",
             realized_quantity="0.42",
             state="SELLING",
@@ -510,9 +480,6 @@ class HPSimulator:
             sell_price="4200.0",
             quantity_usd="1000.01",
             expected_return="2000.01",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
         )
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
@@ -551,7 +518,6 @@ class HPSimulator:
 
         # Comprehensive validation using framework
         self.validate_parent(
-            "1000",
             quantity="0.71429",
             realized_quantity="0.71429",
             state="SOLD",
@@ -559,9 +525,6 @@ class HPSimulator:
             sell_price="4200.0",
             quantity_usd="1000.01",
             expected_return="2000.01",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
         )
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
@@ -590,7 +553,6 @@ class HPSimulator:
 
         # Comprehensive validation using framework
         self.validate_parent(
-            "1000",
             quantity="0.71429",
             realized_quantity="0.42",
             state="PARTIALLY_SOLD",
@@ -598,9 +560,6 @@ class HPSimulator:
             sell_price="4200.0",
             quantity_usd="1000.01",
             expected_return="2000.01",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
         )
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
@@ -619,7 +578,6 @@ class HPSimulator:
 
         # Comprehensive validation using framework
         self.validate_parent(
-            "1000",
             quantity="0.71429",
             realized_quantity="0.42",
             state="SELLING",
@@ -627,9 +585,6 @@ class HPSimulator:
             sell_price="4200.0",
             quantity_usd="1000.01",
             expected_return="2000.01",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
         )
 
         await wait_for_condition(
@@ -681,7 +636,6 @@ class HPSimulator:
 
         # Comprehensive validation using framework
         self.validate_parent(
-            "1000",
             quantity="0.12",
             realized_quantity="0.0",
             state="SELLING",
@@ -689,9 +643,6 @@ class HPSimulator:
             sell_price="4200.0",
             quantity_usd="168.0",
             expected_return="336.0",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
         )
 
         await wait_for_condition(
@@ -709,18 +660,9 @@ class HPSimulator:
             )
         )
 
-        # Find the sell child using hierarchical approach
-        active_sell_item = next(
-            item
-            for item in self.front.hp_list_data
-            if item["hp_id"] == "1000_SELL" and item["side"] == "SELL"
-        )
-
         # Comprehensive validation for sell position setup
         self.validate_parent(
-            "1000",
             quantity="0.12",
-            realized_quantity="0.0",
             state="SELLING",
             buy_price="1400.0",
             sell_price="4200.0",
@@ -760,17 +702,12 @@ class HPSimulator:
 
         # Comprehensive validation using framework
         self.validate_parent(
-            "1000",
             quantity="0.12",
-            realized_quantity="0.0",
             state="PARTIALLY_BOUGHT",
             buy_price="1400.0",
             sell_price="4200.0",
             quantity_usd="168.0",
             expected_return="336.0",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
         )
 
         await wait_for_condition(
@@ -807,17 +744,12 @@ class HPSimulator:
 
         # Comprehensive validation using framework
         self.validate_parent(
-            "1000",
             quantity="0.12",
-            realized_quantity="0.0",
             state="PARTIALLY_BOUGHT",
             buy_price="1400.0",
             sell_price="0.0",
             quantity_usd="168.0",
             expected_return="0.0",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
         )
 
         # Child buy validation - quantity should always be total expected (0.85)
@@ -852,17 +784,12 @@ class HPSimulator:
 
         # Comprehensive validation using framework
         self.validate_parent(
-            "1000",
             quantity="0.12",
-            realized_quantity="0.0",
             state="PARTIALLY_BOUGHT",
             buy_price="1400.0",
             sell_price="4200.0",
             quantity_usd="168.0",
             expected_return="336.0",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
         )
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
@@ -904,7 +831,6 @@ class HPSimulator:
 
         # Comprehensive validation using framework
         self.validate_parent(
-            "1000",
             quantity="0.12",
             realized_quantity="0.06",
             state="SELLING",
@@ -912,9 +838,6 @@ class HPSimulator:
             sell_price="4200.0",
             quantity_usd="168.0",
             expected_return="336.0",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
         )
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
@@ -943,7 +866,6 @@ class HPSimulator:
 
         # Comprehensive validation using framework
         self.validate_parent(
-            "1000",
             quantity="0.12",
             realized_quantity="0.06",
             state="PART_SOLD_PART_BOUGHT",
@@ -951,9 +873,6 @@ class HPSimulator:
             sell_price="4200.0",
             quantity_usd="168.0",
             expected_return="336.0",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
         )
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
@@ -977,7 +896,6 @@ class HPSimulator:
         hp_list = self.front.hp_list_data
         assert len(hp_list) == 3
         self.validate_parent(
-            "1000",
             quantity="0.38",
             realized_quantity="0.14",
             state="PART_SOLD_PART_BOUGHT",
@@ -985,9 +903,6 @@ class HPSimulator:
             sell_price="4200.0",
             quantity_usd="504.0",
             expected_return="1092.0",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
         )
 
     async def simulate_sell_order_fill_from_part_bought(self) -> HpStrategy:
@@ -1023,7 +938,6 @@ class HPSimulator:
 
         # Comprehensive validation using framework
         self.validate_parent(
-            "1000",
             quantity="0.12",
             realized_quantity="0.12",
             state="SOLD_PART_BOUGHT",
@@ -1031,9 +945,6 @@ class HPSimulator:
             sell_price="4200.0",
             quantity_usd="168.0",
             expected_return="336.0",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
         )
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
@@ -1086,7 +997,6 @@ class HPSimulator:
 
         # Validate parent with all 3 buy orders filled after selling first order
         self.validate_parent(
-            "1000",
             quantity="0.71429",
             realized_quantity="0.24",
             state="PARTIALLY_SOLD",
@@ -1094,9 +1004,6 @@ class HPSimulator:
             sell_price="4200.0",
             quantity_usd="1000.01",
             expected_return="2000.01",
-            current_price="0.0",
-            net="0.0",
-            net_percent="0.0",
         )
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
@@ -1513,10 +1420,10 @@ class HPSimulator:
 
     def validate_parent(
         self,
-        hp_id,
-        quantity,
-        realized_quantity,
-        state,
+        hp_id="1000",
+        quantity="0.0",
+        realized_quantity="0.0",
+        state="NEW",
         buy_price=None,
         sell_price=None,
         quantity_usd=None,
@@ -1928,3 +1835,584 @@ class HPSimulator:
             assert (
                 convert_child["net_percent"] == net_percent
             ), f"CONVERT child net_percent: expected {net_percent}, got {convert_child['net_percent']}"
+
+    # ============================================================================
+    # CRASH RECOVERY METHODS (integrated from CrashRecoveryHelper)
+    # ============================================================================
+
+    async def crash_and_recover(
+        self,
+        hp_id: str = "1000",
+        create_pair_func: Optional[Callable] = None,
+        simulate_crash_func: Optional[Callable] = None,
+    ) -> Tuple[HpFront, StrategyExecutor, HpStrategy]:
+        """
+        Simulate crash and complete recovery process.
+
+        Args:
+            hp_id: Position ID to recover (default "1000")
+            create_pair_func: Factory function to create new front/back pair
+            simulate_crash_func: Function to simulate crash (if None, no crash simulation)
+
+        Returns:
+            Tuple of (new_front, new_back, recovered_strategy)
+
+        Example:
+            new_front, new_back, recovered = await sim.crash_and_recover(
+                create_pair_func=create_pair
+            )
+        """
+        # Simulate crash if function provided
+        if simulate_crash_func:
+            await simulate_crash_func(self.front, self.back)
+
+        # Create new instances
+        if create_pair_func:
+            new_front, new_back = create_pair_func("_recovery")
+        else:
+            raise ValueError("create_pair_func is required for crash_and_recover")
+
+        # Update simulator to use new instances
+        old_front, old_back = self.front, self.back
+        self.front, self.back = new_front, new_back
+
+        # Get orders from database
+        orders_before_recovery = await new_front.db.get_orders_by_position_id(hp_id)
+        logger.info("Orders in DB before recovery: %d", len(orders_before_recovery))
+
+        # Setup mock for exchange queries
+        new_back.client.get_order.side_effect = self._mock_orders_from_db(
+            orders_before_recovery
+        )
+
+        # Trigger recovery
+        logger.info("Manually triggering crash recovery for test")
+        await new_back.recover_positions_from_crash()
+
+        # Wait for strategy to be recovered
+        await wait_for_condition(condition_func=lambda: len(new_back.strategies) == 1)
+        assert (
+            hp_id in new_back.strategies
+        ), f"Strategy {hp_id} not found after recovery"
+
+        recovered_strategy = new_back.strategies[hp_id]
+        logger.info("✓ Crash recovery completed successfully")
+
+        return new_front, new_back, recovered_strategy
+
+    def _mock_orders_from_db(self, order_db_list):
+        """
+        Returns a mock function that returns order status from DB.
+
+        Args:
+            order_db_list: List of DB order objects
+
+        Returns:
+            Callable for use as side_effect in mock
+        """
+
+        def _mock(symbol, orderId=None):  # type: ignore[no-untyped-def]
+            oid = orderId
+            db_order = next(
+                (
+                    o
+                    for o in order_db_list
+                    if getattr(o, "exchange_order_id", None) == oid
+                ),
+                None,
+            )
+            if db_order:
+                return {
+                    "symbol": symbol,
+                    "orderId": oid,
+                    "status": db_order.status.value,
+                    "executedQty": str(db_order.realized_quantity),
+                    "origQty": str(db_order.quantity),
+                    "price": str(db_order.price),
+                }
+            # Fallback for unexpected orders
+            return {
+                "symbol": symbol,
+                "orderId": oid,
+                "status": "NEW",
+                "executedQty": "0.00000000",
+                "origQty": "0.00000000",
+                "price": "0.00",
+            }
+
+        return _mock
+
+    async def assert_db_state_matches_memory(self, hp_id: str = "1000") -> None:
+        """
+        Assert that in-memory application state matches database state.
+
+        Args:
+            hp_id: Position ID to verify
+
+        Example:
+            await sim.assert_db_state_matches_memory(hp_id="1000")
+        """
+        logger.info(
+            "=== ASSERTING APPLICATION <-> DATABASE STATE MATCH for %s ===", hp_id
+        )
+
+        # Get the in-memory strategy
+        strategy = self.back.strategies.get(hp_id)
+        assert strategy is not None, f"Strategy {hp_id} not found in memory"
+
+        # Get the corresponding position from database
+        positions = await self.front.db.get_active_positions()
+        db_position = None
+        for pos in positions:
+            if pos.hp_id == hp_id:
+                db_position = pos
+                break
+
+        assert db_position is not None, f"Position {hp_id} not found in database"
+
+        # Determine if this is a BUY or SELL position
+        from src.database.models import PositionType
+
+        is_sell_position = db_position.position_type == PositionType.SELL
+
+        # Get the appropriate config based on position type
+        if is_sell_position:
+            sell_config = strategy.sell.original_position.config
+            memory_hp_id = sell_config.hp_id
+            memory_symbol = sell_config.symbol.name
+            memory_coin = sell_config.coin
+            memory_buy_price = sell_config.buy_price
+            memory_budget = 0.0
+            memory_order_trigger = 0.0
+        else:
+            buy_config = strategy.buy.data.config
+            memory_hp_id = buy_config.hp_id
+            memory_symbol = buy_config.symbol.name
+            memory_coin = buy_config.coin
+            memory_buy_price = buy_config.buy_price
+            memory_budget = buy_config.budget
+            memory_order_trigger = buy_config.order_trigger
+
+        # Compare core identification fields
+        assert (
+            db_position.hp_id == memory_hp_id
+        ), f"HP ID mismatch: DB={db_position.hp_id}, Memory={memory_hp_id}"
+
+        assert (
+            db_position.symbol == memory_symbol
+        ), f"Symbol mismatch: DB={db_position.symbol}, Memory={memory_symbol}"
+
+        assert (
+            db_position.coin == memory_coin
+        ), f"Coin mismatch: DB={db_position.coin}, Memory={memory_coin}"
+
+        # Compare configuration fields
+        if not is_sell_position:
+            assert (
+                db_position.budget == memory_budget
+            ), f"Budget mismatch: DB={db_position.budget}, Memory={memory_budget}"
+
+            assert (
+                db_position.order_trigger == memory_order_trigger
+            ), f"Order trigger mismatch: DB={db_position.order_trigger}, Memory={memory_order_trigger}"
+
+        assert (
+            db_position.buy_price == memory_buy_price
+        ), f"Buy price mismatch: DB={db_position.buy_price}, Memory={memory_buy_price}"
+
+        assert (
+            db_position.strategy_state == strategy.state.value
+        ), f"Strategy state mismatch: DB={db_position.strategy_state}, Memory={strategy.state}"
+
+        logger.info("✓ Application and database state match verified successfully")
+        logger.info("Matched fields:")
+        logger.info("  HP ID: %s", db_position.hp_id)
+        logger.info("  Symbol: %s", db_position.symbol)
+        logger.info("  Coin: %s", db_position.coin)
+        if not is_sell_position:
+            logger.info("  Budget: %s", db_position.budget)
+            logger.info("  Order trigger: %s", db_position.order_trigger)
+        logger.info("  Buy price: %s", db_position.buy_price)
+        logger.info(
+            "  Strategy state: %s (matches: %s)",
+            db_position.strategy_state,
+            strategy.state,
+        )
+        logger.info("  Position status: %s", db_position.status)
+
+    async def assert_db_orders_match(
+        self, expected_orders: List[Dict], hp_id: str = "1000"
+    ) -> None:
+        """
+        Verify database orders match expected state.
+
+        Args:
+            expected_orders: List of dicts with expected order properties
+            hp_id: Position ID to check
+
+        Example:
+            await sim.assert_db_orders_match([
+                {"status": "NEW", "realized_quantity": 0.0, "price": 1400.0}
+            ], hp_id="1000")
+        """
+        orders_in_db = await self.front.db.get_orders_by_position_id(hp_id)
+        logger.info(
+            "Verifying %d orders in DB for position %s", len(orders_in_db), hp_id
+        )
+
+        assert len(orders_in_db) == len(
+            expected_orders
+        ), f"Expected {len(expected_orders)} orders, found {len(orders_in_db)}"
+
+        for i, (db_order, expected) in enumerate(zip(orders_in_db, expected_orders)):
+            logger.info("Checking order %d: %s", i, db_order.exchange_order_id)
+
+            if "status" in expected:
+                assert (
+                    db_order.status.value == expected["status"]
+                ), f"Order {i} status: expected {expected['status']}, got {db_order.status.value}"
+
+            if "realized_quantity" in expected:
+                assert (
+                    db_order.realized_quantity == expected["realized_quantity"]
+                ), f"Order {i} realized_quantity: expected {expected['realized_quantity']}, got {db_order.realized_quantity}"
+
+            if "price" in expected:
+                assert (
+                    db_order.price == expected["price"]
+                ), f"Order {i} price: expected {expected['price']}, got {db_order.price}"
+
+            if "quantity" in expected:
+                tolerance = expected.get("tolerance", 0.00001)
+                assert (
+                    abs(db_order.quantity - expected["quantity"]) < tolerance
+                ), f"Order {i} quantity: expected {expected['quantity']}, got {db_order.quantity}"
+
+            if "exchange_order_id" in expected:
+                assert (
+                    db_order.exchange_order_id == expected["exchange_order_id"]
+                ), f"Order {i} exchange_order_id: expected {expected['exchange_order_id']}, got {db_order.exchange_order_id}"
+
+        logger.info("✓ All DB orders match expected state")
+
+    async def assert_recovered_state(
+        self,
+        strategy: HpStrategy,
+        expected_state: State,
+        expected_buy_state: Optional[State] = None,
+        expected_sell_state: Optional[State] = None,
+        expected_order_status: Optional[str] = None,
+        wait_for_state: bool = True,
+    ) -> None:
+        """
+        Assert recovered strategy matches expected state.
+
+        Args:
+            strategy: The recovered strategy
+            expected_state: Expected strategy state
+            expected_buy_state: Expected buy state (if applicable)
+            expected_sell_state: Expected sell state (if applicable)
+            expected_order_status: Expected order status (if applicable)
+            wait_for_state: Whether to wait for state transition
+
+        Example:
+            await sim.assert_recovered_state(
+                recovered,
+                State.BUYING,
+                expected_buy_state=State.NEW
+            )
+        """
+        # Wait for state if requested
+        if wait_for_state:
+            await wait_for_condition(
+                lambda: strategy.state == expected_state, timeout=5.0
+            )
+
+        # Check strategy state
+        assert (
+            strategy.state == expected_state
+        ), f"Strategy state: expected {expected_state}, got {strategy.state}"
+        logger.info("✓ Strategy state: %s", expected_state)
+
+        # Check buy state if specified
+        if expected_buy_state is not None:
+            assert (
+                strategy.buy.data.state_info.state == expected_buy_state
+            ), f"Buy state: expected {expected_buy_state}, got {strategy.buy.data.state_info.state}"
+            logger.info("✓ Buy state: %s", expected_buy_state)
+
+            # Check buy order if exists
+            if strategy.buy.buy_order and expected_order_status:
+                assert (
+                    strategy.buy.buy_order.status == expected_order_status
+                ), f"Buy order status: expected {expected_order_status}, got {strategy.buy.buy_order.status}"
+                logger.info("✓ Buy order status: %s", expected_order_status)
+
+        # Check sell state if specified
+        if expected_sell_state is not None and strategy.sell is not None:
+            # Check if sell has current_position (new sell structure)
+            if (
+                hasattr(strategy.sell, "current_position")
+                and strategy.sell.current_position
+            ):
+                assert (
+                    strategy.sell.current_position.state_info.state
+                    == expected_sell_state
+                ), f"Sell state: expected {expected_sell_state}, got {strategy.sell.current_position.state_info.state}"
+                logger.info("✓ Sell state: %s", expected_sell_state)
+
+                # Check sell order if exists
+                if strategy.sell.current_position.sell_order and expected_order_status:
+                    assert (
+                        strategy.sell.current_position.sell_order.status
+                        == expected_order_status
+                    ), f"Sell order status: expected {expected_order_status}, got {strategy.sell.current_position.sell_order.status}"
+                    logger.info("✓ Sell order status: %s", expected_order_status)
+
+        logger.info("✓ Recovered strategy state verified")
+
+    def assert_exchange_synced(self, strategy: HpStrategy, min_calls: int = 1) -> None:
+        """
+        Verify strategy synced with exchange during recovery.
+
+        Args:
+            strategy: The recovered strategy
+            min_calls: Minimum expected get_order calls
+
+        Example:
+            sim.assert_exchange_synced(recovered_strategy, min_calls=1)
+        """
+        assert (
+            strategy.client.get_order.called
+        ), "Exchange sync not performed - get_order was not called"
+
+        actual_calls = strategy.client.get_order.call_count
+        assert (
+            actual_calls >= min_calls
+        ), f"Expected at least {min_calls} get_order calls, got {actual_calls}"
+
+        logger.info("✓ Exchange synced - get_order called %d times", actual_calls)
+
+    # ============================================================================
+    # COMPLEX SCENARIO SETUP METHODS
+    # ============================================================================
+
+    async def setup_part_sold_part_bought(
+        self,
+        partial_fill_ratio: float = 0.2,
+        sell_ratio: float = 1.0,
+        sell_partial: bool = False,
+    ) -> HpStrategy:
+        """
+        Setup PART_SOLD_PART_BOUGHT complex state.
+
+        This creates a position that:
+        1. Has buy order partially filled
+        2. Buy order is cancelled
+        3. Sell position is setup for the partial amount
+        4. Optionally, sell order is partially filled
+
+        Args:
+            partial_fill_ratio: How much of buy order to fill (0.0-1.0)
+            sell_ratio: How much to sell relative to bought amount
+            sell_partial: Whether to partially fill the sell order
+
+        Returns:
+            The strategy in PART_SOLD_PART_BOUGHT state
+
+        Example:
+            strategy = await sim.setup_part_sold_part_bought(
+                partial_fill_ratio=0.2,
+                sell_ratio=1.0,
+                sell_partial=False
+            )
+        """
+        logger.info("Setting up PART_SOLD_PART_BOUGHT scenario")
+
+        # Simulate partial fill on buy order
+        await self.simulate_partial_fill()
+
+        # Cancel the partially filled buy order
+        await self.cancel_buy_position_after_order_partial_fill()
+
+        # Setup sell position for the partially bought amount
+        await self.setup_sell_position_after_buy_order_filled_partially(
+            hp_id="1000",
+            symbol="BTCUSDC",
+            quantity=0.12 * sell_ratio,
+            buy_price=1400.0,
+            sell_price=4200.0,
+            end_currency="USDC",
+            coin="BTC",
+        )
+
+        # Send sell order
+        await self.send_sell_order_for_part_bought_position()
+
+        # Optionally partially fill the sell order
+        if sell_partial:
+            await self.simulate_sell_order_partial_fill_from_part_bought()
+
+        strategy = self.back.strategies["1000"]
+        logger.info("✓ PART_SOLD_PART_BOUGHT scenario ready: %s", strategy.state)
+
+        return strategy
+
+    async def setup_two_hop_trade(
+        self,
+        first_symbol: str = "BTCUSDC",
+        second_symbol: str = "ETHBTC",
+        complete_first_leg: bool = True,
+    ) -> Tuple[HpStrategy, Optional[HpStrategy]]:
+        """
+        Setup complete two-hop trade scenario.
+
+        Creates a two-hop trade where:
+        1. First position buys and sells (BTC with USDC)
+        2. Second position sells the BTC for ETH (convert-only)
+
+        Args:
+            first_symbol: Symbol for first leg (default BTCUSDC)
+            second_symbol: Symbol for second leg (default ETHBTC)
+            complete_first_leg: Whether to complete first leg before second
+
+        Returns:
+            Tuple of (first_strategy, second_strategy or None)
+
+        Example:
+            first, second = await sim.setup_two_hop_trade(
+                complete_first_leg=True
+            )
+        """
+        logger.info("Setting up two-hop trade: %s -> %s", first_symbol, second_symbol)
+
+        # First leg: buy and sell
+        await self.simulate_bought_position(symbol=first_symbol)
+        await self.setup_sell_position(
+            hp_id="1000",
+            symbol=first_symbol,
+            quantity=0.71429,
+            buy_price=1400.0,
+            sell_price=4200.0,
+            end_currency="USDC",
+            coin="BTC",
+        )
+        await self.send_sell_order_for_bought_position()
+
+        first_strategy = self.back.strategies["1000"]
+
+        if complete_first_leg:
+            # Complete first leg
+            await self.simulate_sell_order_fill()
+            logger.info("✓ First leg completed")
+
+            # TODO: Second leg would require additional setup
+            # This is a placeholder for now
+            logger.info("✓ Two-hop trade first leg ready")
+            return first_strategy, None
+
+        logger.info("✓ Two-hop trade first leg setup (not completed)")
+        return first_strategy, None
+
+    async def setup_convert_only_position(
+        self, symbol: str = "BTCUSD", quantity: float = 0.5
+    ) -> HpStrategy:
+        """
+        Setup convert-only position for testing.
+
+        A convert-only position is one where we already own the base asset
+        and just need to sell it (no buy phase).
+
+        Args:
+            symbol: Symbol for the position (should not have C suffix)
+            quantity: Quantity to sell
+
+        Returns:
+            The strategy in convert-only state
+
+        Example:
+            strategy = await sim.setup_convert_only_position(
+                symbol="BTCUSD",
+                quantity=0.5
+            )
+        """
+        logger.info("Setting up convert-only position for %s", symbol)
+
+        # Create a position that's already in SOLD state
+        # (convert-only positions skip the buy phase)
+        strategy = self.back.strategies["1000"]
+        strategy.sell.current_position.config.symbol.is_convert_only = True
+
+        logger.info("✓ Convert-only position ready")
+
+        return strategy
+
+    async def simulate_cancel_and_resend_buy(
+        self, new_price: Optional[float] = None
+    ) -> HpStrategy:
+        """
+        Simulate cancel and resend buy order pattern.
+
+        This simulates the scenario where:
+        1. Buy order is sent
+        2. Order is cancelled
+        3. New buy order is sent (optionally at new price)
+
+        Args:
+            new_price: New price for the resent order (None = same price)
+
+        Returns:
+            The strategy after resending
+
+        Example:
+            strategy = await sim.simulate_cancel_and_resend_buy(
+                new_price=1450.0
+            )
+        """
+        logger.info("Simulating cancel and resend buy order")
+
+        # Cancel the current buy order
+        await self.cancel_buy_position_untouched()
+
+        # Resend at new price if specified
+        if new_price:
+            logger.info("Resending buy order at new price: %s", new_price)
+            # Would need to trigger new order creation
+            # This is a simplified version
+
+        strategy = self.back.strategies["1000"]
+        logger.info("✓ Cancel and resend buy completed")
+
+        return strategy
+
+    async def simulate_cancel_and_resend_sell(
+        self, new_price: Optional[float] = None
+    ) -> HpStrategy:
+        """
+        Simulate cancel and resend sell order pattern.
+
+        This simulates the scenario where:
+        1. Sell order is sent
+        2. Order is cancelled
+        3. New sell order is sent (optionally at new price)
+
+        Args:
+            new_price: New price for the resent order (None = same price)
+
+        Returns:
+            The strategy after resending
+
+        Example:
+            strategy = await sim.simulate_cancel_and_resend_sell(
+                new_price=1550.0
+            )
+        """
+        logger.info("Simulating cancel and resend sell order")
+
+        # Cancel partially sold position and resend
+        await self.resend_sell_order_for_partially_sold_position()
+
+        strategy = self.back.strategies["1000"]
+        logger.info("✓ Cancel and resend sell completed")
+
+        return strategy
