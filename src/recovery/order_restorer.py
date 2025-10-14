@@ -143,9 +143,6 @@ class OrderRestorer:
 
         restored_orders: List[Order] = []
         for (_, _), order_dicts in grouped_orders.items():
-            # Aggregate realized_quantity from all orders for this price level
-            total_realized = sum(o["realized_quantity"] for o in order_dicts)
-
             # Find the latest open order, else the latest order overall
             open_orders = [
                 o
@@ -158,6 +155,9 @@ class OrderRestorer:
                 else max(order_dicts, key=lambda o: o.get("order_id", 0))
             )
 
+            # Use realized_quantity from the latest order, not sum of all orders
+            # When an order is canceled and resent, the new order already carries
+            # forward the realized_quantity from the canceled order
             trading_order = Order(
                 order_id=latest_order["order_id"],
                 quantity=latest_order["quantity"],
@@ -165,7 +165,7 @@ class OrderRestorer:
                 price_precision=buy_config.symbol.price_precision,
                 price=latest_order["price"],
                 quantity_stable=latest_order["quantity_stable"],
-                realized_quantity=total_realized,
+                realized_quantity=latest_order["realized_quantity"],
                 status=(
                     latest_order["status"].value
                     if hasattr(latest_order["status"], "value")

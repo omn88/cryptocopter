@@ -174,8 +174,12 @@ class HPSimulator:
             "1000", quantity="0.71429", realized_quantity="0.0", state="NEW"
         )
 
-    async def simulate_partial_fill(self) -> HpStrategy:
+    async def simulate_partial_fill(
+        self, last: float = 0.12, cumulative: float = 0.12
+    ) -> HpStrategy:
         strategy = self.back.strategies["1000"]
+
+        price = 1400.0
 
         assert strategy.buy.buy_order is not None
 
@@ -186,9 +190,9 @@ class HPSimulator:
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
             order_id=first_order_id,
-            last_executed_quantity=0.12,
-            last_executed_price=1400,
-            cumulative_filled_quantity=0.12,
+            last_executed_quantity=last,
+            last_executed_price=price,
+            cumulative_filled_quantity=cumulative,
         )
         strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
         logger.info("Put event to the worker: %s", exc_report)
@@ -202,24 +206,24 @@ class HPSimulator:
 
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["quantity"]
-            == str(exc_report.last_executed_quantity)
+            == str(cumulative)
         )
 
         # Comprehensive validation for partial fill
         self.validate_parent(
             "1000",
-            quantity="0.12",
+            quantity=f"{cumulative}",
             realized_quantity="0.0",
             state="BUYING",
-            buy_price="1400.0",
-            quantity_usd="168.0",
+            buy_price=f"{price}",
+            quantity_usd=f"{price * cumulative}",
         )
 
         # Child buy validation - quantity should always be total expected (0.71429)
         self.validate_child_buy(
             "1000",
             quantity="0.71429",
-            realized_quantity="0.12",
+            realized_quantity=f"{cumulative}",
             state="PARTIALLY_BOUGHT",
         )
 

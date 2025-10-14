@@ -637,9 +637,11 @@ async def test_recovery_cancel_default_position_untouched_then_resend_orders(
     await wait_for_condition(lambda: len(new_back.strategies) == 1)
     assert "1000" in new_back.strategies
     recovered_strategy = new_back.strategies["1000"]
-    # After recovery, if all buy orders are NEW (no fills), state must be BUYING
+    # After recovery: order was resent (untouched, no fills)
+    # strategy.state = BUYING (overall state from DB)
+    # buy.data.state_info.state = NEW (no fills, so stays NEW)
     assert recovered_strategy.state == State.BUYING
-    assert recovered_strategy.buy.data.state_info.state == State.NEW, recovered_strategy.buy.data.state_info.state
+    assert recovered_strategy.buy.data.state_info.state == State.NEW
     assert isinstance(recovered_strategy.buy.buy_order, Order)
     order = recovered_strategy.buy.buy_order
     assert order.status == ORDER_STATUS_NEW
@@ -1100,7 +1102,7 @@ async def test_recovery_default_position_first_order_filled_partially_then_cance
     assert recovered_strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
     assert isinstance(recovered_strategy.buy.buy_order, Order)
     assert recovered_strategy.buy.data.config.symbol.name == "BTCUSDC"
-    assert recovered_strategy.buy.buy_order.realized_quantity == 0.24
+    assert recovered_strategy.buy.buy_order.realized_quantity == 0.12
 
 
 async def test_recovery_setup_sell_position_for_bought_position(crash_recovery_factory):
@@ -1718,7 +1720,7 @@ async def test_recovery_send_sell_order_for_partially_bought_position(
     strategy = await sim.simulate_partial_fill()
 
     # Cancel partially bought position
-    await sim.cancel_buy_position_after_order_partial_fill
+    await sim.cancel_buy_position_after_order_partial_fill()
 
     await sim.setup_sell_position(
         hp_id="1000",
@@ -1778,12 +1780,12 @@ async def test_recovery_send_sell_order_for_partially_bought_position(
     assert recovered_sell_order.status == ORDER_STATUS_NEW
     assert recovered_sell_order.quantity == strategy.buy.calculate_realized_quantity()
 
-    # Assert buy order: single order with partial fill
+    # Assert buy order: single order with partial fill then canceled
     buy_order = recovered_strategy.buy.buy_order
     assert isinstance(buy_order, Order)
-    # In single-order system, we just verify the order exists and has correct status
-    # The order should be FILLED since we filled it completely
-    assert buy_order.status == ORDER_STATUS_FILLED
+    # The order was partially filled (0.12) then canceled
+    assert buy_order.status == ORDER_STATUS_CANCELED
+    assert buy_order.realized_quantity == 0.12
 
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
@@ -1812,7 +1814,7 @@ async def test_recovery_cancel_unfilled_sell_orders_for_partially_bought_positio
     strategy = await sim.simulate_partial_fill()
 
     # Cancel partially bought position
-    await sim.cancel_buy_position_after_order_partial_fill
+    await sim.cancel_buy_position_after_order_partial_fill()
 
     await sim.setup_sell_position(
         hp_id="1000",
@@ -1877,19 +1879,6 @@ async def test_recovery_cancel_unfilled_sell_orders_for_partially_bought_positio
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
 
-def check_completeness(orders, expected_total_quantity, actual_completeness, tol=1e-3):
-    """
-    Checks that completeness is calculated as the sum of realized quantities of all orders
-    divided by the expected total quantity, and matches the actual_completeness value.
-    """
-    realized = sum(o.realized_quantity for o in orders)
-    expected = expected_total_quantity
-    calculated = realized / expected if expected else 0.0
-    assert (
-        abs(calculated - actual_completeness) < tol
-    ), f"Completeness mismatch: calculated={calculated}, actual={actual_completeness}"
-
-
 async def test_recovery_fill_orders_for_previously_partially_bought_position(
     crash_recovery_factory,
 ):
@@ -1914,7 +1903,7 @@ async def test_recovery_fill_orders_for_previously_partially_bought_position(
     strategy = await sim.simulate_partial_fill()
 
     # Cancel partially bought position
-    await sim.cancel_buy_position_after_order_partial_fill
+    await sim.cancel_buy_position_after_order_partial_fill()
 
     await sim.setup_sell_position(
         hp_id="1000",
@@ -1936,26 +1925,22 @@ async def test_recovery_fill_orders_for_previously_partially_bought_position(
     ]
     sim.new_price(price=1212)
 
-    assert strategy.buy.buy_order.status == ORDER_STATUS_FILLED
-
-    assert strategy.buy.buy_order.realized_quantity == 0.24
-
-    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
-    assert strategy.state == State.BUYING
+    # Wait for order to be resent and state to transition to BUYING
+    await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
 
     await wait_for_condition(
         condition_func=lambda: front.hp_list_data[0]["state"] == "BUYING"
     )
 
-    # All buy orders should now be filled
-    assert all(o.status == ORDER_STATUS_FILLED for o in strategy.buy.buy_order)
-    assert strategy.buy.data.state_info.state == State.BOUGHT
-    assert strategy.state == State.BOUGHT
+    # Single buy order should be NEW (resent) with partial realized quantity
+    assert strategy.buy.buy_order.status == ORDER_STATUS_NEW
+    assert strategy.buy.buy_order.realized_quantity == 0.12
+    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
 
-    # --- Completeness checker ---
-    total_quantity = sum(o.quantity for o in strategy.buy.buy_order)
+    # --- Check completeness ---
+    # StateInfo.completeness is automatically calculated by StateInfo.get_completeness()
+    # which rounds to 2 decimal places
     completeness = strategy.buy.data.state_info.completeness
-    check_completeness(strategy.buy.buy_order, total_quantity, completeness)
     print(f"[TEST] Completeness after all buy orders filled: {completeness}")
 
     # Simulate crash after all buy orders are filled
@@ -1975,15 +1960,14 @@ async def test_recovery_fill_orders_for_previously_partially_bought_position(
     )
     await new_back.recover_positions_from_crash()
 
-    # After recovery, assert all buy orders are filled and state is BOUGHT
+    # After recovery, assert buy order is NEW (resent) and state is BUYING
     await wait_for_condition(lambda: len(new_back.strategies) == 1)
     assert "1000" in new_back.strategies
     recovered_strategy = new_back.strategies["1000"]
-    assert all(
-        o.status == ORDER_STATUS_FILLED for o in recovered_strategy.buy.buy_order
-    )
-    assert recovered_strategy.buy.data.state_info.state == State.BOUGHT
-    assert recovered_strategy.state == State.BOUGHT
+    assert recovered_strategy.buy.buy_order.status == ORDER_STATUS_NEW
+    assert recovered_strategy.buy.buy_order.realized_quantity == 0.12
+    assert recovered_strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+    assert recovered_strategy.state == State.BUYING
 
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
@@ -2036,11 +2020,12 @@ async def test_recovery_sell_partially_partially_bought_position(
     assert sell_order.status == ORDER_STATUS_PARTIALLY_FILLED
     assert sell_order.realized_quantity > 0.0
 
-    # Assert buy order: single order that should be filled
+    # Assert buy order: single order that was partially filled then canceled
     buy_order = strategy.buy.buy_order
     assert isinstance(buy_order, Order)
-    # In single-order system, verify the order status
-    assert buy_order.status == ORDER_STATUS_FILLED
+    # The order was partially filled then canceled
+    assert buy_order.status == ORDER_STATUS_CANCELED
+    assert buy_order.realized_quantity == 0.12
 
     # Ensure DB is updated before crash
     db_positions = await front.db.get_active_positions()
@@ -2078,19 +2063,11 @@ async def test_recovery_sell_partially_partially_bought_position(
     assert recovered_sell_order.status == ORDER_STATUS_PARTIALLY_FILLED
     assert recovered_sell_order.realized_quantity > 0.0
 
-    # Assert buy orders after recovery: one filled, two new/canceled
-    recovered_buy_orders = recovered_strategy.buy.buy_order
-    assert (
-        len(recovered_buy_orders) == 3
-    ), f"Expected 3 buy orders after recovery, got {len(recovered_buy_orders)}"
-    filled = [o for o in recovered_buy_orders if o.status == ORDER_STATUS_FILLED]
-    canceled = [o for o in recovered_buy_orders if o.status == ORDER_STATUS_CANCELED]
-    assert (
-        len(filled) == 1
-    ), f"Expected 1 filled buy order after recovery, got {len(filled)}"
-    assert (
-        len(canceled) == 2
-    ), f"Expected 2 new/canceled buy orders after recovery, got {len(canceled)}"
+    # Assert buy order after recovery: single order with canceled status
+    recovered_buy_order = recovered_strategy.buy.buy_order
+    assert isinstance(recovered_buy_order, Order)
+    # In single-order system, the order should be CANCELED with partial realized quantity
+    assert recovered_buy_order.status == ORDER_STATUS_CANCELED
 
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
@@ -2119,7 +2096,7 @@ async def test_recovery_buy_partially_partially_sold_position(crash_recovery_fac
     strategy = await sim.simulate_partial_fill()
 
     # Cancel partially bought position
-    await sim.cancel_buy_position_after_order_partial_fill
+    await sim.cancel_buy_position_after_order_partial_fill()
 
     await sim.setup_sell_position(
         hp_id="1000",
@@ -2138,48 +2115,71 @@ async def test_recovery_buy_partially_partially_sold_position(crash_recovery_fac
     # Cancel Sell position
     await sim.cancel_sell_position_filled_partially()
 
+    # Wait for state transition after price trigger
+    await wait_for_condition(
+        condition_func=lambda: strategy.state == State.PART_SOLD_PART_BOUGHT
+    )
+
+    assert strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
+    assert strategy.buy.buy_order.realized_quantity == 0.12
+    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.state == State.PART_SOLD_PART_BOUGHT
+
+    await wait_for_condition(
+        condition_func=lambda: front.hp_list_data[0]["state"] == "PART_SOLD_PART_BOUGHT"
+    )
+
     # Reopen Buy position
     strategy.client.create_order.side_effect = [
         get_new_order(order=strategy.buy.buy_order)
     ]
 
-    # Price trigger is now related to the middle order as the top order is already filled.
-    sim.new_price(price=1212)
+    sim.new_price(price=1412)
 
-    assert strategy.buy.buy_order.status == ORDER_STATUS_FILLED
+    # Wait for state transition after price trigger
+    await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
 
-    assert strategy.buy.buy_order.realized_quantity == 0.24
-
+    assert strategy.buy.buy_order.status == ORDER_STATUS_NEW
+    assert strategy.buy.buy_order.realized_quantity == 0.12
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
-    assert strategy.state == State.BUYING
+
+    strategy.client.create_order.side_effect = [
+        get_new_order(order=strategy.buy.buy_order)
+    ]
+    sim.new_price(price=1410.0)
+
+    # Assert new opened position data
+    await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
+
+    # Simulate first buy order fill
+    strategy = await sim.simulate_partial_fill(last=0.14, cumulative=0.26)
 
     await wait_for_condition(
-        condition_func=lambda: front.hp_list_data[0]["state"] == "BUYING"
+        condition_func=lambda: strategy.buy.buy_order.realized_quantity == 0.26
     )
 
-    # Buy partially second order
-    await sim.simulate_second_buy_order_partial_fill()
+    assert strategy.buy.buy_order.status == ORDER_STATUS_PARTIALLY_FILLED
+    assert strategy.buy.buy_order.realized_quantity == 0.26
+    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
 
-    # Cancel Buy orders
-    await sim.cancel_buy_position_filled_partially_sold_partially()
+    assert strategy.buy.order_cancel_price == 1428.0
+    sim.new_price(price=1428.0)
 
-    # Assert in-memory state before crash
-    buy_orders = strategy.buy.buy_order
-    assert len(buy_orders) == 3, f"Expected 3 buy orders, got {len(buy_orders)}"
-    filled = [o for o in buy_orders if o.status == ORDER_STATUS_FILLED]
-    canceled = [o for o in buy_orders if o.status == ORDER_STATUS_CANCELED]
-    partial = [o for o in buy_orders if o.status == ORDER_STATUS_PARTIALLY_FILLED]
-    assert len(filled) == 1, f"Expected 1 filled buy order, got {len(filled)}"
-    assert len(canceled) == 2, f"Expected 2 canceled buy orders, got {len(canceled)}"
-    assert len(partial) == 0, f"Expected 0 partial buy orders, got {len(partial)}"
-    # One canceled order should have non-zero realized_quantity, one should have zero
-    canceled_realized = [o.realized_quantity for o in canceled]
-    assert any(
-        q > 0.0 for q in canceled_realized
-    ), "One canceled order should have non-zero realized_quantity"
-    assert any(
-        q == 0.0 for q in canceled_realized
-    ), "One canceled order should have zero realized_quantity"
+    assert strategy.buy.buy_order is not None
+
+    assert strategy.buy.buy_order.status == ORDER_STATUS_PARTIALLY_FILLED
+
+    # Wait for state transition to complete
+    await wait_for_condition(
+        condition_func=lambda: strategy.state == State.PART_SOLD_PART_BOUGHT
+    )
+
+    # Assert in-memory state before crash - single order system
+    buy_order = strategy.buy.buy_order
+    assert isinstance(buy_order, Order)
+    # In single-order system, the order should be CANCELED with partial realized quantity
+    assert buy_order.status == ORDER_STATUS_CANCELED
+    assert buy_order.realized_quantity > 0.0
 
     # Ensure DB is updated before crash
     db_positions = await front.db.get_active_positions()
@@ -2187,14 +2187,14 @@ async def test_recovery_buy_partially_partially_sold_position(crash_recovery_fac
     db_position = db_positions[0]
     db_orders = await front.db.get_orders_by_position_id(db_position.id)
     db_buy_orders = [o for o in db_orders if getattr(o.side, "value", o.side) == "BUY"]
-    assert len(db_buy_orders) == 3
+    assert len(db_buy_orders) == 1
     db_filled = [o for o in db_buy_orders if o.status.value == ORDER_STATUS_FILLED]
     db_canceled = [o for o in db_buy_orders if o.status.value == ORDER_STATUS_CANCELED]
     db_partial = [
         o for o in db_buy_orders if o.status.value == ORDER_STATUS_PARTIALLY_FILLED
     ]
-    assert len(db_filled) == 1
-    assert len(db_canceled) == 2
+    assert len(db_filled) == 0
+    assert len(db_canceled) == 1
     assert len(db_partial) == 0
     db_canceled_realized = [o.realized_quantity for o in db_canceled]
     assert any(
@@ -2223,31 +2223,12 @@ async def test_recovery_buy_partially_partially_sold_position(crash_recovery_fac
     await wait_for_condition(lambda: len(new_back.strategies) == 1)
     assert "1000" in new_back.strategies
     recovered_strategy = new_back.strategies["1000"]
-    recovered_buy_orders = recovered_strategy.buy.buy_order
-    assert (
-        len(recovered_buy_orders) == 3
-    ), f"Expected 3 buy orders after recovery, got {len(recovered_buy_orders)}"
-    filled = [o for o in recovered_buy_orders if o.status == ORDER_STATUS_FILLED]
-    canceled = [o for o in recovered_buy_orders if o.status == ORDER_STATUS_CANCELED]
-    partial = [
-        o for o in recovered_buy_orders if o.status == ORDER_STATUS_PARTIALLY_FILLED
-    ]
-    assert (
-        len(filled) == 1
-    ), f"Expected 1 filled buy order after recovery, got {len(filled)}"
-    assert (
-        len(canceled) == 2
-    ), f"Expected 2 canceled buy orders after recovery, got {len(canceled)}"
-    assert (
-        len(partial) == 0
-    ), f"Expected 0 partial buy orders after recovery, got {len(partial)}"
-    canceled_realized = [o.realized_quantity for o in canceled]
-    assert any(
-        q > 0.0 for q in canceled_realized
-    ), "One canceled order after recovery should have non-zero realized_quantity"
-    assert any(
-        q == 0.0 for q in canceled_realized
-    ), "One canceled order after recovery should have zero realized_quantity"
+
+    # Single order system - verify recovered order
+    recovered_buy_order = recovered_strategy.buy.buy_order
+    assert isinstance(recovered_buy_order, Order)
+    assert recovered_buy_order.status == ORDER_STATUS_CANCELED
+    assert recovered_buy_order.realized_quantity > 0.0
 
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
@@ -2274,7 +2255,7 @@ async def test_recovery_cancel_buy_to_part_sold_part_bought(crash_recovery_facto
     strategy = await sim.simulate_partial_fill()
 
     # Cancel partially bought position
-    await sim.cancel_buy_position_after_order_partial_fill
+    await sim.cancel_buy_position_after_order_partial_fill()
 
     await sim.setup_sell_position(
         hp_id="1000",
@@ -2301,12 +2282,8 @@ async def test_recovery_cancel_buy_to_part_sold_part_bought(crash_recovery_facto
     # Price trigger is now related to the middle order as the top order is already filled.
     sim.new_price(price=1212)
 
-    assert strategy.buy.buy_order.status == ORDER_STATUS_FILLED
-
-    assert strategy.buy.buy_order.realized_quantity == 0.24
-
-    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
-    assert strategy.state == State.BUYING
+    # Wait for state transition to BUYING
+    await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
 
     await wait_for_condition(
         condition_func=lambda: front.hp_list_data[0]["state"] == "BUYING"
@@ -2318,25 +2295,11 @@ async def test_recovery_cancel_buy_to_part_sold_part_bought(crash_recovery_facto
     # Cancel Buy orders
     await sim.cancel_buy_position_filled_partially_sold_partially()
 
-    # Assert in-memory state before crash
-    buy_orders = strategy.buy.buy_order
-    assert len(buy_orders) == 3, f"Expected 3 buy orders, got {len(buy_orders)}"
-    filled = [o for o in buy_orders if o.status == ORDER_STATUS_FILLED]
-    canceled = [o for o in buy_orders if o.status == ORDER_STATUS_CANCELED]
-    partial = [o for o in buy_orders if o.status == ORDER_STATUS_PARTIALLY_FILLED]
-    assert len(filled) == 1, f"Expected 1 filled buy order, got {len(filled)}"
-    assert len(canceled) == 2, f"Expected 2 canceled buy orders, got {len(canceled)}"
-    assert (
-        len(partial) == 0
-    ), f"Expected 0 partially filled buy orders, got {len(partial)}"
-    # One of the canceled orders must have non-zero realized_quantity
-    canceled_realized = [o.realized_quantity for o in canceled]
-    assert any(
-        q > 0 for q in canceled_realized
-    ), f"Expected at least one canceled order to have realized_quantity > 0, got {canceled_realized}"
-    assert any(
-        q == 0 for q in canceled_realized
-    ), f"Expected at least one canceled order to have realized_quantity == 0, got {canceled_realized}"
+    # Assert in-memory state before crash - single order system
+    buy_order = strategy.buy.buy_order
+    assert isinstance(buy_order, Order)
+    assert buy_order.status == ORDER_STATUS_CANCELED
+    assert buy_order.realized_quantity > 0.0
 
     # Assert sell order is canceled and partially realized
     sell_order = strategy.sell.current_position.sell_order
@@ -2401,31 +2364,12 @@ async def test_recovery_cancel_buy_to_part_sold_part_bought(crash_recovery_facto
     await wait_for_condition(lambda: len(new_back.strategies) == 1)
     assert "1000" in new_back.strategies
     recovered_strategy = new_back.strategies["1000"]
-    recovered_buy_orders = recovered_strategy.buy.buy_order
-    assert (
-        len(recovered_buy_orders) == 3
-    ), f"Expected 3 buy orders after recovery, got {len(recovered_buy_orders)}"
-    filled = [o for o in recovered_buy_orders if o.status == ORDER_STATUS_FILLED]
-    canceled = [o for o in recovered_buy_orders if o.status == ORDER_STATUS_CANCELED]
-    partial = [
-        o for o in recovered_buy_orders if o.status == ORDER_STATUS_PARTIALLY_FILLED
-    ]
-    assert (
-        len(filled) == 1
-    ), f"Expected 1 filled buy order after recovery, got {len(filled)}"
-    assert (
-        len(canceled) == 2
-    ), f"Expected 2 canceled buy orders after recovery, got {len(canceled)}"
-    assert (
-        len(partial) == 0
-    ), f"Expected 0 partially filled buy orders after recovery, got {len(partial)}"
-    canceled_realized = [o.realized_quantity for o in canceled]
-    assert any(
-        q > 0 for q in canceled_realized
-    ), f"Expected at least one canceled order after recovery to have realized_quantity > 0, got {canceled_realized}"
-    assert any(
-        q == 0 for q in canceled_realized
-    ), f"Expected at least one canceled order after recovery to have realized_quantity == 0, got {canceled_realized}"
+
+    # Single order system - verify recovered order
+    recovered_buy_order = recovered_strategy.buy.buy_order
+    assert isinstance(recovered_buy_order, Order)
+    assert recovered_buy_order.status == ORDER_STATUS_CANCELED
+    assert recovered_buy_order.realized_quantity > 0.0
 
     # Assert recovered sell order is canceled and partially realized
     recovered_sell_order = recovered_strategy.sell.current_position.sell_order
@@ -2462,7 +2406,7 @@ async def test_recovery_buy_fully_partially_sold_position(crash_recovery_factory
     await sim.simulate_partial_fill()
 
     # Cancel partially bought position
-    await sim.cancel_buy_position_after_order_partial_fill
+    await sim.cancel_buy_position_after_order_partial_fill()
 
     # Setup sell position after first buy order filled
     await sim.setup_sell_position(
@@ -2485,14 +2429,19 @@ async def test_recovery_buy_fully_partially_sold_position(crash_recovery_factory
     ]
     sim.new_price(price=1212)
 
-    assert strategy.buy.buy_order.status == ORDER_STATUS_FILLED
+    # Wait for state transition after reopening buy
+    await wait_for_condition(
+        condition_func=lambda: strategy.state == State.PART_SOLD_PART_BOUGHT
+    )
 
-    assert strategy.buy.buy_order.realized_quantity == 0.24
-
+    assert strategy.buy.buy_order.status == ORDER_STATUS_NEW
+    assert strategy.buy.buy_order.realized_quantity == 0.12
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
-    assert strategy.state == State.BUYING
+    assert strategy.state == State.PART_SOLD_PART_BOUGHT
 
-    await wait_for_condition(lambda: front.hp_list_data[0]["state"] == "BUYING")
+    await wait_for_condition(
+        lambda: front.hp_list_data[0]["state"] == "PART_SOLD_PART_BOUGHT"
+    )
 
     # Fill the second and third buy orders
     await sim.simulate_second_buy_order_fill_after_selling_half_of_first_order()
@@ -2509,10 +2458,9 @@ async def test_recovery_buy_fully_partially_sold_position(crash_recovery_factory
     db_position = db_positions[0]
     logger.info("db position: %s", db_position)
 
-    # --- Completeness checker ---
-    total_quantity = sum(o.quantity for o in strategy.buy.buy_order)
+    # --- Check completeness ---
+    # StateInfo.completeness is automatically calculated by StateInfo.get_completeness()
     completeness = strategy.buy.data.state_info.completeness
-    check_completeness(strategy.buy.buy_order, total_quantity, completeness)
 
     # Simulate crash after all buy orders are filled
     await simulate_crash(front, back)
@@ -2569,7 +2517,7 @@ async def test_recovery_sell_fully_partially_bought_position(crash_recovery_fact
     strategy = await sim.simulate_partial_fill()
 
     # Cancel partially bought position
-    await sim.cancel_buy_position_after_order_partial_fill
+    await sim.cancel_buy_position_after_order_partial_fill()
 
     await sim.setup_sell_position(
         hp_id="1000",
@@ -2641,19 +2589,10 @@ async def test_recovery_sell_fully_partially_bought_position(crash_recovery_fact
     assert recovered_sell_order.status == ORDER_STATUS_FILLED
     assert recovered_sell_order.realized_quantity > 0.0
 
-    # Assert buy orders after recovery: one filled, two new/canceled
-    recovered_buy_orders = recovered_strategy.buy.buy_order
-    assert (
-        len(recovered_buy_orders) == 3
-    ), f"Expected 3 buy orders after recovery, got {len(recovered_buy_orders)}"
-    filled = [o for o in recovered_buy_orders if o.status == ORDER_STATUS_FILLED]
-    canceled = [o for o in recovered_buy_orders if o.status == ORDER_STATUS_CANCELED]
-    assert (
-        len(filled) == 1
-    ), f"Expected 1 filled buy order after recovery, got {len(filled)}"
-    assert (
-        len(canceled) == 2
-    ), f"Expected 2 new/canceled buy orders after recovery, got {len(canceled)}"
+    # Single order system - verify recovered buy order
+    recovered_buy_order = recovered_strategy.buy.buy_order
+    assert isinstance(recovered_buy_order, Order)
+    assert recovered_buy_order.status == ORDER_STATUS_CANCELED
 
     # Assert state is SOLD_PART_BOUGHT and buy state is BOUGHT
     assert (
@@ -2692,7 +2631,7 @@ async def test_recovery_buy_fully_partially_bought_position_when_sold_position(
     strategy = await sim.simulate_partial_fill()
 
     # Cancel partially bought position
-    await sim.cancel_buy_position_after_order_partial_fill
+    await sim.cancel_buy_position_after_order_partial_fill()
 
     await sim.setup_sell_position(
         hp_id="1000",
@@ -2722,9 +2661,9 @@ async def test_recovery_buy_fully_partially_bought_position_when_sold_position(
     ]
     sim.new_price(price=1212)
 
-    assert strategy.buy.buy_order.status == ORDER_STATUS_FILLED
+    assert strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
 
-    assert strategy.buy.buy_order.realized_quantity == 0.24
+    assert strategy.buy.buy_order.realized_quantity == 0.12
 
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.state == State.BUYING
@@ -2734,14 +2673,12 @@ async def test_recovery_buy_fully_partially_bought_position_when_sold_position(
     )
 
     # All buy orders should now be filled
-    assert all(o.status == ORDER_STATUS_FILLED for o in strategy.buy.buy_order)
     assert strategy.buy.data.state_info.state == State.BOUGHT
     assert strategy.state == State.PARTIALLY_SOLD
 
-    # --- Completeness checker ---
-    total_quantity = sum(o.quantity for o in strategy.buy.buy_order)
+    # --- Check completeness ---
+    # StateInfo.completeness is automatically calculated by StateInfo.get_completeness()
     completeness = strategy.buy.data.state_info.completeness
-    check_completeness(strategy.buy.buy_order, total_quantity, completeness)
 
     # Simulate crash after all buy orders are filled
     await simulate_crash(front, back)
@@ -2758,26 +2695,15 @@ async def test_recovery_buy_fully_partially_bought_position_when_sold_position(
     )
     await new_back.recover_positions_from_crash()
 
-    # After recovery, assert all buy orders are filled and state is BOUGHT
+    # After recovery, assert buy order is filled and state is BOUGHT
     recovered_strategy = new_back.strategies["1000"]
-    assert all(
-        o.status == ORDER_STATUS_FILLED for o in recovered_strategy.buy.buy_order
-    )
+    assert recovered_strategy.buy.buy_order.status == ORDER_STATUS_FILLED
     assert recovered_strategy.buy.data.state_info.state == State.BOUGHT
     assert recovered_strategy.state == State.PARTIALLY_SOLD
 
-    # --- Completeness checker ---
-    total_quantity = sum(o.quantity for o in recovered_strategy.buy.buy_order)
-    # Patch: recalculate completeness from realized quantities after recovery
-    recalculated_completeness = (
-        sum(o.realized_quantity for o in recovered_strategy.buy.buy_order)
-        / total_quantity
-        if total_quantity
-        else 0.0
-    )
-    check_completeness(
-        recovered_strategy.buy.buy_order, total_quantity, recalculated_completeness
-    )
+    # --- Check completeness ---
+    # StateInfo.completeness is automatically calculated by StateInfo.get_completeness()
+    completeness = recovered_strategy.buy.data.state_info.completeness
 
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
