@@ -869,7 +869,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=1008,
+            order_id=strategy.sell.current_position.sell_order.order_id,
             last_executed_quantity=0.06,
             last_executed_price=4200,
             cumulative_filled_quantity=0.06,
@@ -906,8 +906,8 @@ class HPSimulator:
             state="SELLING",
             buy_price="1400.0",
             sell_price="4200.0",
-            quantity_usd="336.0",
-            expected_return="672.0",
+            quantity_usd="168.0",
+            expected_return="336.0",
             current_price="0.0",
             net="0.0",
             net_percent="0.0",
@@ -926,8 +926,8 @@ class HPSimulator:
             == ORDER_STATUS_CANCELED
         )
 
-        assert strategy.sell.current_position.sell_order.quantity == 0.24
-        assert strategy.sell.current_position.sell_order.realized_quantity == 0.14
+        assert strategy.sell.current_position.sell_order.quantity == 0.12
+        assert strategy.sell.current_position.sell_order.realized_quantity == 0.06
 
         assert strategy.sell.current_position.state_info.state == State.PARTIALLY_SOLD
         assert strategy.state == State.PART_SOLD_PART_BOUGHT
@@ -940,13 +940,13 @@ class HPSimulator:
         # Comprehensive validation using framework
         self.validate_parent(
             "1000",
-            quantity="0.24",
-            realized_quantity="0.14",
+            quantity="0.12",
+            realized_quantity="0.06",
             state="PART_SOLD_PART_BOUGHT",
             buy_price="1400.0",
             sell_price="4200.0",
-            quantity_usd="336.0",
-            expected_return="672.0",
+            quantity_usd="168.0",
+            expected_return="336.0",
             current_price="0.0",
             net="0.0",
             net_percent="0.0",
@@ -992,10 +992,10 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=1008,
-            last_executed_quantity=0.24,
+            order_id=strategy.sell.current_position.sell_order.order_id,
+            last_executed_quantity=0.12,
             last_executed_price=4200,
-            cumulative_filled_quantity=0.24,
+            cumulative_filled_quantity=0.12,
             price=4200.0,
         )
         strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
@@ -1009,7 +1009,7 @@ class HPSimulator:
         )
 
         await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"] == "0.24"
+            condition_func=lambda: self.front.hp_list_data[0]["quantity"] == "0.12"
         )
 
         await wait_for_condition(
@@ -1020,13 +1020,13 @@ class HPSimulator:
         # Comprehensive validation using framework
         self.validate_parent(
             "1000",
-            quantity="0.24",
-            realized_quantity="0.24",
+            quantity="0.12",
+            realized_quantity="0.12",
             state="SOLD_PART_BOUGHT",
             buy_price="1400.0",
             sell_price="4200.0",
-            quantity_usd="336.0",
-            expected_return="672.0",
+            quantity_usd="168.0",
+            expected_return="336.0",
             current_price="0.0",
             net="0.0",
             net_percent="0.0",

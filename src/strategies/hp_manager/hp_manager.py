@@ -851,6 +851,27 @@ class HpStrategy:
             )
             await self.sell.recalculate_multihop_prices()
 
+        # Update sell quantity if it was pre-configured as 0 before buy filled
+        if (
+            self.sell.current_position.sell_order.quantity == 0.0
+            and self.buy.buy_order
+            and self.buy.buy_order.realized_quantity > 0
+        ):
+            # Calculate available quantity: buy realized - sell realized
+            remaining_qty = self.calculate_remaining_quantity()
+            if remaining_qty > 0:
+                logger.info(
+                    "Auto-updating sell quantity from 0.0 to %.5f (buy realized: %.5f)",
+                    remaining_qty,
+                    self.buy.buy_order.realized_quantity,
+                )
+                self.sell.current_position.sell_order.quantity = remaining_qty
+                self.sell.current_position.config.quantity = remaining_qty
+                # Also update quantity_stable (in USD)
+                self.sell.current_position.sell_order.quantity_stable = (
+                    remaining_qty * self.sell.current_position.sell_order.price
+                )
+
         logger.info("Sending %s SELL", self.sell.current_position.config.symbol.name)
 
         await self.sell.open_position()
