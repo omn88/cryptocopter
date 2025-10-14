@@ -29,31 +29,57 @@ class CrashRecoveryHelper:
 
         assert db_position is not None, f"Position {hp_id} not found in database"
 
+        # Determine if this is a BUY or SELL position
+        from src.database.models import PositionType
+
+        is_sell_position = db_position.position_type == PositionType.SELL
+
+        # Get the appropriate config based on position type
+        if is_sell_position:
+            # For SELL positions, use sell.original_position.config
+            memory_config = strategy.sell.original_position.config
+            memory_hp_id = memory_config.hp_id
+            memory_symbol = memory_config.symbol.name
+            memory_coin = memory_config.coin
+            memory_buy_price = memory_config.buy_price
+            memory_budget = 0.0  # Sell positions don't have budget
+            memory_order_trigger = 0.0  # Sell positions don't have order_trigger
+        else:
+            # For BUY positions, use buy.data.config
+            memory_config = strategy.buy.data.config
+            memory_hp_id = memory_config.hp_id
+            memory_symbol = memory_config.symbol.name
+            memory_coin = memory_config.coin
+            memory_buy_price = memory_config.buy_price
+            memory_budget = memory_config.budget
+            memory_order_trigger = memory_config.order_trigger
+
         # Compare core identification fields
         assert (
-            db_position.hp_id == strategy.buy.data.config.hp_id
-        ), f"HP ID mismatch: DB={db_position.hp_id}, Memory={strategy.buy.data.config.hp_id}"
+            db_position.hp_id == memory_hp_id
+        ), f"HP ID mismatch: DB={db_position.hp_id}, Memory={memory_hp_id}"
 
         assert (
-            db_position.symbol == strategy.buy.data.config.symbol.name
-        ), f"Symbol mismatch: DB={db_position.symbol}, Memory={strategy.buy.data.config.symbol.name}"
+            db_position.symbol == memory_symbol
+        ), f"Symbol mismatch: DB={db_position.symbol}, Memory={memory_symbol}"
 
         assert (
-            db_position.coin == strategy.buy.data.config.coin
-        ), f"Coin mismatch: DB={db_position.coin}, Memory={strategy.buy.data.config.coin}"
+            db_position.coin == memory_coin
+        ), f"Coin mismatch: DB={db_position.coin}, Memory={memory_coin}"
 
-        # Compare configuration fields
-        assert (
-            db_position.budget == strategy.buy.data.config.budget
-        ), f"Budget mismatch: DB={db_position.budget}, Memory={strategy.buy.data.config.budget}"
+        # Compare configuration fields (skip budget and order_trigger for sell positions)
+        if not is_sell_position:
+            assert (
+                db_position.budget == memory_budget
+            ), f"Budget mismatch: DB={db_position.budget}, Memory={memory_budget}"
+
+            assert (
+                db_position.order_trigger == memory_order_trigger
+            ), f"Order trigger mismatch: DB={db_position.order_trigger}, Memory={memory_order_trigger}"
 
         assert (
-            db_position.buy_price == strategy.buy.data.config.buy_price
-        ), f"Buy price mismatch: DB={db_position.buy_price}, Memory={strategy.buy.data.config.buy_price}"
-
-        assert (
-            db_position.order_trigger == strategy.buy.data.config.order_trigger
-        ), f"Order trigger mismatch: DB={db_position.order_trigger}, Memory={strategy.buy.data.config.order_trigger}"
+            db_position.buy_price == memory_buy_price
+        ), f"Buy price mismatch: DB={db_position.buy_price}, Memory={memory_buy_price}"
 
         # Tolerate DB state == PARTIALLY_BOUGHT and memory == BUYING after cancel/resend recovery
 
@@ -66,9 +92,10 @@ class CrashRecoveryHelper:
         logger.info("  HP ID: %s", db_position.hp_id)
         logger.info("  Symbol: %s", db_position.symbol)
         logger.info("  Coin: %s", db_position.coin)
-        logger.info("  Budget: %s", db_position.budget)
+        if not is_sell_position:
+            logger.info("  Budget: %s", db_position.budget)
+            logger.info("  Order trigger: %s", db_position.order_trigger)
         logger.info("  Buy price: %s", db_position.buy_price)
-        logger.info("  Order trigger: %s", db_position.order_trigger)
         logger.info(
             "  Strategy state: %s (matches: %s)",
             db_position.strategy_state,

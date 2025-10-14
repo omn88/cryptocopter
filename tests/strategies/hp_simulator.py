@@ -775,7 +775,7 @@ class HPSimulator:
             ].sell.current_position.sell_order
         )
 
-    async def cancel_buy_position_after_first_order_filled(self):
+    async def cancel_buy_position_after_order_partial_fill(self):
         strategy = self.back.strategies["1000"]
 
         assert strategy.buy.order_cancel_price == 1428.0
