@@ -29,24 +29,46 @@ class BaseHPModal(Popup):  # type: ignore[misc]
     ) -> None:
         super().__init__(**kwargs)
         self.callback = callback
-        self.size_hint = (0.9, 0.85)  # Increased from 0.8, 0.7 to 0.9, 0.85
+        self.size_hint = (0.7, 0.7)  # More reasonable modal size
         self.title_size = "18sp"
         self.auto_dismiss = False
 
-        # Create main layout
-        main_layout = BoxLayout(orientation="vertical", spacing=10, padding=20)
+        # Create main layout with proper spacing
+        main_layout = BoxLayout(orientation="vertical", padding=30, spacing=10)
+
+        # Validation message at top (hidden by default)
+        self.validation_label = Label(
+            text="",
+            color=(1, 0, 0, 1),
+            size_hint_y=None,
+            height=0,  # Hidden by default
+            markup=True,
+        )
+        main_layout.add_widget(self.validation_label)
+
+        # Form container with scroll support for many fields
+        from kivy.uix.scrollview import ScrollView
+
+        scroll_view = ScrollView(size_hint=(1, 1), do_scroll_x=False)
 
         # Add form fields (implemented in subclasses)
-        self.form_layout = BoxLayout(orientation="vertical", spacing=15)
-        main_layout.add_widget(self.form_layout)
+        self.form_layout = BoxLayout(
+            orientation="vertical", spacing=12, size_hint_y=None
+        )
+        self.form_layout.bind(minimum_height=self.form_layout.setter("height"))
 
-        # Create button layout
-        button_layout = BoxLayout(size_hint_y=None, height=50, spacing=10)
+        scroll_view.add_widget(self.form_layout)
+        main_layout.add_widget(scroll_view)
 
-        cancel_btn = Button(text="Cancel", size_hint_x=0.3)
+        # Create button layout at bottom
+        button_layout = BoxLayout(
+            size_hint_y=None, height=50, spacing=15, padding=[0, 15, 0, 0]
+        )
+
+        cancel_btn = Button(text="Cancel", size_hint_x=None, width=150)
         cancel_btn.bind(on_release=self.dismiss)
 
-        self.create_btn = Button(text="Create HP", size_hint_x=0.3)
+        self.create_btn = Button(text="Create HP", size_hint_x=None, width=150)
         self.create_btn.bind(on_release=self.on_create)
 
         button_layout.add_widget(Label())  # Spacer
@@ -55,12 +77,6 @@ class BaseHPModal(Popup):  # type: ignore[misc]
 
         main_layout.add_widget(button_layout)
         self.content = main_layout
-
-        # Validation message label
-        self.validation_label = Label(
-            text="", color=(1, 0, 0, 1), size_hint_y=None, height=30
-        )
-        main_layout.add_widget(self.validation_label, index=1)
 
         self.setup_form()
 
@@ -81,7 +97,8 @@ class BaseHPModal(Popup):  # type: ignore[misc]
         is_valid, error_message = self.validate_form()
 
         if not is_valid:
-            self.validation_label.text = error_message
+            self.validation_label.text = f"[b]Error:[/b] {error_message}"
+            self.validation_label.height = 40  # Show error
             return
 
         try:
@@ -90,17 +107,20 @@ class BaseHPModal(Popup):  # type: ignore[misc]
             self.dismiss()
         except Exception as e:
             logger.error("Error creating HP configuration: %s", e)
-            self.validation_label.text = f"Error: {str(e)}"
+            self.validation_label.text = f"[b]Error:[/b] {str(e)}"
+            self.validation_label.height = 40  # Show error
 
     def create_form_row(
-        self, label_text: str, widget: Any, label_width: float = 0.3
+        self, label_text: str, widget: Any, label_width: float = 0.35
     ) -> BoxLayout:
         """Create a form row with label and widget."""
         row = BoxLayout(
-            orientation="horizontal", size_hint_y=None, height=40, spacing=10
+            orientation="horizontal", size_hint_y=None, height=45, spacing=20
         )
 
-        label = Label(text=label_text, size_hint_x=label_width, halign="right")
+        label = Label(
+            text=label_text, size_hint_x=label_width, halign="right", valign="middle"
+        )
         label.bind(size=label.setter("text_size"))
 
         row.add_widget(label)
@@ -131,11 +151,11 @@ class BuyHPModal(BaseHPModal):
         self.symbol_input = SearchableDropDown(
             client=self.client, options=self.available_symbols, symbols=self.symbols
         )
-        self.form_layout.add_widget(self.create_form_row("Symbol:", self.symbol_input))
+        self.form_layout.add_widget(self.symbol_input)
 
         # Budget
         self.budget_input = TextInput(
-            text="1000", input_filter="float", multiline=False, size_hint_x=0.7
+            text="1000", input_filter="float", multiline=False, size_hint_x=0.65
         )
         self.form_layout.add_widget(
             self.create_form_row("Budget (USD):", self.budget_input)
@@ -145,17 +165,11 @@ class BuyHPModal(BaseHPModal):
         self.order_trigger_spinner = Spinner(
             text="1.0",
             values=[str(round(x * 0.5, 1)) for x in range(0, 11)],
-            size_hint_x=0.7,
+            size_hint_x=0.65,
         )
         self.form_layout.add_widget(
             self.create_form_row("Order Trigger (%):", self.order_trigger_spinner)
         )
-
-        # Mode
-        self.mode_spinner = Spinner(
-            text="SINGLE", values=["SINGLE", "DCA"], size_hint_x=0.7
-        )
-        self.form_layout.add_widget(self.create_form_row("Mode:", self.mode_spinner))
 
     def validate_form(self) -> Tuple[bool, str]:
         """Validate Buy HP form."""

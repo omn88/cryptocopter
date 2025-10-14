@@ -19,20 +19,38 @@ class SearchableDropDown(BoxLayout):
         self.client = client
         self.symbols = symbols
         self.orientation = "vertical"
+        self.spacing = 8
+        self.size_hint_y = None
+        self.height = 145  # Fixed height for 3 rows
         self.dropdown = DropDown()
 
-        # Adding search label and input fields
-        search_box = BoxLayout(orientation="horizontal", size_hint_y=None, height=30)
-        search_box.add_widget(Label(text="Search:", size_hint_x=0.2))
-        self.search_input = TextInput(size_hint_x=0.8, multiline=False)
+        # Search row - compact design
+        search_box = BoxLayout(
+            orientation="horizontal", size_hint_y=None, height=45, spacing=20
+        )
+        search_label = Label(
+            text="Search:", size_hint_x=0.35, halign="right", valign="middle"
+        )
+        search_label.bind(size=search_label.setter("text_size"))
+        search_box.add_widget(search_label)
+        self.search_input = TextInput(size_hint_x=0.65, multiline=False)
         self.search_input.bind(text=self.update_dropdown)
         search_box.add_widget(self.search_input)
         self.add_widget(search_box)
 
-        # Adding main button for dropdown
-        self.main_button = Button(text="Select Symbol", size_hint_y=None, height=30)
+        # Symbol selection row
+        symbol_box = BoxLayout(
+            orientation="horizontal", size_hint_y=None, height=45, spacing=20
+        )
+        symbol_label = Label(
+            text="Symbol:", size_hint_x=0.35, halign="right", valign="middle"
+        )
+        symbol_label.bind(size=symbol_label.setter("text_size"))
+        symbol_box.add_widget(symbol_label)
+        self.main_button = Button(text="Select Symbol", size_hint_x=0.65)
         self.main_button.bind(on_release=self.dropdown.open)
-        self.add_widget(self.main_button)
+        symbol_box.add_widget(self.main_button)
+        self.add_widget(symbol_box)
 
         # Binding dropdown selection
         self.dropdown.bind(
@@ -43,13 +61,19 @@ class SearchableDropDown(BoxLayout):
         )
         self.dropdown.bind(on_select=self.update_prices)
 
-        # Adding price input fields in a single horizontal BoxLayout
-        price_box = BoxLayout(orientation="horizontal", size_hint_y=None, height=30)
-        price_box.add_widget(Label(text="Buy Price:", size_hint_x=0.2))
-        self.buy_price = TextInput(
-            hint_text="0.0", size_hint_x=0.3, height=30, multiline=False
+        # Buy price row
+        price_box = BoxLayout(
+            orientation="horizontal", size_hint_y=None, height=45, spacing=20
         )
-        price_box.add_widget(self.buy_price)
+        price_label = Label(
+            text="Buy Price:", size_hint_x=0.35, halign="right", valign="middle"
+        )
+        price_label.bind(size=price_label.setter("text_size"))
+        price_box.add_widget(price_label)
+        self.buy_price_input = TextInput(
+            hint_text="0.0", size_hint_x=0.65, multiline=False
+        )
+        price_box.add_widget(self.buy_price_input)
         self.add_widget(price_box)
 
     async def fetch_bid_ask_price(self, symbol: str):
