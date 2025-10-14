@@ -907,8 +907,17 @@ async def test_buy_partially_partially_sold_position(
     # Simulate first buy order partial fill
     strategy = await sim.simulate_partial_fill()
 
-    # Cancel partially bought position
-    await sim.cancel_buy_position_after_first_order_filled()
+    assert strategy.buy.order_cancel_price == 1428.0
+    sim.new_price(price=1428.0)
+
+    assert strategy.buy.buy_order is not None
+
+    assert strategy.buy.buy_order.status == ORDER_STATUS_PARTIALLY_FILLED
+
+    # Wait for state transition to complete
+    await wait_for_condition(
+        condition_func=lambda: strategy.state == State.PARTIALLY_BOUGHT
+    )
 
     await sim.setup_sell_position_after_buy_order_filled_partially(
         hp_id="1000",

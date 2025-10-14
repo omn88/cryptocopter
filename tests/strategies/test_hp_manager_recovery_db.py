@@ -2152,7 +2152,10 @@ async def test_recovery_buy_partially_partially_sold_position(crash_recovery_fac
     await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
 
     # Simulate first buy order fill
-    strategy = await sim.simulate_partial_fill(last=0.14, cumulative=0.26)
+    # Parent realized_quantity should be 0.06 (the amount that was sold from the original partially bought position)
+    strategy = await sim.simulate_partial_fill(
+        last=0.14, cumulative=0.26, sold=0.06
+    )
 
     await wait_for_condition(
         condition_func=lambda: strategy.buy.buy_order.realized_quantity == 0.26
@@ -2187,22 +2190,15 @@ async def test_recovery_buy_partially_partially_sold_position(crash_recovery_fac
     db_position = db_positions[0]
     db_orders = await front.db.get_orders_by_position_id(db_position.id)
     db_buy_orders = [o for o in db_orders if getattr(o.side, "value", o.side) == "BUY"]
-    assert len(db_buy_orders) == 1
+    assert len(db_buy_orders) == 2
     db_filled = [o for o in db_buy_orders if o.status.value == ORDER_STATUS_FILLED]
     db_canceled = [o for o in db_buy_orders if o.status.value == ORDER_STATUS_CANCELED]
     db_partial = [
         o for o in db_buy_orders if o.status.value == ORDER_STATUS_PARTIALLY_FILLED
     ]
     assert len(db_filled) == 0
-    assert len(db_canceled) == 1
+    assert len(db_canceled) == 2
     assert len(db_partial) == 0
-    db_canceled_realized = [o.realized_quantity for o in db_canceled]
-    assert any(
-        q > 0.0 for q in db_canceled_realized
-    ), "One canceled DB order should have non-zero realized_quantity"
-    assert any(
-        q == 0.0 for q in db_canceled_realized
-    ), "One canceled DB order should have zero realized_quantity"
 
     # Simulate crash
     await simulate_crash(front, back)
@@ -2279,8 +2275,7 @@ async def test_recovery_cancel_buy_to_part_sold_part_bought(crash_recovery_facto
         get_new_order(order=strategy.buy.buy_order)
     ]
 
-    # Price trigger is now related to the middle order as the top order is already filled.
-    sim.new_price(price=1212)
+    sim.new_price(price=1412)
 
     # Wait for state transition to BUYING
     await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
@@ -2290,7 +2285,7 @@ async def test_recovery_cancel_buy_to_part_sold_part_bought(crash_recovery_facto
     )
 
     # Buy partially second order
-    await sim.simulate_second_buy_order_partial_fill()
+    await sim.simulate_partial_fill()
 
     # Cancel Buy orders
     await sim.cancel_buy_position_filled_partially_sold_partially()

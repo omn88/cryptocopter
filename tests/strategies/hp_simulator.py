@@ -175,7 +175,7 @@ class HPSimulator:
         )
 
     async def simulate_partial_fill(
-        self, last: float = 0.12, cumulative: float = 0.12
+        self, last: float = 0.12, cumulative: float = 0.12, sold: float = 0.0
     ) -> HpStrategy:
         strategy = self.back.strategies["1000"]
 
@@ -213,7 +213,7 @@ class HPSimulator:
         self.validate_parent(
             "1000",
             quantity=f"{cumulative}",
-            realized_quantity="0.0",
+            realized_quantity=f"{sold}",
             state="BUYING",
             buy_price=f"{price}",
             quantity_usd=f"{price * cumulative}",
