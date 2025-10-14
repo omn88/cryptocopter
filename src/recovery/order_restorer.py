@@ -143,17 +143,26 @@ class OrderRestorer:
 
         restored_orders: List[Order] = []
         for (_, _), order_dicts in grouped_orders.items():
-            # Find the latest open order, else the latest order overall
+            # Find the latest open order, else prefer FILLED over CANCELED
             open_orders = [
                 o
                 for o in order_dicts
                 if o["status"] not in [ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED]
             ]
-            latest_order = (
-                max(open_orders, key=lambda o: o.get("order_id", 0))
-                if open_orders
-                else max(order_dicts, key=lambda o: o.get("order_id", 0))
-            )
+            if open_orders:
+                latest_order = max(open_orders, key=lambda o: o.get("order_id", 0))
+            else:
+                # Prefer FILLED orders over CANCELED orders
+                filled_orders = [
+                    o for o in order_dicts if o["status"] == ORDER_STATUS_FILLED
+                ]
+                if filled_orders:
+                    latest_order = max(
+                        filled_orders, key=lambda o: o.get("order_id", 0)
+                    )
+                else:
+                    # Fallback to latest order by ID
+                    latest_order = max(order_dicts, key=lambda o: o.get("order_id", 0))
 
             # Use realized_quantity from the latest order, not sum of all orders
             # When an order is canceled and resent, the new order already carries

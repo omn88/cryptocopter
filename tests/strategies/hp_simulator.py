@@ -216,7 +216,7 @@ class HPSimulator:
             realized_quantity=f"{sold}",
             state="BUYING",
             buy_price=f"{price}",
-            quantity_usd=f"{price * cumulative}",
+            quantity_usd=f"{round(price * cumulative, 2)}",
         )
 
         # Child buy validation - quantity should always be total expected (0.71429)
