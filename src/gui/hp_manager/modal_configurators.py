@@ -10,6 +10,7 @@ from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.spinner import Spinner
+from kivy.uix.scrollview import ScrollView
 from typing import Dict, List, Callable, Any, Tuple
 import logging
 import uuid
@@ -45,9 +46,6 @@ class BaseHPModal(Popup):  # type: ignore[misc]
             markup=True,
         )
         main_layout.add_widget(self.validation_label)
-
-        # Form container with scroll support for many fields
-        from kivy.uix.scrollview import ScrollView
 
         scroll_view = ScrollView(size_hint=(1, 1), do_scroll_x=False)
 

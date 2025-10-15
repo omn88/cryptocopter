@@ -300,6 +300,115 @@ class HPSimulator:
 
         return strategy
 
+    async def fill_remaining_buy_order(self, strategy: HpStrategy) -> HpStrategy:
+        """
+        Fill the remaining quantity of a partially filled buy order.
+
+        This helper simulates filling whatever quantity remains on the buy order
+        to complete it fully (status = FILLED).
+
+        Args:
+            strategy: The HpStrategy instance with a partially filled buy order
+
+        Returns:
+            The updated strategy instance
+        """
+        buy_order = strategy.buy.buy_order
+        assert buy_order is not None, "Buy order must exist"
+        assert (
+            buy_order.status == ORDER_STATUS_PARTIALLY_FILLED
+            or buy_order.status == ORDER_STATUS_NEW
+        ), f"Buy order must be partially filled or new, got {buy_order.status}"
+
+        # Calculate remaining quantity to fill
+        remaining_qty = buy_order.quantity - buy_order.realized_quantity
+        new_cumulative = buy_order.quantity  # Fill to completion
+
+        logger.info(
+            f"Filling remaining buy order: current={buy_order.realized_quantity}, "
+            f"remaining={remaining_qty}, total={buy_order.quantity}"
+        )
+
+        # Create execution report for the remaining fill
+        exc_report = ExecutionReport(
+            order_type=ORDER_TYPE_LIMIT,
+            current_order_status=ORDER_STATUS_FILLED,
+            order_id=buy_order.order_id,
+            last_executed_quantity=remaining_qty,
+            last_executed_price=buy_order.price,
+            cumulative_filled_quantity=new_cumulative,
+            price=buy_order.price,
+        )
+
+        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
+        logger.info(f"Put fill remaining event to worker: {exc_report}")
+
+        # Wait for order to be filled
+        await wait_for_condition(
+            condition_func=lambda: strategy.buy.buy_order.status == ORDER_STATUS_FILLED
+        )
+
+        logger.info(
+            f"✓ Buy order filled: realized_quantity={strategy.buy.buy_order.realized_quantity}"
+        )
+
+        return strategy
+
+    async def fill_remaining_sell_order(self, strategy: HpStrategy) -> HpStrategy:
+        """
+        Fill the remaining quantity of a partially filled sell order.
+
+        This helper simulates filling whatever quantity remains on the sell order
+        to complete it fully (status = FILLED).
+
+        Args:
+            strategy: The HpStrategy instance with a partially filled sell order
+
+        Returns:
+            The updated strategy instance
+        """
+        sell_order = strategy.sell.current_position.sell_order
+        assert sell_order is not None, "Sell order must exist"
+        assert (
+            sell_order.status == ORDER_STATUS_PARTIALLY_FILLED
+            or sell_order.status == ORDER_STATUS_NEW
+        ), f"Sell order must be partially filled or new, got {sell_order.status}"
+
+        # Calculate remaining quantity to fill
+        remaining_qty = sell_order.quantity - sell_order.realized_quantity
+        new_cumulative = sell_order.quantity  # Fill to completion
+
+        logger.info(
+            f"Filling remaining sell order: current={sell_order.realized_quantity}, "
+            f"remaining={remaining_qty}, total={sell_order.quantity}"
+        )
+
+        # Create execution report for the remaining fill
+        exc_report = ExecutionReport(
+            order_type=ORDER_TYPE_LIMIT,
+            current_order_status=ORDER_STATUS_FILLED,
+            order_id=sell_order.order_id,
+            last_executed_quantity=remaining_qty,
+            last_executed_price=sell_order.price,
+            cumulative_filled_quantity=new_cumulative,
+            price=sell_order.price,
+        )
+
+        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
+        logger.info(f"Put fill remaining event to worker: {exc_report}")
+
+        # Wait for order to be filled
+        await wait_for_condition(
+            condition_func=lambda: strategy.sell.current_position.sell_order.status
+            == ORDER_STATUS_FILLED
+        )
+
+        logger.info(
+            f"✓ Sell order filled: realized_quantity={strategy.sell.current_position.sell_order.realized_quantity}"
+        )
+
+        return strategy
+
     async def setup_sell_position(
         self,
         hp_id: str,
@@ -2674,79 +2783,4 @@ class HPSimulator:
         self.new_price(price=trigger_price)
         await wait_for_condition(
             lambda: strategy.sell.current_position.sell_order.status == ORDER_STATUS_NEW
-        )
-
-    async def fill_remaining_buy_order(
-        self,
-        strategy: HpStrategy,
-        price: float = 1400.0,
-    ) -> None:
-        """
-        Fill remaining quantity of a partially filled buy order.
-
-        This completes a buy order that was previously partially filled:
-        1. Calculate remaining quantity to fill
-        2. Send FILLED execution report for remaining quantity
-        3. Wait for order status to be FILLED
-
-        Args:
-            strategy: Strategy with partially filled buy order
-            price: Fill price (default: 1400.0)
-        """
-        assert strategy.buy.buy_order is not None
-        remaining_qty = (
-            strategy.buy.buy_order.quantity - strategy.buy.buy_order.realized_quantity
-        )
-        full_qty = strategy.buy.buy_order.quantity
-
-        exc_report = ExecutionReport(
-            order_type=ORDER_TYPE_LIMIT,
-            current_order_status=ORDER_STATUS_FILLED,
-            order_id=strategy.buy.buy_order.order_id,
-            last_executed_quantity=remaining_qty,
-            last_executed_price=price,
-            cumulative_filled_quantity=full_qty,
-        )
-        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
-
-        await wait_for_condition(
-            lambda: strategy.buy.buy_order is not None
-            and strategy.buy.buy_order.status == ORDER_STATUS_FILLED
-        )
-
-    async def fill_remaining_sell_order(
-        self,
-        strategy: HpStrategy,
-        price: float = 4200.0,
-    ) -> None:
-        """
-        Fill remaining quantity of a partially filled sell order.
-
-        This completes a sell order that was previously partially filled:
-        1. Calculate remaining quantity to fill
-        2. Send FILLED execution report for remaining quantity
-        3. Wait for order status to be FILLED
-
-        Args:
-            strategy: Strategy with partially filled sell order
-            price: Fill price (default: 4200.0)
-        """
-        assert strategy.sell.current_position is not None
-        sell_order = strategy.sell.current_position.sell_order
-        remaining_qty = sell_order.quantity - sell_order.realized_quantity
-        full_qty = sell_order.quantity
-
-        exc_report = ExecutionReport(
-            order_type=ORDER_TYPE_LIMIT,
-            current_order_status=ORDER_STATUS_FILLED,
-            order_id=sell_order.order_id,
-            last_executed_quantity=remaining_qty,
-            last_executed_price=price,
-            cumulative_filled_quantity=full_qty,
-        )
-        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
-
-        await wait_for_condition(
-            lambda: strategy.sell.current_position is not None
-            and strategy.sell.current_position.sell_order.status == ORDER_STATUS_FILLED
         )

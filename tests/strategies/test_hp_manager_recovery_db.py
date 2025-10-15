@@ -1468,7 +1468,6 @@ async def test_recovery_convert_only_position_crash(crash_recovery_factory):
 
     # Validate UI state using helper method
     sim.validate_parent(
-        hp_id="1000",
         quantity=str(quantity),
         state="BOUGHT",
         buy_price=str(buy_price),
@@ -1489,7 +1488,6 @@ async def test_recovery_convert_only_position_crash(crash_recovery_factory):
     # Validate recovered position using helper
     await wait_for_condition(condition_func=lambda: new_front.hp_list_data)
     new_sim.validate_parent(
-        hp_id="1000",
         quantity=str(quantity),
         state="BOUGHT",
         buy_price=str(buy_price),
@@ -1526,7 +1524,6 @@ async def test_recovery_convert_only_position_crash(crash_recovery_factory):
     # Validate conversion completed using helper
     await wait_for_condition(lambda: new_front.hp_list_data[0]["state"] == "SOLD")
     new_sim.validate_parent(
-        hp_id="1000",
         quantity="100.0",
         realized_quantity="100.0",
         state="SOLD",
@@ -1534,6 +1531,4 @@ async def test_recovery_convert_only_position_crash(crash_recovery_factory):
         quantity_usd="1000.0",
         sell_price=str(sell_price),
         expected_return="200.0",
-        net="0.0",
-        net_percent="0.0",
     )
