@@ -184,8 +184,25 @@ class RecoveryService:
         restored_orders = await self.order_restorer.restore_buy_orders(
             buy_position=strategy.buy, worker_queue=worker_queue, client=client
         )
+        logger.info(
+            "[Recovery] Restored %d buy orders: %s",
+            len(restored_orders) if restored_orders else 0,
+            (
+                [f"id={o.order_id}, qty={o.realized_quantity}" for o in restored_orders]
+                if restored_orders
+                else []
+            ),
+        )
         if restored_orders:
-            strategy.buy.buy_order = restored_orders[0]
+            # Use the most recent order (last in the list) when multiple orders exist
+            # When orders are resent after cancel, the newest order has cumulative realized_quantity
+            strategy.buy.buy_order = restored_orders[-1]
+            logger.info(
+                "[Recovery] Selected buy order: id=%s, realized_qty=%s, status=%s",
+                strategy.buy.buy_order.order_id,
+                strategy.buy.buy_order.realized_quantity,
+                strategy.buy.buy_order.status,
+            )
 
         # --- Patch: recalculate state from order after restoration ---
         # Completeness calculation for buy order
@@ -383,7 +400,8 @@ class RecoveryService:
                 client=client,
             )
             if restored_orders:
-                strategy.buy.buy_order = restored_orders[0]
+                # Use the most recent order (last in the list) when multiple orders exist
+                strategy.buy.buy_order = restored_orders[-1]
 
             strategy_state_str = await self.get_strategy_state_from_db(parent_hp_id)
             strategy.state = State(strategy_state_str)

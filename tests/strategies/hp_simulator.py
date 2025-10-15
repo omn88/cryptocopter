@@ -2416,3 +2416,262 @@ class HPSimulator:
         logger.info("✓ Cancel and resend sell completed")
 
         return strategy
+
+    # ========================================================================
+    # Assertion helpers for cleaner tests
+    # ========================================================================
+
+    async def assert_partially_bought_state(
+        self,
+        strategy: HpStrategy,
+        realized_qty: float,
+        check_ui: bool = True,
+    ) -> None:
+        """
+        Assert strategy is in partially bought state.
+
+        Verifies:
+        - Buy order is canceled
+        - Realized quantity matches expected
+        - Strategy state is PARTIALLY_BOUGHT
+        - Data state is PARTIALLY_BOUGHT
+        - UI state is synced (if check_ui=True)
+
+        Args:
+            strategy: Strategy to check
+            realized_qty: Expected realized quantity
+            check_ui: Whether to check UI state matches
+        """
+        await wait_for_condition(
+            lambda: strategy.buy.buy_order is not None
+            and strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
+        )
+        assert strategy.buy.buy_order is not None
+        assert strategy.buy.buy_order.realized_quantity == realized_qty
+        assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+        assert strategy.state == State.PARTIALLY_BOUGHT
+        if check_ui:
+            await wait_for_condition(
+                lambda: self.front.hp_list_data[0]["state"] == "PARTIALLY_BOUGHT"
+            )
+
+    async def assert_buying_state_with_partial(
+        self,
+        strategy: HpStrategy,
+        realized_qty: float,
+        check_ui: bool = True,
+    ) -> None:
+        """
+        Assert strategy is buying with partial fill.
+
+        Verifies:
+        - Buy order is active (NEW status)
+        - Realized quantity matches expected
+        - Data state is PARTIALLY_BOUGHT (partial fill remembered)
+        - Strategy state is BUYING (order active)
+        - UI state is synced (if check_ui=True)
+
+        Args:
+            strategy: Strategy to check
+            realized_qty: Expected realized quantity from partial fill
+            check_ui: Whether to check UI state matches
+        """
+        await wait_for_condition(
+            lambda: strategy.buy.buy_order is not None
+            and strategy.buy.buy_order.status == ORDER_STATUS_NEW
+        )
+        assert strategy.buy.buy_order is not None
+        assert strategy.buy.buy_order.realized_quantity == realized_qty
+        assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+        assert strategy.state == State.BUYING
+        if check_ui:
+            await wait_for_condition(
+                lambda: self.front.hp_list_data[0]["state"] == "BUYING"
+            )
+
+    async def assert_part_sold_part_bought_state(
+        self,
+        strategy: HpStrategy,
+        realized_qty: float,
+    ) -> None:
+        """
+        Assert strategy is in part sold/part bought state.
+
+        Verifies:
+        - Sell order is canceled
+        - Realized quantity matches expected
+        - Strategy state is PART_SOLD_PART_BOUGHT
+        - Data state is PART_SOLD_PART_BOUGHT
+        - UI state is synced
+
+        Args:
+            strategy: Strategy to check
+            realized_qty: Expected realized quantity
+        """
+        await wait_for_condition(
+            lambda: strategy.sell.current_position.sell_order.status
+            == ORDER_STATUS_CANCELED
+        )
+        assert (
+            strategy.sell.current_position.sell_order.realized_quantity == realized_qty
+        )
+        # Strategy state is PART_SOLD_PART_BOUGHT, but sell position data state remains PARTIALLY_SOLD
+        assert strategy.state == State.PART_SOLD_PART_BOUGHT
+        await wait_for_condition(
+            lambda: self.front.hp_list_data[0]["state"] == "PART_SOLD_PART_BOUGHT"
+        )
+
+    async def assert_selling_state_with_partial(
+        self,
+        strategy: HpStrategy,
+        realized_qty: float,
+        check_ui: bool = True,
+    ) -> None:
+        """
+        Assert strategy is selling with partial fill.
+
+        Verifies:
+        - Sell order is active (NEW status)
+        - Realized quantity matches expected
+        - Data state is PART_SOLD_PART_BOUGHT (partial fill remembered)
+        - Strategy state is SELLING (order active)
+        - UI state is synced (if check_ui=True)
+
+        Args:
+            strategy: Strategy to check
+            realized_qty: Expected realized quantity from partial fill
+            check_ui: Whether to check UI state matches
+        """
+        await wait_for_condition(
+            lambda: strategy.sell.current_position.sell_order.status == ORDER_STATUS_NEW
+        )
+        assert (
+            strategy.sell.current_position.sell_order.realized_quantity == realized_qty
+        )
+        # Strategy state is SELLING, sell position data state remains PARTIALLY_SOLD
+        assert strategy.state == State.SELLING
+        if check_ui:
+            await wait_for_condition(
+                lambda: self.front.hp_list_data[0]["state"] == "SELLING"
+            )
+
+    async def wait_for_state(
+        self,
+        strategy: HpStrategy,
+        expected_state: State,
+        check_ui: bool = True,
+    ) -> None:
+        """
+        Wait for strategy to reach expected state.
+
+        Args:
+            strategy: Strategy to check
+            expected_state: State to wait for
+            check_ui: Whether to also check UI state matches
+        """
+        await wait_for_condition(
+            condition_func=lambda: strategy.state == expected_state
+        )
+        if check_ui:
+            state_str = expected_state.name
+            await wait_for_condition(
+                lambda: self.front.hp_list_data[0]["state"] == state_str
+            )
+
+    async def assert_buy_order_state(
+        self,
+        strategy: HpStrategy,
+        status: str,
+        realized_qty: Optional[float] = None,
+    ) -> None:
+        """
+        Assert buy order has expected status and quantity.
+
+        Args:
+            strategy: Strategy to check
+            status: Expected order status (ORDER_STATUS_NEW, ORDER_STATUS_CANCELED, etc.)
+            realized_qty: Expected realized quantity (None = don't check)
+        """
+        await wait_for_condition(
+            lambda: strategy.buy.buy_order is not None
+            and strategy.buy.buy_order.status == status
+        )
+        assert strategy.buy.buy_order is not None
+        if realized_qty is not None:
+            assert strategy.buy.buy_order.realized_quantity == realized_qty
+
+    async def assert_sell_order_state(
+        self,
+        strategy: HpStrategy,
+        status: str,
+        realized_qty: Optional[float] = None,
+    ) -> None:
+        """
+        Assert sell order has expected status and quantity.
+
+        Args:
+            strategy: Strategy to check
+            status: Expected order status (ORDER_STATUS_NEW, ORDER_STATUS_CANCELED, etc.)
+            realized_qty: Expected realized quantity (None = don't check)
+        """
+        await wait_for_condition(
+            lambda: strategy.sell.current_position is not None
+            and strategy.sell.current_position.sell_order.status == status
+        )
+        assert strategy.sell.current_position is not None
+        if realized_qty is not None:
+            assert (
+                strategy.sell.current_position.sell_order.realized_quantity
+                == realized_qty
+            )
+
+    async def resend_buy_order_after_cancel(
+        self,
+        strategy: HpStrategy,
+        trigger_price: float = 1414,
+    ) -> None:
+        """
+        Resend buy order after it was canceled with partial fill.
+
+        This sets up the mock and triggers a new order:
+        1. Configure mock to return new order
+        2. Trigger price change to create new order
+        3. Wait for order to be active
+
+        Args:
+            strategy: Strategy to resend order for
+            trigger_price: Price to trigger new order creation
+        """
+        strategy.client.create_order.side_effect = [
+            get_new_order(order=strategy.buy.buy_order)
+        ]
+        self.new_price(price=trigger_price)
+        await wait_for_condition(
+            lambda: strategy.buy.buy_order is not None
+            and strategy.buy.buy_order.status == ORDER_STATUS_NEW
+        )
+
+    async def resend_sell_order_after_cancel(
+        self,
+        strategy: HpStrategy,
+        trigger_price: float = 1486,
+    ) -> None:
+        """
+        Resend sell order after it was canceled with partial fill.
+
+        This sets up the mock and triggers a new order:
+        1. Configure mock to return new order
+        2. Trigger price change to create new order
+        3. Wait for order to be active
+
+        Args:
+            strategy: Strategy to resend order for
+            trigger_price: Price to trigger new order creation
+        """
+        strategy.client.create_order.side_effect = [
+            get_new_order(order=strategy.sell.current_position.sell_order)
+        ]
+        self.new_price(price=trigger_price)
+        await wait_for_condition(
+            lambda: strategy.sell.current_position.sell_order.status == ORDER_STATUS_NEW
+        )
