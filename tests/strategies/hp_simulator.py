@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from typing import Callable, List, Dict, Tuple, Optional
 from binance.enums import (
     ORDER_STATUS_NEW,
@@ -27,20 +28,185 @@ from src.common.identifiers import (
 from src.strategies.hp_manager.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor
 from tests.helpers import get_new_order
-from tests.strategies.hp_manager_helpers import (
-    wait_for_condition,
-    get_buy_positions,
-    wait_for_active_buy_positions,
-    wait_for_no_idle_buy_positions,
-    wait_for_idle_buy_positions,
-    wait_for_no_active_buy_positions,
-    wait_for_active_sell_positions,
-    wait_for_no_idle_sell_positions,
-    wait_for_idle_sell_positions,
-    wait_for_no_active_sell_positions,
-)
 
 logger = logging.getLogger("hp_simulator")
+
+
+# ============================================================================
+# HELPER FUNCTIONS (extracted from hp_manager_helpers.py)
+# ============================================================================
+
+
+async def wait_for_condition(
+    condition_func, timeout: float = 2.0, interval: float = 0.05
+):
+    """
+    Waits for a given condition function to return True, otherwise raises an AssertionError after timeout.
+
+    :param condition_func: A callable (sync or async) that returns True when the condition is met.
+    :param timeout: Maximum time to wait for the condition.
+    :param interval: Time between each condition check.
+    :raises AssertionError: If the condition is not met within the timeout.
+    """
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        if asyncio.iscoroutinefunction(condition_func):
+            result = await condition_func()
+        else:
+            result = condition_func()
+
+        if result:
+            return  # Condition met, exit successfully
+        await asyncio.sleep(interval)  # Wait before rechecking
+
+    raise AssertionError(f"Condition not met within {timeout} seconds")
+
+
+def get_buy_positions(front: HpFront, state: Optional[str] = None):
+    """Get BUY child positions."""
+    if not front.hp_list_data:
+        return []
+
+    children = []
+    for hp_data in front.hp_list_data:
+        if hp_data.get("is_child", False) and hp_data.get("side", "").upper() == "BUY":
+            if state is None or hp_data.get("state", "").upper() == state.upper():
+                children.append(hp_data)
+    return children
+
+
+def has_active_buy_positions(front: HpFront) -> bool:
+    """Check if there are active buy positions."""
+    buying_positions = get_buy_positions(front, state="BUYING")
+    if len(buying_positions) > 0:
+        return True
+
+    if not front.hp_list_data:
+        return False
+
+    for hp_data in front.hp_list_data:
+        if hp_data.get("is_child", False) and hp_data.get("side", "").upper() == "BUY":
+            parent_hp_id = hp_data.get("parent_hp_id")
+            if parent_hp_id:
+                for parent_data in front.hp_list_data:
+                    if (
+                        parent_data.get("hp_id") == parent_hp_id
+                        and parent_data.get("state") == "BUYING"
+                    ):
+                        return True
+    return False
+
+
+def has_idle_buy_positions(front: HpFront) -> bool:
+    """Check if there are idle/new buy positions."""
+    if not front.hp_list_data:
+        return False
+
+    for hp_data in front.hp_list_data:
+        if hp_data.get("is_child", False) and hp_data.get("side", "").upper() == "BUY":
+            if hp_data.get("state") == "NEW":
+                parent_hp_id = hp_data.get("parent_hp_id")
+                if parent_hp_id:
+                    for parent_data in front.hp_list_data:
+                        if parent_data.get("hp_id") == parent_hp_id:
+                            if parent_data.get("state") != "BUYING":
+                                return True
+                            break
+                else:
+                    return True
+    return False
+
+
+def has_active_sell_positions(front: HpFront) -> bool:
+    """Check if there are active sell positions."""
+    if not front.hp_list_data:
+        return False
+
+    for hp_data in front.hp_list_data:
+        if hp_data.get("state") == "SELLING":
+            return True
+
+        if hp_data.get("is_child", False) and hp_data.get("side", "").upper() == "SELL":
+            parent_hp_id = hp_data.get("parent_hp_id")
+            if parent_hp_id:
+                for parent_data in front.hp_list_data:
+                    if (
+                        parent_data.get("hp_id") == parent_hp_id
+                        and parent_data.get("state") == "SELLING"
+                    ):
+                        return True
+    return False
+
+
+def has_idle_sell_positions(front: HpFront) -> bool:
+    """Check if there are idle/new sell positions."""
+    if not front.hp_list_data:
+        return False
+
+    for hp_data in front.hp_list_data:
+        if hp_data.get("is_child", False) and hp_data.get("side", "").upper() == "SELL":
+            if hp_data.get("state") == "NEW":
+                parent_hp_id = hp_data.get("parent_hp_id")
+                if parent_hp_id:
+                    for parent_data in front.hp_list_data:
+                        if parent_data.get("hp_id") == parent_hp_id:
+                            if parent_data.get("state") != "SELLING":
+                                return True
+                            break
+                else:
+                    return True
+    return False
+
+
+async def wait_for_active_buy_positions(front: HpFront, timeout: float = 2.0):
+    """Wait for active buy positions."""
+    await wait_for_condition(lambda: has_active_buy_positions(front), timeout=timeout)
+
+
+async def wait_for_no_idle_buy_positions(front: HpFront, timeout: float = 2.0):
+    """Wait for no idle buy positions."""
+    await wait_for_condition(lambda: not has_idle_buy_positions(front), timeout=timeout)
+
+
+async def wait_for_idle_buy_positions(front: HpFront, timeout: float = 2.0):
+    """Wait for idle buy positions."""
+    await wait_for_condition(lambda: has_idle_buy_positions(front), timeout=timeout)
+
+
+async def wait_for_no_active_buy_positions(front: HpFront, timeout: float = 2.0):
+    """Wait for no active buy positions."""
+    await wait_for_condition(
+        lambda: not has_active_buy_positions(front), timeout=timeout
+    )
+
+
+async def wait_for_active_sell_positions(front: HpFront, timeout: float = 2.0):
+    """Wait for active sell positions."""
+    await wait_for_condition(lambda: has_active_sell_positions(front), timeout=timeout)
+
+
+async def wait_for_no_idle_sell_positions(front: HpFront, timeout: float = 2.0):
+    """Wait for no idle sell positions."""
+    await wait_for_condition(
+        lambda: not has_idle_sell_positions(front), timeout=timeout
+    )
+
+
+async def wait_for_idle_sell_positions(front: HpFront, timeout: float = 2.0):
+    """Wait for idle sell positions."""
+    await wait_for_condition(lambda: has_idle_sell_positions(front), timeout=timeout)
+
+
+async def wait_for_no_active_sell_positions(front: HpFront, timeout: float = 2.0):
+    """Wait for no active sell positions."""
+    await wait_for_condition(
+        lambda: not has_active_sell_positions(front), timeout=timeout
+    )
+
+
+# ============================================================================
+# END OF HELPER FUNCTIONS
+# ============================================================================
 
 
 class HPSimulator:
