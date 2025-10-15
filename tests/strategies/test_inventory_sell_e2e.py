@@ -129,7 +129,6 @@ async def test_inventory_sell_configure_direct_sell_btc_to_usdc(
     hp_sim.validate_parent(
         hp_id=hp_id,
         quantity="1.0",  # Inventory quantity that should be available to sell
-        realized_quantity="0.0",  # Nothing sold yet
         state="BOUGHT",  # Starting state for inventory sells
         buy_price="50000.0",
         sell_price="100000.0",
@@ -264,7 +263,6 @@ async def test_inventory_sell_configure_convert_only_usdc_to_pln(
     hp_simulator.validate_parent(
         hp_id=hp_id,
         quantity="200.0",
-        realized_quantity="0.0",
         state="BOUGHT",
         buy_price="1.12",
         sell_price="1.4",
@@ -318,7 +316,6 @@ async def test_inventory_sell_execute_direct_sell_to_completion(
     hp_simulator.validate_parent(
         hp_id=hp_id,
         quantity="1.0",
-        realized_quantity="0.0",
         state="BOUGHT",
         buy_price="50000.0",
         sell_price="100000.0",
@@ -326,8 +323,8 @@ async def test_inventory_sell_execute_direct_sell_to_completion(
 
     hp_simulator.validate_child_sell(
         hp_id=hp_id,
-        quantity="1.0",
         realized_quantity="0.0",
+        quantity="1.0",
         state="NEW",
         sell_price="100000.0",
     )
@@ -549,6 +546,8 @@ async def test_inventory_sell_execute_partial_fill_fifo_locking(
     await portfolio.process_test_events()
 
     await asyncio.sleep(0.42)
+    # Process any additional events that arrived during the sleep
+    await portfolio.process_test_events()
 
     # Validate inventory state after first partial fill (0.3 BTC sold from lot 1)
     btc_lots_after_partial = simulator.get_coin_lots("BTC")

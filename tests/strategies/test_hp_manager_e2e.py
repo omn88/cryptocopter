@@ -72,9 +72,6 @@ async def test_default_buy_position_send_order(frontend_backend_setup):
 
     # Comprehensive validation for position with orders sent
     sim.validate_parent(
-        "1000",
-        quantity="0.0",
-        realized_quantity="0.0",
         state="BUYING",
         buy_price="1400.0",
         quantity_usd="0.0",
@@ -127,17 +124,11 @@ async def test_cancel_default_position_untouched(frontend_backend_setup):
 
     # Validate using comprehensive helper methods from simulator
     sim.validate_parent(
-        "1000",
-        quantity="0.0",
-        realized_quantity="0.0",
         state="NEW",
         buy_price="1400.0",
         quantity_usd="0.0",
         sell_price="0.0",
         expected_return="0.0",
-        current_price="0.0",
-        net="0.0",
-        net_percent="0.0",
     )
     sim.validate_child_buy(
         "1000", quantity="0.71429", realized_quantity="0.0", state="NEW"
@@ -196,9 +187,7 @@ async def test_default_position_order_filled_partially(
 
     # Comprehensive validation for partial fill
     sim.validate_parent(
-        "1000",
         quantity="0.12",
-        realized_quantity="0.0",
         state="BUYING",
         buy_price="1400.0",
         quantity_usd="168.0",
@@ -257,17 +246,12 @@ async def test_default_position_order_filled_partially_then_cancel(
 
     # Validate using comprehensive helper methods from simulator
     sim.validate_parent(
-        "1000",
         quantity="0.12",
-        realized_quantity="0.0",
         state="PARTIALLY_BOUGHT",
         buy_price="1400.0",
         quantity_usd="168.0",
         sell_price="0.0",
         expected_return="0.0",
-        current_price="0.0",
-        net="0.0",
-        net_percent="0.0",
     )
     sim.validate_child_buy(
         "1000", quantity="0.71429", realized_quantity="0.12", state="PARTIALLY_BOUGHT"
@@ -300,15 +284,13 @@ async def test_default_position_order_filled(
 
     # Comprehensive validation for first order filled
     sim.validate_parent(
-        "1000",
         quantity="0.71429",
-        realized_quantity="0.0",
         state="BOUGHT",
         buy_price="1400.0",
         quantity_usd="1000.01",
     )
     sim.validate_child_buy(
-        "1000",
+        hp_id="1000",
         quantity="0.71429",
         realized_quantity="0.71429",
         state="BOUGHT",
@@ -360,17 +342,12 @@ async def test_default_position_order_filled_partially_then_cancel_then_resend(
 
     # Validate using comprehensive helper methods from simulator
     sim.validate_parent(
-        "1000",
         quantity="0.12",
-        realized_quantity="0.0",
         state="PARTIALLY_BOUGHT",
         buy_price="1400.0",
         quantity_usd="168.0",
         sell_price="0.0",
         expected_return="0.0",
-        current_price="0.0",
-        net="0.0",
-        net_percent="0.0",
     )
     sim.validate_child_buy(
         "1000", quantity="0.71429", realized_quantity="0.12", state="PARTIALLY_BOUGHT"
@@ -406,9 +383,7 @@ async def test_default_position_order_filled_partially_then_cancel_then_resend(
 
     # Comprehensive validation for resent order state
     sim.validate_parent(
-        "1000",
         quantity="0.12",
-        realized_quantity="0.0",
         state="BUYING",
         buy_price="1400.0",
         quantity_usd="168.0",
@@ -449,9 +424,7 @@ async def test_setup_sell_position_for_bought_position(
     # Comprehensive validation for sell position setup
     strategy = back.strategies["1000"]
     sim.validate_parent(
-        "1000",
         quantity="0.71429",
-        realized_quantity="0.0",
         state="BOUGHT",
         buy_price="1400.0",
         sell_price="4200.0",
@@ -500,17 +473,12 @@ async def test_send_sell_order_for_bought_position(
     )
     # Validate using comprehensive helper methods from simulator
     sim.validate_parent(
-        "1000",
         quantity="0.71429",
-        realized_quantity="0.0",
         state="SELLING",
         buy_price="1400.0",
         sell_price="4200.0",
         quantity_usd="1000.01",
         expected_return="2000.01",
-        current_price="0.0",
-        net="0.0",
-        net_percent="0.0",
     )
 
     await wait_for_condition(

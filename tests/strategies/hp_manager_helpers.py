@@ -22,7 +22,6 @@ from src.common.identifiers import (
     ExecutionReport,
     HPBuyConfig,
     HPSellConfig,
-    Mode,
     PositionSide,
     SellPosition,
     Signal,
@@ -381,66 +380,11 @@ async def wait_for_no_active_sell_positions(front: HpFront, timeout: float = 2.0
     )
 
 
-def assert_gui_position_data_content_buy(
-    ui_queue: queue.Queue,
-    config: HPBuyConfig,
-    state_info: StateInfo,
-    completeness: float,
-):
-    try:
-        logger.info("GUI queue size: %s", ui_queue.qsize())
-        gui_msg = ui_queue.get_nowait()
-        assert gui_msg
-        logger.info("GUI msg: %s", gui_msg)
-        assert isinstance(gui_msg, HPGuiDataBuy)
-
-        msg_config = gui_msg.data.config
-        msg_state_info = gui_msg.data.state_info
-        assert msg_config.symbol.name == config.symbol.name
-        assert msg_state_info.side == state_info.side
-        assert msg_state_info.state == state_info.state
-        assert msg_config.buy_price == config.buy_price
-        assert msg_config.order_trigger == config.order_trigger
-        assert msg_config.budget == config.budget
-        assert msg_state_info.completeness == completeness
-
-    except queue.Empty:
-        time.sleep(0.1)
-
-
 async def process_ticker(strategy: HpStrategy, last_price: float):
     logger.info("Processing ticker with last price: %s", last_price)
     strategy.ticker_update = TickerUpdate(last_price=last_price, symbol="BTCUSDC")
 
     await strategy.process_ticker()  # type: ignore[attr-defined]  # type: ignore
-
-
-async def simulate_order_filled(strategy: HpStrategy, order: Order):
-    strategy.execution_report = ExecutionReport(
-        order_type=ORDER_TYPE_LIMIT,
-        current_order_status=ORDER_STATUS_FILLED,
-        order_id=order.order_id,
-        price=order.price,
-        quantity=order.quantity,
-        cumulative_filled_quantity=order.quantity,
-        last_executed_quantity=order.quantity,
-    )
-    await strategy.process_order()  # type: ignore[attr-defined]
-
-
-async def simulate_order_partially_filled(
-    strategy: HpStrategy, order: Order, last_realized_quantity: float
-):
-    strategy.execution_report = ExecutionReport(
-        order_type=ORDER_TYPE_LIMIT,
-        current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=order.order_id,
-        price=order.price,
-        quantity=order.quantity,
-        last_executed_quantity=last_realized_quantity,
-        cumulative_filled_quantity=last_realized_quantity,
-    )
-    await strategy.process_order()  # type: ignore[attr-defined]  # type: ignore
 
 
 def get_default_buy_position(trading_system_factory) -> HpStrategy:
@@ -484,11 +428,11 @@ def get_default_buy_position(trading_system_factory) -> HpStrategy:
 
     assert (
         strategy.sell.current_position.config.hp_id == ""
-    ), f"Wynik to: {strategy.sell.current_position.config.hp_id}"
+    ), f"ID: {strategy.sell.current_position.config.hp_id}"
     assert strategy.sell.current_position.config.sell_price == 0
     assert (
         strategy.sell.current_position.config.symbol.name == ""
-    ), f"Wynik to: {strategy.sell.current_position.config.symbol.name}"
+    ), f"ID: {strategy.sell.current_position.config.symbol.name}"
     assert strategy.sell.current_position.state_info.side == PositionSide.SHORT
     assert strategy.sell.current_position.state_info.state == State.NEW
     assert strategy.state == State.NEW
@@ -1755,23 +1699,6 @@ async def move_to_sell_position_active(strategy: HpStrategy) -> HpStrategy:
     assert state_info.completeness == 0.00
 
     assert strategy.ui_queue.qsize() == 0
-
-    return strategy
-
-
-async def simulate_first_sell_order_fill(strategy: HpStrategy) -> HpStrategy:
-    strategy.execution_report = ExecutionReport(
-        order_type=ORDER_TYPE_LIMIT,
-        current_order_status=ORDER_STATUS_FILLED,
-        order_id=12345,
-        last_executed_quantity=0.1,
-        last_executed_price=4200,
-        cumulative_filled_quantity=0.85,
-    )
-    await strategy.process_order()  # type: ignore[attr-defined]
-    assert strategy.state == State.BUYING
-    logger.info("Orders: %s", strategy.sell.current_position.sell_order)
-    assert strategy.sell.current_position.sell_order.status == ORDER_STATUS_FILLED
 
     return strategy
 
