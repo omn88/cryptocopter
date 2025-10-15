@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from unittest.mock import AsyncMock
 
@@ -10,18 +9,11 @@ from binance.enums import (
     ORDER_TYPE_LIMIT,
     ORDER_STATUS_PARTIALLY_FILLED,
 )
-from src.database.models import OrderStatus
 from src.common.identifiers import Event, EventName, ExecutionReport, Order, State
 from src.strategy_executor import StrategyExecutor
 from src.gui.hp_manager.hpfront import HpFront
 from tests.helpers import get_new_order
-from tests.strategies.hp_manager_helpers import (
-    wait_for_condition,
-    wait_for_active_buy_positions,
-    wait_for_no_idle_buy_positions,
-    get_buy_positions,
-    get_sell_positions,
-)
+from tests.strategies.hp_manager_helpers import wait_for_condition
 from tests.strategies.hp_simulator import HPSimulator
 from tests.strategies.crash_recovery import CrashRecoveryHelper
 
@@ -206,20 +198,15 @@ async def test_recovery_default_position_first_order_filled_partially_then_cance
         lambda: front.hp_list_data[0]["state"] == "PARTIALLY_BOUGHT"
     )
 
-    item = front.hp_list_data[0]
-    assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTCUSD"
-    assert item["buy_price"] == "1400.0"
-    assert item["quantity"] == "0.12"
-    assert item["quantity_usd"] == "168.0"
-    assert item["sell_price"] == "0.0"
-    assert item["expected_return"] == "0.0"
-    assert item["current_price"] == "0.0"
-    assert item["net"] == "0.0"
-    assert item["net_percent"] == "0.0"
-    assert item["state"] == "PARTIALLY_BOUGHT"
-
-    logger.info("HP List after the update: %s", front.hp_list_data)
+    # Validate UI state using helper method
+    sim.validate_parent(
+        quantity="0.12",
+        state="PARTIALLY_BOUGHT",
+        buy_price="1400.0",
+        quantity_usd="168.0",
+        sell_price="0.0",
+        expected_return="0.0",
+    )
 
     # Reopen position
     strategy.client.create_order.side_effect = [
@@ -1988,13 +1975,17 @@ async def test_recovery_convert_only_position_crash(crash_recovery_factory):
 
     # Wait for frontend to reflect the convert-only position
     await wait_for_condition(condition_func=lambda: front.hp_list_data)
-    item = front.hp_list_data[0]
-    assert item["buy_price"] == str(buy_price)
-    assert item["quantity"] == str(quantity)
-    assert item["quantity_usd"] == str(round(quantity * buy_price, 2))
-    assert item["sell_price"] == str(sell_price)
-    assert item["expected_return"] == "200.0"
-    assert item["state"] == "BOUGHT"
+    
+    # Validate UI state using helper method
+    sim.validate_parent(
+        hp_id="1000",
+        quantity=str(quantity),
+        state="BOUGHT",
+        buy_price=str(buy_price),
+        quantity_usd=str(round(quantity * buy_price, 2)),
+        sell_price=str(sell_price),
+        expected_return="200.0",
+    )
 
     # === SIMULATE CRASH ===
     await simulate_crash(front, back)
