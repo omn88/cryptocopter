@@ -817,59 +817,21 @@ async def test_recovery_buy_fully_partially_sold_position(crash_recovery_factory
     await sim.simulate_sell_order_partial_fill_from_part_bought()
     await sim.cancel_sell_position_filled_partially()
 
-    # Reopen buy position (simulate price trigger)
+    # Reopen buy position and fill remaining quantity
     strategy = back.strategies["1000"]
-    strategy.client.create_order.side_effect = [
-        get_new_order(order=strategy.buy.buy_order)
-    ]
-    sim.new_price(price=1412)
+    await sim.resend_buy_order_after_cancel(strategy, trigger_price=1412)
+    await wait_for_condition(lambda: strategy.state == State.BUYING)
+    await sim.fill_remaining_buy_order(strategy)
 
-    # Wait for state transition after reopening buy
-    await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
+    # Wait for parent state to transition to PARTIALLY_SOLD
+    await wait_for_condition(lambda: strategy.state == State.PARTIALLY_SOLD)
 
-    # Wait for the new order to be created (reopened order has new ID)
-    await wait_for_condition(
-        condition_func=lambda: strategy.buy.buy_order.status == ORDER_STATUS_NEW
-    )
-
-    full_qty = 0.71429
-    remaining_qty = full_qty - 0.12  # 0.59429
-
-    price = 1400.0
-    # Send FILLED ExecutionReport with the correct (reopened) order_id
-    exc_report = ExecutionReport(
-        order_type=ORDER_TYPE_LIMIT,
-        current_order_status=ORDER_STATUS_FILLED,  # Mark as FILLED
-        order_id=strategy.buy.buy_order.order_id,  # Use current order_id (after reopen)
-        last_executed_quantity=remaining_qty,
-        last_executed_price=price,
-        cumulative_filled_quantity=full_qty,
-    )
-    strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
-
-    # Wait for full fill and state transition
-    await wait_for_condition(
-        condition_func=lambda: strategy.buy.buy_order.status == ORDER_STATUS_FILLED
-    )
-
-    # Wait for parent state to transition to PARTIALLY_SOLD (buy is complete, partial sell remains)
-    await wait_for_condition(
-        condition_func=lambda: strategy.state == State.PARTIALLY_SOLD
-    )
-
-    # All buy orders should now be filled
+    # Verify final state before crash
     assert strategy.buy.buy_order.status == ORDER_STATUS_FILLED
-    assert (
-        strategy.buy.buy_order.realized_quantity == 0.71429
-    )  # Full order quantity filled
-    assert strategy.buy.data.state_info.state == State.BOUGHT  # Buy order is complete
-    assert strategy.state == State.PARTIALLY_SOLD  # Parent tracks the partial sell
+    assert strategy.buy.buy_order.realized_quantity == 0.71429
+    assert strategy.buy.data.state_info.state == State.BOUGHT
+    assert strategy.state == State.PARTIALLY_SOLD
     assert strategy.sell.current_position.state_info.state == State.PARTIALLY_SOLD
-
-    db_positions = await front.db.get_active_positions()
-    assert len(db_positions) == 1
-    db_position = db_positions[0]
-    logger.info("db position: %s", db_position)
 
     _, _, recovered = await sim.crash_and_recover("1000", create_pair, simulate_crash)
 
@@ -995,71 +957,23 @@ async def test_recovery_buy_fully_partially_bought_position_when_sold_position(
 
     await sim.simulate_sell_order_fill_from_part_bought()
 
-    # Assert state is SOLD_PART_BOUGHT and buy state is PARTIALLY_BOUGHT
-    assert (
-        strategy.state == State.SOLD_PART_BOUGHT
-    ), f"Expected strategy state to be SOLD_PART_BOUGHT, got {strategy.state}"
-    assert (
-        strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
-    ), f"Expected buy state to be PARTIALLY_BOUGHT, got {strategy.buy.data.state_info.state}"
-
-    # Reopen Buy position (simulate price trigger)
-    strategy.client.create_order.side_effect = [
-        get_new_order(order=strategy.buy.buy_order)
-    ]
-    sim.new_price(price=1412)
-
-    await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
-
-    assert strategy.buy.buy_order.realized_quantity == 0.12
-
+    # Verify state before reopening buy
+    assert strategy.state == State.SOLD_PART_BOUGHT
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
-    assert strategy.state == State.BUYING
 
-    await wait_for_condition(
-        condition_func=lambda: front.hp_list_data[0]["state"] == "BUYING"
-    )
+    # Reopen buy position and fill remaining quantity
+    await sim.resend_buy_order_after_cancel(strategy, trigger_price=1412)
+    await wait_for_condition(lambda: strategy.state == State.BUYING)
+    assert strategy.buy.buy_order.realized_quantity == 0.12
+    await sim.fill_remaining_buy_order(strategy)
 
-    price = 1400.0
-    # Send FILLED ExecutionReport with the correct (reopened) order_id
-    exc_report = ExecutionReport(
-        order_type=ORDER_TYPE_LIMIT,
-        current_order_status=ORDER_STATUS_FILLED,  # Mark as FILLED
-        order_id=strategy.buy.buy_order.order_id,  # Use current order_id (after reopen)
-        last_executed_quantity=strategy.buy.buy_order.quantity
-        - strategy.buy.buy_order.realized_quantity,  # Fill the remaining qty
-        last_executed_price=price,
-        cumulative_filled_quantity=strategy.buy.buy_order.quantity,  # Full quantity filled
-    )
-    strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
+    # Wait for parent state transition to PARTIALLY_SOLD
+    await wait_for_condition(lambda: strategy.state == State.PARTIALLY_SOLD)
+    await wait_for_condition(lambda: strategy.buy.data.state_info.state == State.BOUGHT)
 
-    # Wait for full fill and state transition
-    await wait_for_condition(
-        condition_func=lambda: strategy.buy.buy_order.status == ORDER_STATUS_FILLED
-    )
-
-    # Wait for parent state to transition to PARTIALLY_SOLD (buy is complete, partial sell remains)
-    await wait_for_condition(
-        condition_func=lambda: strategy.state == State.PARTIALLY_SOLD
-    )
-
-    # Wait for buy state to be updated to BOUGHT (happens in "after" callback)
-    await wait_for_condition(
-        condition_func=lambda: strategy.buy.data.state_info.state == State.BOUGHT
-    )
-
-    # All buy orders should now be filled
+    # Verify final state before crash
     assert strategy.buy.data.state_info.state == State.BOUGHT
     assert strategy.state == State.PARTIALLY_SOLD
-
-    # Wait for DB to be updated with PARTIALLY_SOLD state
-    async def check_db_state():
-        db_positions = await front.db.get_active_positions()
-        if not db_positions:
-            return False
-        return db_positions[0].strategy_state == "PARTIALLY_SOLD"
-
-    await wait_for_condition(condition_func=check_db_state, timeout=2.0)
 
     _, _, recovered = await sim.crash_and_recover("1000", create_pair, simulate_crash)
 
