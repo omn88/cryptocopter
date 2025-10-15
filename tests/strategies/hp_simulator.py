@@ -343,6 +343,7 @@ class HPSimulator:
         strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
         logger.info(f"Put fill remaining event to worker: {exc_report}")
 
+        assert strategy.buy.buy_order is not None
         # Wait for order to be filled
         await wait_for_condition(
             condition_func=lambda: strategy.buy.buy_order.status == ORDER_STATUS_FILLED
