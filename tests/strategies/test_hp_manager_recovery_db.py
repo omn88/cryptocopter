@@ -15,12 +15,12 @@ from src.gui.hp_manager.hpfront import HpFront
 from tests.helpers import get_new_order
 from tests.strategies.hp_manager_helpers import wait_for_condition
 from tests.strategies.hp_simulator import HPSimulator
-from tests.strategies.crash_recovery import CrashRecoveryHelper
+
 
 logger = logging.getLogger("hp_e2e_test")
 
 
-async def test_recovery_get_default_buy_position(crash_recovery_factory):
+async def test_recovery_buy_position(crash_recovery_factory):
     """Test crash recovery for a NEW position (no orders sent yet)."""
     create_pair, simulate_crash = crash_recovery_factory
 
@@ -37,7 +37,7 @@ async def test_recovery_get_default_buy_position(crash_recovery_factory):
     await sim.assert_db_state_matches_memory("1000")
 
 
-async def test_recovery_default_buy_position_send_orders(crash_recovery_factory):
+async def test_recovery_buy_position_send_order(crash_recovery_factory):
     """Test crash recovery for a position in BUYING state with active orders."""
     create_pair, simulate_crash = crash_recovery_factory
     front, back = create_pair("_original")
@@ -58,7 +58,7 @@ async def test_recovery_default_buy_position_send_orders(crash_recovery_factory)
     await sim.assert_db_state_matches_memory("1000")
 
 
-async def test_recovery_cancel_default_position_untouched(crash_recovery_factory):
+async def test_recovery_cancel_buy_position_untouched(crash_recovery_factory):
     """Test crash recovery for a position with CANCELED orders."""
     create_pair, simulate_crash = crash_recovery_factory
     front, back = create_pair("_original")
@@ -74,7 +74,7 @@ async def test_recovery_cancel_default_position_untouched(crash_recovery_factory
     await sim.assert_db_state_matches_memory("1000")
 
 
-async def test_recovery_cancel_default_position_untouched_then_resend_orders(
+async def test_recovery_cancel_buy_position_untouched_then_resend(
     crash_recovery_factory,
 ):
     """Test crash recovery for position cancelled untouched then orders resent."""
@@ -99,7 +99,7 @@ async def test_recovery_cancel_default_position_untouched_then_resend_orders(
     await sim.assert_db_state_matches_memory("1000")
 
 
-async def test_recovery_default_position_order_filled_partially(
+async def test_recovery_buy_position_partial_fill(
     crash_recovery_factory,
 ):
     """Test crash recovery for partially filled order then auto-cancelled."""
@@ -120,7 +120,7 @@ async def test_recovery_default_position_order_filled_partially(
     await sim.assert_db_state_matches_memory("1000")
 
 
-async def test_recovery_default_position_first_order_filled_partially_then_cancel(
+async def test_recovery_buy_position_partial_fill_then_cancel(
     crash_recovery_factory,
 ):
     """Test crash recovery for partially filled order that was then cancelled."""
@@ -141,7 +141,7 @@ async def test_recovery_default_position_first_order_filled_partially_then_cance
     await sim.assert_db_state_matches_memory("1000")
 
 
-async def test_recovery_default_position_buy_order_filled(crash_recovery_factory):
+async def test_recovery_buy_position_bought(crash_recovery_factory):
     """Test crash recovery for fully bought position (all buy orders filled)."""
     create_pair, simulate_crash = crash_recovery_factory
     front, back = create_pair("_original")
@@ -159,7 +159,7 @@ async def test_recovery_default_position_buy_order_filled(crash_recovery_factory
     await sim.assert_db_state_matches_memory("1000")
 
 
-async def test_recovery_default_position_partial_fill_then_cancel_then_resend(
+async def test_recovery_buy_position_partial_fill_then_cancel_then_resend(
     crash_recovery_factory,
 ):
     create_pair, simulate_crash = crash_recovery_factory
@@ -276,7 +276,7 @@ async def test_recovery_send_sell_order_for_bought_position(crash_recovery_facto
     await sim.assert_db_state_matches_memory("1000")
 
 
-async def test_recovery_cancel_unfilled_sell_orders(crash_recovery_factory):
+async def test_recovery_cancel_unfilled_sell_order(crash_recovery_factory):
     """Test crash recovery for cancelled sell orders."""
     create_pair, simulate_crash = crash_recovery_factory
     front, back = create_pair("_original")
@@ -302,7 +302,7 @@ async def test_recovery_cancel_unfilled_sell_orders(crash_recovery_factory):
     await sim.assert_db_state_matches_memory("1000")
 
 
-async def test_recovery_resend_unfilled_sell_orders(crash_recovery_factory):
+async def test_recovery_resend_unfilled_sell_order(crash_recovery_factory):
     """Test crash recovery for resent sell orders after cancellation."""
     create_pair, simulate_crash = crash_recovery_factory
     front, back = create_pair("_original")
@@ -329,7 +329,7 @@ async def test_recovery_resend_unfilled_sell_orders(crash_recovery_factory):
     await sim.assert_db_state_matches_memory("1000")
 
 
-async def test_recovery_sell_position_first_order_filled_partially(
+async def test_recovery_sell_position_partial_fill(
     crash_recovery_factory,
 ):
     """Test crash recovery for sell position with partially filled order."""
@@ -357,7 +357,7 @@ async def test_recovery_sell_position_first_order_filled_partially(
     await sim.assert_db_state_matches_memory("1000")
 
 
-async def test_recovery_cancel_sell_position_first_order_filled_partially(
+async def test_recovery_cancel_sell_position_after_partial_fill(
     crash_recovery_factory,
 ):
     """Test crash recovery for cancelled partially filled sell order."""
@@ -386,7 +386,7 @@ async def test_recovery_cancel_sell_position_first_order_filled_partially(
     await sim.assert_db_state_matches_memory("1000")
 
 
-async def test_recovery_resend_sell_position_first_order_filled_partially(
+async def test_recovery_resend_sell_position_after_partial_fill(
     crash_recovery_factory,
 ):
     """Test crash recovery for resent partially filled sell order."""
@@ -447,7 +447,7 @@ async def test_recovery_send_sell_order_for_partially_bought_position(
     await sim.assert_db_state_matches_memory("1000")
 
 
-async def test_recovery_cancel_unfilled_sell_orders_for_partially_bought_position(
+async def test_recovery_cancel_unfilled_sell_order_for_partially_bought_position(
     crash_recovery_factory,
 ):
     """Test crash recovery for cancelled sell order on partially bought position."""
@@ -767,33 +767,15 @@ async def test_recovery_buy_partially_partially_sold_position(crash_recovery_fac
     assert len(db_canceled) == 2
     assert len(db_partial) == 0
 
-    # Simulate crash
-    await simulate_crash(front, back)
-
-    # Simulate recovery
-    new_front, new_back = create_pair("_recovery")
-    db_positions = await new_front.db.get_active_positions()
-    assert len(db_positions) == 1
-    db_position = db_positions[0]
-    db_orders = await new_front.db.get_orders_by_position_id(db_position.id)
-    recovery_helper = CrashRecoveryHelper(new_front, new_back)
-    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
-        db_orders
-    )
-    await new_back.recover_positions_from_crash()
-
-    # Assert post-recovery state
-    await wait_for_condition(lambda: len(new_back.strategies) == 1)
-    assert "1000" in new_back.strategies
-    recovered_strategy = new_back.strategies["1000"]
+    _, _, recovered = await sim.crash_and_recover("1000", create_pair, simulate_crash)
 
     # Single order system - verify recovered order
-    recovered_buy_order = recovered_strategy.buy.buy_order
+    recovered_buy_order = recovered.buy.buy_order
     assert isinstance(recovered_buy_order, Order)
     assert recovered_buy_order.status == ORDER_STATUS_CANCELED
     assert recovered_buy_order.realized_quantity > 0.0
 
-    await recovery_helper.assert_application_db_state_match(hp_id="1000")
+    await sim.assert_db_state_matches_memory()
 
 
 async def test_recovery_cancel_buy_to_part_sold_part_bought(crash_recovery_factory):
@@ -898,34 +880,16 @@ async def test_recovery_cancel_buy_to_part_sold_part_bought(crash_recovery_facto
         db_sell_order.realized_quantity > 0.0
     ), f"Expected DB sell order to have realized quantity > 0, got {db_sell_order.realized_quantity}"
 
-    # Simulate crash
-    await simulate_crash(front, back)
-
-    # Simulate recovery
-    new_front, new_back = create_pair("_recovery")
-    db_positions = await new_front.db.get_active_positions()
-    assert len(db_positions) == 1
-    db_position = db_positions[0]
-    db_orders = await new_front.db.get_orders_by_position_id(db_position.id)
-    recovery_helper = CrashRecoveryHelper(new_front, new_back)
-    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
-        db_orders
-    )
-    await new_back.recover_positions_from_crash()
-
-    # Assert post-recovery state
-    await wait_for_condition(lambda: len(new_back.strategies) == 1)
-    assert "1000" in new_back.strategies
-    recovered_strategy = new_back.strategies["1000"]
+    _, _, recovered = await sim.crash_and_recover("1000", create_pair, simulate_crash)
 
     # Single order system - verify recovered order
-    recovered_buy_order = recovered_strategy.buy.buy_order
+    recovered_buy_order = recovered.buy.buy_order
     assert isinstance(recovered_buy_order, Order)
     assert recovered_buy_order.status == ORDER_STATUS_CANCELED
     assert recovered_buy_order.realized_quantity > 0.0
 
     # Assert recovered sell order is canceled and partially realized
-    recovered_sell_order = recovered_strategy.sell.current_position.sell_order
+    recovered_sell_order = recovered.sell.current_position.sell_order
     assert (
         recovered_sell_order.status == ORDER_STATUS_CANCELED
     ), f"Expected recovered sell order to be CANCELED, got {recovered_sell_order.status}"
@@ -933,7 +897,7 @@ async def test_recovery_cancel_buy_to_part_sold_part_bought(crash_recovery_facto
         recovered_sell_order.realized_quantity > 0.0
     ), f"Expected recovered sell order to have realized quantity > 0, got {recovered_sell_order.realized_quantity}"
 
-    await recovery_helper.assert_application_db_state_match(hp_id="1000")
+    await sim.assert_db_state_matches_memory()
 
 
 async def test_recovery_buy_fully_partially_sold_position(crash_recovery_factory):
@@ -1029,35 +993,17 @@ async def test_recovery_buy_fully_partially_sold_position(crash_recovery_factory
     db_position = db_positions[0]
     logger.info("db position: %s", db_position)
 
-    # Simulate crash after all buy orders are filled
-    await simulate_crash(front, back)
-
-    # PHASE 2: Simulate application restart and recovery after all buys filled
-    new_front, new_back = create_pair("_recovery")
-    assert isinstance(new_front, HpFront)
-    assert isinstance(new_back, StrategyExecutor)
-    db_positions = await new_front.db.get_active_positions()
-    assert len(db_positions) == 1
-    db_position = db_positions[0]
-    db_orders = await new_front.db.get_orders_by_position_id(db_position.id)
-    recovery_helper = CrashRecoveryHelper(new_front, new_back)
-    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
-        db_orders
-    )
-    await new_back.recover_positions_from_crash()
+    _, _, recovered = await sim.crash_and_recover("1000", create_pair, simulate_crash)
 
     # After recovery, assert all buy orders are filled and state is BOUGHT
-    await wait_for_condition(lambda: len(new_back.strategies) == 1)
-    assert "1000" in new_back.strategies
-    recovered_strategy = new_back.strategies["1000"]
-    assert recovered_strategy.buy.buy_order.status == ORDER_STATUS_FILLED
-    assert recovered_strategy.buy.data.state_info.state == State.BOUGHT
+    assert recovered.buy.buy_order.status == ORDER_STATUS_FILLED
+    assert recovered.buy.data.state_info.state == State.BOUGHT
 
     # Wait for state transition to PARTIALLY_SOLD to complete after recovery
-    await wait_for_condition(lambda: recovered_strategy.state == State.PARTIALLY_SOLD)
-    assert recovered_strategy.state == State.PARTIALLY_SOLD
+    await wait_for_condition(lambda: recovered.state == State.PARTIALLY_SOLD)
+    assert recovered.state == State.PARTIALLY_SOLD
 
-    await recovery_helper.assert_application_db_state_match(hp_id="1000")
+    await sim.assert_db_state_matches_memory()
 
 
 async def test_recovery_sell_fully_partially_bought_position(crash_recovery_factory):
@@ -1131,43 +1077,27 @@ async def test_recovery_sell_fully_partially_bought_position(crash_recovery_fact
         strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
     ), f"Expected buy state to be PARTIALLY BOUGHT, got {strategy.buy.data.state_info.state}"
 
-    # Simulate crash
-    await simulate_crash(front, back)
-
-    # Simulate recovery
-    new_front, new_back = create_pair("_recovery")
-    db_positions = await new_front.db.get_active_positions()
-    assert len(db_positions) == 1
-    db_position = db_positions[0]
-    db_orders = await new_front.db.get_orders_by_position_id(db_position.id)
-    recovery_helper = CrashRecoveryHelper(new_front, new_back)
-    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
-        db_orders
-    )
-    await new_back.recover_positions_from_crash()
+    _, _, recovered = await sim.crash_and_recover("1000", create_pair, simulate_crash)
 
     # Assert post-recovery state
-    await wait_for_condition(lambda: len(new_back.strategies) == 1)
-    assert "1000" in new_back.strategies
-    recovered_strategy = new_back.strategies["1000"]
-    recovered_sell_order = recovered_strategy.sell.current_position.sell_order
+    recovered_sell_order = recovered.sell.current_position.sell_order
     assert recovered_sell_order.status == ORDER_STATUS_FILLED
     assert recovered_sell_order.realized_quantity > 0.0
 
     # Single order system - verify recovered buy order
-    recovered_buy_order = recovered_strategy.buy.buy_order
+    recovered_buy_order = recovered.buy.buy_order
     assert isinstance(recovered_buy_order, Order)
     assert recovered_buy_order.status == ORDER_STATUS_CANCELED
 
     # Assert state is SOLD_PART_BOUGHT and buy state is BOUGHT
     assert (
-        recovered_strategy.state == State.SOLD_PART_BOUGHT
-    ), f"Expected strategy state to be SOLD_PART_BOUGHT, got {recovered_strategy.state}"
+        recovered.state == State.SOLD_PART_BOUGHT
+    ), f"Expected strategy state to be SOLD_PART_BOUGHT, got {recovered.state}"
     assert (
-        recovered_strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
-    ), f"Expected buy state to be PARTIALLY BOUGHT, got {recovered_strategy.buy.data.state_info.state}"
+        recovered.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+    ), f"Expected buy state to be PARTIALLY BOUGHT, got {recovered.buy.data.state_info.state}"
 
-    await recovery_helper.assert_application_db_state_match(hp_id="1000")
+    await sim.assert_db_state_matches_memory()
 
 
 async def test_recovery_buy_fully_partially_bought_position_when_sold_position(
@@ -1269,28 +1199,23 @@ async def test_recovery_buy_fully_partially_bought_position_when_sold_position(
     assert strategy.buy.data.state_info.state == State.BOUGHT
     assert strategy.state == State.PARTIALLY_SOLD
 
-    # Simulate crash after all buy orders are filled
-    await simulate_crash(front, back)
+    # Wait for DB to be updated with PARTIALLY_SOLD state
+    async def check_db_state():
+        db_positions = await front.db.get_active_positions()
+        if not db_positions:
+            return False
+        return db_positions[0].strategy_state == "PARTIALLY_SOLD"
 
-    # PHASE 2: Simulate application restart and recovery
-    new_front, new_back = create_pair("_recovery")
-    db_positions = await new_front.db.get_active_positions()
-    assert len(db_positions) == 1
-    db_position = db_positions[0]
-    db_orders = await new_front.db.get_orders_by_position_id(db_position.id)
-    recovery_helper = CrashRecoveryHelper(new_front, new_back)
-    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
-        db_orders
-    )
-    await new_back.recover_positions_from_crash()
+    await wait_for_condition(condition_func=check_db_state, timeout=2.0)
+
+    _, _, recovered = await sim.crash_and_recover("1000", create_pair, simulate_crash)
 
     # After recovery, assert buy order is filled and state is BOUGHT
-    recovered_strategy = new_back.strategies["1000"]
-    assert recovered_strategy.buy.buy_order.status == ORDER_STATUS_FILLED
-    assert recovered_strategy.buy.data.state_info.state == State.BOUGHT
-    assert recovered_strategy.state == State.PARTIALLY_SOLD
+    assert recovered.buy.buy_order.status == ORDER_STATUS_FILLED
+    assert recovered.buy.data.state_info.state == State.BOUGHT
+    assert recovered.state == State.PARTIALLY_SOLD
 
-    await recovery_helper.assert_application_db_state_match(hp_id="1000")
+    await sim.assert_db_state_matches_memory()
 
 
 async def test_recovery_start_new_sell_position_for_two_hop_trade(
@@ -1327,31 +1252,10 @@ async def test_recovery_start_new_sell_position_for_two_hop_trade(
         "1000b",
     }, f"Sell positions should have hp_ids '1000a' and '1000b', got {hp_ids}"
 
-    # Simulate crash
-    await simulate_crash(front, back)
-
-    # Simulate recovery
-    new_front, new_back = create_pair("_recovery")
-    assert isinstance(new_front, HpFront)
-    assert isinstance(new_back, StrategyExecutor)
-    db_positions = await new_front.db.get_active_positions()
-    assert len(db_positions) == 1, "Should have one hop after recovery"
-    db_orders = []
-    for db_position in db_positions:
-        db_orders.extend(await new_front.db.get_orders_by_position_id(db_position.id))
-    recovery_helper = CrashRecoveryHelper(new_front, new_back)
-    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
-        db_orders
-    )
-    await new_back.recover_positions_from_crash()
+    _, _, recovered = await sim.crash_and_recover("1000", create_pair, simulate_crash)
 
     # Assert sell_positions structure after recovery
-
-    await wait_for_condition(lambda: len(new_back.strategies) == 1)
-    assert (
-        "1000" in new_back.strategies
-    ), "Recovered strategies should contain only '1000'"
-    recovered_strategy = new_back.strategies["1000"]
+    recovered_strategy = recovered
     recovered_sell_positions = recovered_strategy.sell.sell_positions
     assert (
         recovered_sell_positions is not None
@@ -1375,7 +1279,7 @@ async def test_recovery_start_new_sell_position_for_two_hop_trade(
         "1000b",
     }, f"Recovered sell positions should have hp_ids '1000a' and '1000b', got {rec_hp_ids}"
 
-    await recovery_helper.assert_application_db_state_match(hp_id="1000")
+    await sim.assert_db_state_matches_memory()
 
 
 async def test_recovery_send_order_for_first_sell_position_in_two_hop_trade(
@@ -1406,28 +1310,10 @@ async def test_recovery_send_order_for_first_sell_position_in_two_hop_trade(
         sell_order.status == ORDER_STATUS_NEW
     ), f"Sell order status should be NEW or SUBMITTED, got {sell_order.status}"
 
-    # Simulate crash
-    await simulate_crash(front, back)
-
-    # Simulate recovery
-    new_front, new_back = create_pair("_recovery")
-    assert isinstance(new_front, HpFront)
-    assert isinstance(new_back, StrategyExecutor)
-    db_positions = await new_front.db.get_active_positions()
-    assert len(db_positions) == 1, "Should have one hop after recovery"
-    db_orders = []
-    for db_position in db_positions:
-        db_orders.extend(await new_front.db.get_orders_by_position_id(db_position.id))
-    recovery_helper = CrashRecoveryHelper(new_front, new_back)
-    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
-        db_orders
-    )
-    await new_back.recover_positions_from_crash()
+    _, _, recovered = await sim.crash_and_recover("1000", create_pair, simulate_crash)
 
     # Assert that the first sell position has an order in NEW or SUBMITTED state after recovery
-    await wait_for_condition(lambda: len(new_back.strategies) == 1)
-    assert "1000" in new_back.strategies
-    recovered_strategy = new_back.strategies["1000"]
+    recovered_strategy = recovered
     recovered_sell_positions = recovered_strategy.sell.sell_positions
     assert (
         len(recovered_sell_positions) == 2
@@ -1444,7 +1330,7 @@ async def test_recovery_send_order_for_first_sell_position_in_two_hop_trade(
         recovered_sell_order.order_id is not None
     ), "Sell order after recovery should have a valid order_id"
 
-    await recovery_helper.assert_application_db_state_match(hp_id="1000")
+    await sim.assert_db_state_matches_memory()
 
 
 async def test_recovery_fill_partially_first_sell_position_in_two_hop_trade(
@@ -1479,28 +1365,10 @@ async def test_recovery_fill_partially_first_sell_position_in_two_hop_trade(
         sell_order.realized_quantity > 0.0
     ), "Sell order should have non-zero realized quantity"
 
-    # Simulate crash
-    await simulate_crash(front, back)
-
-    # Simulate recovery
-    new_front, new_back = create_pair("_recovery")
-    assert isinstance(new_front, HpFront)
-    assert isinstance(new_back, StrategyExecutor)
-    db_positions = await new_front.db.get_active_positions()
-    assert len(db_positions) == 1, "Should have one hop after recovery"
-    db_orders = []
-    for db_position in db_positions:
-        db_orders.extend(await new_front.db.get_orders_by_position_id(db_position.id))
-    recovery_helper = CrashRecoveryHelper(new_front, new_back)
-    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
-        db_orders
-    )
-    await new_back.recover_positions_from_crash()
+    _, _, recovered = await sim.crash_and_recover("1000", create_pair, simulate_crash)
 
     # Assert that the first sell position has a partially filled order after recovery
-    await wait_for_condition(lambda: len(new_back.strategies) == 1)
-    assert "1000" in new_back.strategies
-    recovered_strategy = new_back.strategies["1000"]
+    recovered_strategy = recovered
     recovered_sell_positions = recovered_strategy.sell.sell_positions
     assert (
         len(recovered_sell_positions) == 2
@@ -1517,7 +1385,7 @@ async def test_recovery_fill_partially_first_sell_position_in_two_hop_trade(
         recovered_sell_order.realized_quantity > 0.0
     ), "Sell order after recovery should have non-zero realized quantity"
 
-    await recovery_helper.assert_application_db_state_match(hp_id="1000")
+    await sim.assert_db_state_matches_memory()
 
 
 async def test_recovery_fill_first_sell_position_in_two_hop_trade(
@@ -1562,28 +1430,10 @@ async def test_recovery_fill_first_sell_position_in_two_hop_trade(
         strategy.sell.current_position is second_sell_position
     ), f"Expected current_position to be the second leg before crash, got {strategy.sell.current_position.config.hp_id}"
 
-    # Simulate crash
-    await simulate_crash(front, back)
-
-    # Simulate recovery
-    new_front, new_back = create_pair("_recovery")
-    assert isinstance(new_front, HpFront)
-    assert isinstance(new_back, StrategyExecutor)
-    db_positions = await new_front.db.get_active_positions()
-    assert len(db_positions) == 1, "Should have one hop after recovery"
-    db_orders = []
-    for db_position in db_positions:
-        db_orders.extend(await new_front.db.get_orders_by_position_id(db_position.id))
-    recovery_helper = CrashRecoveryHelper(new_front, new_back)
-    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
-        db_orders
-    )
-    await new_back.recover_positions_from_crash()
+    _, _, recovered = await sim.crash_and_recover("1000", create_pair, simulate_crash)
 
     # Assert that the first sell position has a filled order after recovery
-    await wait_for_condition(lambda: len(new_back.strategies) == 1)
-    assert "1000" in new_back.strategies
-    recovered_strategy = new_back.strategies["1000"]
+    recovered_strategy = recovered
     recovered_sell_positions = recovered_strategy.sell.sell_positions
     assert (
         len(recovered_sell_positions) == 2
@@ -1606,7 +1456,7 @@ async def test_recovery_fill_first_sell_position_in_two_hop_trade(
         recovered_strategy.sell.current_position is recovered_second_sell_position
     ), f"Expected current_position to be the second leg after recovery, got {recovered_strategy.sell.current_position.config.hp_id}"
 
-    await recovery_helper.assert_application_db_state_match(hp_id="1000")
+    await sim.assert_db_state_matches_memory()
 
 
 async def test_recovery_start_second_sell_position_in_two_hop_trade(
@@ -1675,28 +1525,10 @@ async def test_recovery_start_second_sell_position_in_two_hop_trade(
         db_first_leg_sell_order.status.value == ORDER_STATUS_FILLED
     ), f"Expected first leg's sell order to be FILLED in DB before crash, got {db_first_leg_sell_order.status.value}"
 
-    # Simulate crash
-    await simulate_crash(front, back)
-
-    # Simulate recovery
-    new_front, new_back = create_pair("_recovery")
-    assert isinstance(new_front, HpFront)
-    assert isinstance(new_back, StrategyExecutor)
-    db_positions = await new_front.db.get_active_positions()
-    assert len(db_positions) == 1, "Should have one hop after recovery"
-    db_orders = []
-    for db_position in db_positions:
-        db_orders.extend(await new_front.db.get_orders_by_position_id(db_position.id))
-    recovery_helper = CrashRecoveryHelper(new_front, new_back)
-    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
-        db_orders
-    )
-    await new_back.recover_positions_from_crash()
+    _, _, recovered = await sim.crash_and_recover("1000", create_pair, simulate_crash)
 
     # Assert after recovery: two sell positions, second is current
-    await wait_for_condition(lambda: len(new_back.strategies) == 1)
-    assert "1000" in new_back.strategies
-    recovered_strategy = new_back.strategies["1000"]
+    recovered_strategy = recovered
     recovered_sell_positions = recovered_strategy.sell.sell_positions
     assert (
         len(recovered_sell_positions) == 2
@@ -1706,7 +1538,7 @@ async def test_recovery_start_second_sell_position_in_two_hop_trade(
         recovered_strategy.sell.current_position is recovered_second_sell_position
     ), f"Expected current_position to be the second leg after recovery, got {recovered_strategy.sell.current_position.config.hp_id}"
 
-    await recovery_helper.assert_application_db_state_match(hp_id="1000")
+    await sim.assert_db_state_matches_memory()
 
 
 async def test_recovery_partial_fill_second_sell_position_in_two_hop_trade(
@@ -1763,26 +1595,10 @@ async def test_recovery_partial_fill_second_sell_position_in_two_hop_trade(
         db_second_leg_sell_order.realized_quantity > 0.0
     ), "Second leg's sell order in DB should have non-zero realized quantity before crash"
 
-    # Simulate crash
-    await simulate_crash(front, back)
-
-    # Simulate recovery
-    new_front, new_back = create_pair("_recovery")
-    db_positions = await new_front.db.get_active_positions()
-    assert len(db_positions) == 1, "Should have one hop after recovery"
-    db_orders = []
-    for db_position in db_positions:
-        db_orders.extend(await new_front.db.get_orders_by_position_id(db_position.id))
-    recovery_helper = CrashRecoveryHelper(new_front, new_back)
-    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
-        db_orders
-    )
-    await new_back.recover_positions_from_crash()
+    _, _, recovered = await sim.crash_and_recover("1000", create_pair, simulate_crash)
 
     # Assert after recovery: two sell positions, second is current, and second leg is PARTIALLY_FILLED
-    await wait_for_condition(lambda: len(new_back.strategies) == 1)
-    assert "1000" in new_back.strategies
-    recovered_strategy = new_back.strategies["1000"]
+    recovered_strategy = recovered
     recovered_sell_positions = recovered_strategy.sell.sell_positions
     assert (
         len(recovered_sell_positions) == 2
@@ -1799,7 +1615,7 @@ async def test_recovery_partial_fill_second_sell_position_in_two_hop_trade(
         recovered_second_sell_position.sell_order.realized_quantity > 0.0
     ), "Second leg's sell order should have non-zero realized quantity after recovery"
 
-    await recovery_helper.assert_application_db_state_match(hp_id="1000")
+    await sim.assert_db_state_matches_memory()
 
 
 async def test_recovery_fill_second_sell_position_in_two_hop_trade(
@@ -1839,26 +1655,10 @@ async def test_recovery_fill_second_sell_position_in_two_hop_trade(
         second_sell_position.sell_order.realized_quantity > 0.0
     ), "Second leg's sell order should have non-zero realized quantity before crash"
 
-    # Simulate crash
-    await simulate_crash(front, back)
-
-    # Simulate recovery
-    new_front, new_back = create_pair("_recovery")
-    db_positions = await new_front.db.get_active_positions()
-    assert len(db_positions) == 1, "Should have one hop after recovery"
-    db_orders = []
-    for db_position in db_positions:
-        db_orders.extend(await new_front.db.get_orders_by_position_id(db_position.id))
-    recovery_helper = CrashRecoveryHelper(new_front, new_back)
-    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
-        db_orders
-    )
-    await new_back.recover_positions_from_crash()
+    _, _, recovered = await sim.crash_and_recover("1000", create_pair, simulate_crash)
 
     # Assert after recovery: both legs are FILLED
-    await wait_for_condition(lambda: len(new_back.strategies) == 1)
-    assert "1000" in new_back.strategies
-    recovered_strategy = new_back.strategies["1000"]
+    recovered_strategy = recovered
     recovered_sell_positions = recovered_strategy.sell.sell_positions
     assert (
         len(recovered_sell_positions) == 2
@@ -1871,7 +1671,7 @@ async def test_recovery_fill_second_sell_position_in_two_hop_trade(
         recovered_second_sell_position.sell_order.realized_quantity > 0.0
     ), "Second leg's sell order should have non-zero realized quantity after recovery"
 
-    await recovery_helper.assert_application_db_state_match(hp_id="1000")
+    await sim.assert_db_state_matches_memory()
 
 
 async def test_recovery_convert_only_position_crash(crash_recovery_factory):
@@ -1898,7 +1698,7 @@ async def test_recovery_convert_only_position_crash(crash_recovery_factory):
 
     # Wait for frontend to reflect the convert-only position
     await wait_for_condition(condition_func=lambda: front.hp_list_data)
-    
+
     # Validate UI state using helper method
     sim.validate_parent(
         hp_id="1000",
@@ -1910,33 +1710,10 @@ async def test_recovery_convert_only_position_crash(crash_recovery_factory):
         expected_return="200.0",
     )
 
-    # === SIMULATE CRASH ===
-    await simulate_crash(front, back)
-
-    # === PHASE 2: SIMULATE APPLICATION RESTART ===
-    new_front, new_back = create_pair("_recovery")
-    assert isinstance(new_front, HpFront)
-    assert isinstance(new_back, StrategyExecutor)
-
-    new_sim = HPSimulator(front=new_front, back=new_back)
-
-    # Verify database has the position data before recovery
-    db_positions = await new_front.db.get_active_positions()
-    assert len(db_positions) == 1
-    db_position = db_positions[0]
-    db_orders = await new_front.db.get_orders_by_position_id(db_position.id)
-    recovery_helper = CrashRecoveryHelper(new_front, new_back)
-    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
-        db_orders
+    new_front, new_back, recovered_strategy = await sim.crash_and_recover(
+        "1000", create_pair, simulate_crash
     )
-
-    # === MANUALLY TRIGGER CRASH RECOVERY ===
-    await new_back.recover_positions_from_crash()
-
-    # === DETAILED POST-RECOVERY ASSERTIONS ===
-    await wait_for_condition(lambda: len(new_back.strategies) == 1)
-    assert "1000" in new_back.strategies
-    recovered_strategy = new_back.strategies["1000"]
+    new_sim = HPSimulator(front=new_front, back=new_back)
     assert recovered_strategy.sell.current_position.config.coin == "DYM"
     assert recovered_strategy.sell.current_position.config.sell_price == sell_price
     assert recovered_strategy.state == State.BOUGHT
