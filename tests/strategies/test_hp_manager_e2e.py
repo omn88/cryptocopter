@@ -20,8 +20,8 @@ from src.common.identifiers import (
     PositionSide,
 )
 from tests.helpers import get_new_order
-from tests.strategies.hp_simulator import HPSimulator
-from tests.strategies.hp_manager_helpers import (
+from tests.strategies.hp_simulator import (
+    HPSimulator,
     wait_for_condition,
     get_buy_positions,
     wait_for_active_buy_positions,

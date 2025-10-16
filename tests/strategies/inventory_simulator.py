@@ -22,7 +22,7 @@ from src.common.identifiers import (
     State,
     StateInfo,
 )
-from tests.strategies.hp_manager_helpers import wait_for_condition
+from tests.strategies.hp_simulator import wait_for_condition
 
 logger = logging.getLogger(__name__)
 
