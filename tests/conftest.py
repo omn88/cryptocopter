@@ -18,7 +18,7 @@ from src.strategies.hp_manager.position_buy import HPPositionBuy
 from src.strategies.hp_manager.position_sell import HPPositionSell
 from src.strategy_executor import StrategyExecutor
 from src.recovery import RecoveryService
-from tests.strategies.hp_simulator import wait_for_condition
+from tests.strategies.hp.hp_simulator import wait_for_condition
 
 import asyncio
 import logging
