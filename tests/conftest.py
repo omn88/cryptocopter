@@ -1233,3 +1233,23 @@ def sample_candle():
         }
 
     return _create
+
+
+@pytest.fixture
+def sample_position():
+    """Create a sample BuyDipPosition for testing.
+
+    Returns a BuyDipPosition configured with:
+    - Symbol: BTCUSDC
+    - DCA distances: [φ=1.618%, e=2.718%, π=3.142%]
+    - Order size: $200
+    """
+    from decimal import Decimal
+    from src.strategies.buy_dip.position import BuyDipPosition
+
+    return BuyDipPosition(
+        position_id="test_pos_1",
+        symbol="BTCUSDC",
+        dca_distances_pct=[1.618, 2.718, 3.142],  # φ, e, π
+        order_size=Decimal("200"),
+    )
