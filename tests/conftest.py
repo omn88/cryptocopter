@@ -1201,3 +1201,35 @@ async def portfolio_crash_recovery_factory(
         f"Cleanup completed for {len(portfolios)} portfolios, "
         f"{len(hp_frontends)} frontends, {len(strategy_executors)} executors"
     )
+
+
+# ============================================================================
+# BUY DIP STRATEGY FIXTURES
+# ============================================================================
+
+
+@pytest.fixture
+def sample_candle():
+    """Create a sample candle for testing Buy Dip strategy components.
+
+    Returns a factory function that creates candle dictionaries with
+    customizable OHLCV data for unit tests.
+    """
+
+    def _create(
+        open_price: float = 100.0,
+        high: float = 105.0,
+        low: float = 95.0,
+        close: float = 102.0,
+        timestamp: int = 1609459200000,
+    ) -> Dict:
+        return {
+            "open": open_price,
+            "high": high,
+            "low": low,
+            "close": close,
+            "timestamp": timestamp,
+            "volume": 1000.0,
+        }
+
+    return _create
