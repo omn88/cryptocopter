@@ -166,7 +166,6 @@ async def test_top_invalidation_before_confirmation(buy_dip_strategy, mock_broke
     assert position.top_price == Decimal(str(second_top))  # Updated top
 
 
-@pytest.mark.skip(reason="TDD: Implement BuyDipStrategy first")
 async def test_sell_cancels_all_remaining_orders(buy_dip_strategy, mock_broker_buy_dip):
     """
     Test that selling cancels remaining buy order (if any).
@@ -178,6 +177,8 @@ async def test_sell_cancels_all_remaining_orders(buy_dip_strategy, mock_broker_b
     4. Order 3 CANCELLED immediately
     5. Position CLOSED
     """
+    from src.strategies.buy_dip.position import PositionState
+
     sim = BuyDipSimulator(buy_dip_strategy, mock_broker_buy_dip)
 
     # Create active position
@@ -187,23 +188,21 @@ async def test_sell_cancels_all_remaining_orders(buy_dip_strategy, mock_broker_b
     position = sim.get_active_positions()[0]
 
     # Fill Order 1
-    order_1 = position.pending_orders[0]
-    assert len(position.pending_orders) == 1, "Should have exactly ONE pending order"
+    order_1 = position.pending_order
+    assert order_1 is not None, "Should have exactly ONE pending order"
     await sim.fill_order(order_1.order_id, float(order_1.price))
     await sim.wait_for_active_position()
 
     # Order 2 should be placed
     await sim.wait_for_order_placed(position.position_id)
-    order_2 = position.pending_orders[0]
-    assert len(position.pending_orders) == 1, "Should have exactly ONE pending order"
+    order_2 = position.pending_order
+    assert order_2 is not None, "Should have exactly ONE pending order"
     await sim.fill_order(order_2.order_id, float(order_2.price))
 
     # Order 3 should be placed
     await sim.wait_for_order_placed(position.position_id, timeout=2.0)
-    assert (
-        len(position.pending_orders) == 1
-    ), "Should have exactly ONE pending order (Order 3)"
-    order_3 = position.pending_orders[0]
+    order_3 = position.pending_order
+    assert order_3 is not None, "Should have exactly ONE pending order (Order 3)"
 
     # Simulate recovery and sell
     await sim.simulate_recovery(float(order_2.price), top_price)
@@ -212,15 +211,14 @@ async def test_sell_cancels_all_remaining_orders(buy_dip_strategy, mock_broker_b
     await sim.wait_for_position_closed(position.position_id, timeout=2.0)
 
     # Verify Order 3 was cancelled
-    assert len(position.pending_orders) == 0
-    assert position.state == "COMPLETED"
+    assert position.pending_order is None, "No pending orders after position closes"
+    assert position.state == PositionState.COMPLETED
 
-    # Verify budget released
-    initial_budget = sim.get_total_budget()
-    assert sim.get_available_budget() > initial_budget * 0.95  # Most funds back
+    # Verify budget released (most funds back plus profit)
+    final_budget = sim.get_available_budget()
+    assert final_budget > 9800, f"Expected budget > 9800 after close, got {final_budget}"
 
 
-@pytest.mark.skip(reason="TDD: Implement BuyDipStrategy first")
 async def test_only_one_pending_order_at_a_time(buy_dip_strategy, mock_broker_buy_dip):
     """
     Test CRITICAL constraint: Never have multiple pending buy orders.
@@ -239,32 +237,32 @@ async def test_only_one_pending_order_at_a_time(buy_dip_strategy, mock_broker_bu
     position = sim.get_active_positions()[0]
 
     # Check Order 1 is only pending order
-    assert len(position.pending_orders) == 1, "Step 1: Should have exactly 1 pending"
+    assert position.pending_order is not None, "Step 1: Should have exactly 1 pending"
 
     # Fill Order 1
-    order_1 = position.pending_orders[0]
+    order_1 = position.pending_order
     await sim.fill_order(order_1.order_id, float(order_1.price))
     await sim.wait_for_active_position()
 
     # Wait for Order 2, verify only 1 pending
     await sim.wait_for_order_placed(position.position_id)
-    assert len(position.pending_orders) == 1, "Step 2: Should have exactly 1 pending"
+    assert position.pending_order is not None, "Step 2: Should have exactly 1 pending"
 
     # Fill Order 2
-    order_2 = position.pending_orders[0]
+    order_2 = position.pending_order
     await sim.fill_order(order_2.order_id, float(order_2.price))
 
     # Wait for Order 3, verify only 1 pending
     await sim.wait_for_order_placed(position.position_id)
-    assert len(position.pending_orders) == 1, "Step 3: Should have exactly 1 pending"
+    assert position.pending_order is not None, "Step 3: Should have exactly 1 pending"
 
     # Fill Order 3
-    order_3 = position.pending_orders[0]
+    order_3 = position.pending_order
     await sim.fill_order(order_3.order_id, float(order_3.price))
 
     # After max DCA, should have 0 pending
     assert (
-        len(position.pending_orders) == 0
+        position.pending_order is None
     ), "Step 4: Should have 0 pending (max reached)"
 
 
@@ -347,7 +345,7 @@ async def test_budget_released_on_position_close(buy_dip_strategy, mock_broker_b
 
 @pytest.mark.skip(reason="TDD: Implement BudgetManager first")
 async def test_cancelled_orders_release_funds_immediately(
-    buy_dip_strategy, mock_broker
+    buy_dip_strategy, mock_broker_buy_dip
 ):
     """
     Test that cancelled orders release locked funds immediately.

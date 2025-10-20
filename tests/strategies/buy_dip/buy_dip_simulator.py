@@ -14,8 +14,11 @@ Supports:
 import asyncio
 import logging
 import time
-from typing import Callable, List, Dict, Optional, Tuple, Any
+from typing import Callable, List, Dict, Optional, Any
 from datetime import datetime, timedelta
+
+from src.strategies.buy_dip.position import PositionState
+from src.strategies.buy_dip.strategy import BuyDipStrategy
 
 logger = logging.getLogger("buy_dip_simulator")
 
@@ -189,7 +192,7 @@ class BuyDipSimulator:
             strategy: BuyDipStrategy instance
             broker: Mock broker for order execution
         """
-        self.strategy = strategy
+        self.strategy: BuyDipStrategy = strategy
         self.broker = broker
         self.candle_buffer = []
         self.current_time = datetime.now()
@@ -433,7 +436,6 @@ class BuyDipSimulator:
 
     def get_active_positions(self) -> List[Any]:
         """Get all active positions."""
-        from src.strategies.buy_dip.position import PositionState
 
         return [
             pos
@@ -443,7 +445,6 @@ class BuyDipSimulator:
 
     def get_completed_positions(self) -> List[Any]:
         """Get all completed positions."""
-        from src.strategies.buy_dip.position import PositionState
 
         return [
             pos
@@ -469,7 +470,6 @@ class BuyDipSimulator:
 
     async def wait_for_potential_top(self, timeout: float = 2.0) -> None:
         """Wait for a position to reach POTENTIAL_TOP state."""
-        from src.strategies.buy_dip.position import PositionState
 
         await wait_for_condition(
             lambda: any(
@@ -481,7 +481,6 @@ class BuyDipSimulator:
 
     async def wait_for_active_position(self, timeout: float = 2.0) -> None:
         """Wait for a position to reach ACTIVE state."""
-        from src.strategies.buy_dip.position import PositionState
 
         await wait_for_condition(
             lambda: any(
@@ -505,7 +504,6 @@ class BuyDipSimulator:
         self, position_id: str, timeout: float = 2.0
     ) -> None:
         """Wait for a position to close."""
-        from src.strategies.buy_dip.position import PositionState
 
         await wait_for_condition(
             lambda: (pos := self.get_position_by_id(position_id)) is not None

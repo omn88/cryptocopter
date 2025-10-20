@@ -768,6 +768,32 @@ class BuyDipStrategy:
 
         position = self._positions[position_id]
 
+        # Cancel any remaining pending buy orders before closing position
+        if position.pending_order:
+            pending_order_id = position.pending_order.order_id
+            order_amount = float(
+                position.pending_order.price * position.pending_order.quantity
+            )
+
+            # Mark as canceled
+            position.pending_order.status = "CANCELED"
+
+            # Release locked funds
+            self._budget_manager.release_funds(order_amount)
+
+            # Clear pending order on position
+            position.pending_order = None
+
+            # Clear order tracking
+            if pending_order_id in self._order_to_position:
+                del self._order_to_position[pending_order_id]
+
+            logger.debug(
+                "Cancelled remaining pending order %s for position %s on sell fill",
+                pending_order_id,
+                position_id,
+            )
+
         # Calculate profit
         invested = float(position.total_quantity)
         proceeds = filled_price * float(position.total_quantity)
