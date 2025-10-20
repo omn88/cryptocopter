@@ -76,6 +76,15 @@ class BuyDipPosition:
     # Metadata
     created_at: float = 0.0
     updated_at: float = 0.0
+    # Timestamp of last invalidation (ms) to avoid placing replacement order in same candle
+    last_invalidation_ts: Optional[int] = None
+    # Transient flag set when an invalidation just occurred in the current
+    # processing cycle to avoid immediate replacement in the same candle.
+    just_invalidated: bool = False
+    # Cooldown timestamp (seconds) until which replacement orders should not be placed.
+    cooldown_until: Optional[float] = None
+    # Private field to store the delayed replacement task (for cancellation on re-invalidation)
+    _invalidation_task: Optional[Any] = field(default=None, init=False, repr=False)
 
     def can_place_order(self) -> bool:
         """Check if we can place a new order.
@@ -209,8 +218,9 @@ class BuyDipPosition:
         if self.pending_order:
             self.pending_order.status = "CANCELED"
             self.pending_order = None
-
-        # Reset to watching if not yet active
+            self.state = PositionState.WATCHING
+            self.top_price = None
+            # Note invalidation timestamp will be set by strategy using the candle timestamp
         if self.state == PositionState.POTENTIAL_TOP:
             self.state = PositionState.WATCHING
             self.top_price = None

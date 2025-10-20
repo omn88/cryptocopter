@@ -22,6 +22,10 @@ class BuyDipConfig:
         min_total_gain_pct: float = 0.25,
         atr_multiplier: float = 2.0,
         min_pullback_pct: float = 0.5,
+        # Invalidation controls
+        invalidation_cooldown_seconds: float = 0.15,
+        invalidation_min_delta_pct: float = 0.01,
+        invalidation_atr_multiplier: float = 0.0,
     ):
         """Initialize and validate configuration.
 
@@ -49,6 +53,10 @@ class BuyDipConfig:
         self.min_total_gain_pct = min_total_gain_pct
         self.atr_multiplier = atr_multiplier
         self.min_pullback_pct = min_pullback_pct
+        # Invalidation tuning
+        self.invalidation_cooldown_seconds = invalidation_cooldown_seconds
+        self.invalidation_min_delta_pct = invalidation_min_delta_pct
+        self.invalidation_atr_multiplier = invalidation_atr_multiplier
 
         # Validate on initialization
         self.validate()

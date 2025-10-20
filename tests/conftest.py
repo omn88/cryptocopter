@@ -1272,8 +1272,8 @@ def sample_buy_dip_config():
 
 
 @pytest.fixture
-def mock_broker():
-    """Create a mock broker for E2E testing."""
+def mock_broker_buy_dip():
+    """Create a mock broker for Buy Dip E2E testing."""
     from unittest.mock import MagicMock
 
     broker = MagicMock()
