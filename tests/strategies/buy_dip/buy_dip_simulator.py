@@ -147,22 +147,24 @@ def create_pullback_pattern(
 
     candles = []
     bottom_price = top_price * (1 - pullback_pct / 100)
-    price_step = (top_price - bottom_price) / num_candles
 
-    current_price = top_price
     for i in range(num_candles):
         timestamp = start_time + timedelta(minutes=15 * i)
-        next_price = current_price - price_step
+        # Calculate the high for this pullback candle
+        # For HWM detector to confirm, high must be below top by at least threshold
+        # We gradually move from top towards bottom
+        progress = (i + 1) / num_candles
+        current_high = top_price - (top_price - bottom_price) * progress
+        current_close = bottom_price + (top_price - bottom_price) * (1 - progress) * 0.1
 
         candle = create_candle(
-            open_price=current_price,
-            high=current_price,
-            low=next_price * 0.999,
-            close=next_price,
+            open_price=top_price if i == 0 else current_close,
+            high=current_high,
+            low=bottom_price * 0.999,
+            close=current_close,
             timestamp=timestamp,
         )
         candles.append(candle)
-        current_price = next_price
 
     return candles
 
@@ -201,9 +203,20 @@ class BuyDipSimulator:
         Send a single candle to the strategy.
 
         Args:
-            candle: Candle dictionary
+            candle: Candle dictionary (Binance kline format)
         """
-        await self.strategy.on_candle(candle)
+        # Convert Binance kline format to strategy format
+        strategy_candle = {
+            "open": float(candle["o"]),
+            "high": float(candle["h"]),
+            "low": float(candle["l"]),
+            "close": float(candle["c"]),
+            "volume": float(candle["v"]),
+            "timestamp": candle["t"] / 1000,  # Convert ms to seconds
+        }
+
+        # Strategy process_candle is sync, not async
+        self.strategy.process_candle("BTCUSDC", strategy_candle)
         self.candle_buffer.append(candle)
         logger.info(f"Sent candle: H={candle['h']}, L={candle['l']}, C={candle['c']}")
 
@@ -227,6 +240,7 @@ class BuyDipSimulator:
         start_price: float = 67000,
         end_price: float = 67890,
         num_candles: int = 3,
+        confirm_top: bool = True,
     ) -> float:
         """
         Simulate rising pattern leading to potential top.
@@ -235,6 +249,7 @@ class BuyDipSimulator:
             start_price: Starting price
             end_price: Top price
             num_candles: Number of candles
+            confirm_top: If True, send pullback candle to confirm top (default: True)
 
         Returns:
             The top price reached
@@ -251,6 +266,25 @@ class BuyDipSimulator:
 
         await self.send_candles(candles)
         self.current_time += timedelta(minutes=15 * num_candles)
+
+        # Send pullback candle to confirm the top (default min_pullback_pct is 0.5%)
+        if confirm_top:
+            # Get the actual HWM from the detector (might be slightly higher than end_price)
+            hwm_detector = self.strategy._hwm_detectors.get("BTCUSDC")
+            actual_top = hwm_detector.get_hwm() if hwm_detector else end_price
+
+            pullback_candles = create_pullback_pattern(
+                top_price=actual_top,
+                pullback_pct=0.6,  # Slightly more than min threshold
+                num_candles=1,
+                start_time=self.current_time,
+            )
+            await self.send_candles(pullback_candles)
+            self.current_time += timedelta(minutes=15)
+
+            # Return the actual HWM (confirmed top)
+            if hwm_detector and hwm_detector.is_top_confirmed():
+                return hwm_detector.get_confirmed_top()
 
         logger.info(f"Simulated rising pattern: {start_price} → {end_price}")
         return end_price
@@ -313,6 +347,14 @@ class BuyDipSimulator:
         await self.send_candles(candles)
         self.current_time += timedelta(minutes=15 * num_candles)
 
+        # Auto-fill sell orders if price reached their level
+        for position in self.get_active_positions():
+            if position.sell_order and position.sell_order.status == "NEW":
+                sell_price = float(position.sell_order.price)
+                # If recovery reached or exceeded sell price, fill it
+                if to_price >= sell_price:
+                    await self.fill_sell_order(position.sell_order.order_id, sell_price)
+
         logger.info(f"Simulated recovery: {from_price} → {to_price}")
 
     # ========================================================================
@@ -327,8 +369,53 @@ class BuyDipSimulator:
             order_id: Order ID to fill
             fill_price: Execution price
         """
-        await self.broker.simulate_fill(order_id, fill_price)
-        logger.info(f"Filled order {order_id} at {fill_price}")
+        # Find which position this order belongs to
+        position_id = self.strategy._order_to_position.get(order_id)
+        if not position_id:
+            logger.warning(f"Order {order_id} not found in order tracking")
+            return
+
+        position = self.strategy._positions.get(position_id)
+        if not position:
+            logger.warning(f"Position {position_id} not found")
+            return
+
+        # Determine fill quantity from pending order
+        if position.pending_order and position.pending_order.order_id == order_id:
+            fill_quantity = float(position.pending_order.quantity)
+        else:
+            logger.warning(f"Order {order_id} not pending for position {position_id}")
+            return
+
+        # Call strategy's order fill handler
+        self.strategy.handle_order_fill(order_id, fill_price, fill_quantity)
+        logger.info(f"Filled order {order_id} at {fill_price} qty {fill_quantity}")
+
+    async def fill_sell_order(self, order_id: str, fill_price: float) -> None:
+        """
+        Simulate sell order fill.
+
+        Args:
+            order_id: Sell order ID to fill
+            fill_price: Execution price
+        """
+        # Find position with this sell order
+        position = None
+        for pos in self.strategy._positions.values():
+            if pos.sell_order and pos.sell_order.order_id == order_id:
+                position = pos
+                break
+
+        if not position:
+            logger.warning(f"Sell order {order_id} not found")
+            return
+
+        # Get sell quantity
+        fill_quantity = float(position.sell_order.quantity)
+
+        # Call strategy's sell fill handler
+        self.strategy.handle_sell_fill(order_id, fill_price)
+        logger.info(f"Filled sell order {order_id} at {fill_price} qty {fill_quantity}")
 
     async def cancel_order(self, order_id: str) -> None:
         """
@@ -346,28 +433,35 @@ class BuyDipSimulator:
 
     def get_active_positions(self) -> List[Any]:
         """Get all active positions."""
+        from src.strategies.buy_dip.position import PositionState
+
         return [
             pos
-            for pos in self.strategy.positions.values()
-            if pos.state in ["POTENTIAL_TOP", "ACTIVE"]
+            for pos in self.strategy._positions.values()
+            if pos.state in [PositionState.POTENTIAL_TOP, PositionState.ACTIVE]
         ]
 
     def get_completed_positions(self) -> List[Any]:
         """Get all completed positions."""
+        from src.strategies.buy_dip.position import PositionState
+
         return [
-            pos for pos in self.strategy.positions.values() if pos.state == "COMPLETED"
+            pos
+            for pos in self.strategy._positions.values()
+            if pos.state == PositionState.COMPLETED
         ]
 
     def get_pending_orders(self) -> List[Any]:
         """Get all pending orders across all positions."""
         orders = []
-        for pos in self.strategy.positions.values():
-            orders.extend(pos.get_pending_orders())
+        for pos in self.strategy._positions.values():
+            if pos.pending_order:
+                orders.append(pos.pending_order)
         return orders
 
     def get_position_by_id(self, position_id: str) -> Optional[Any]:
         """Get position by ID."""
-        return self.strategy.positions.get(position_id)
+        return self.strategy._positions.get(position_id)
 
     # ========================================================================
     # STATE ASSERTIONS
@@ -375,18 +469,24 @@ class BuyDipSimulator:
 
     async def wait_for_potential_top(self, timeout: float = 2.0) -> None:
         """Wait for a position to reach POTENTIAL_TOP state."""
+        from src.strategies.buy_dip.position import PositionState
+
         await wait_for_condition(
             lambda: any(
-                pos.state == "POTENTIAL_TOP" for pos in self.strategy.positions.values()
+                pos.state == PositionState.POTENTIAL_TOP
+                for pos in self.strategy._positions.values()
             ),
             timeout=timeout,
         )
 
     async def wait_for_active_position(self, timeout: float = 2.0) -> None:
         """Wait for a position to reach ACTIVE state."""
+        from src.strategies.buy_dip.position import PositionState
+
         await wait_for_condition(
             lambda: any(
-                pos.state == "ACTIVE" for pos in self.strategy.positions.values()
+                pos.state == PositionState.ACTIVE
+                for pos in self.strategy._positions.values()
             ),
             timeout=timeout,
         )
@@ -397,7 +497,7 @@ class BuyDipSimulator:
         """Wait for an order to be placed for a position."""
         await wait_for_condition(
             lambda: (pos := self.get_position_by_id(position_id)) is not None
-            and len(pos.pending_orders) > 0,
+            and pos.pending_order is not None,
             timeout=timeout,
         )
 
@@ -405,9 +505,11 @@ class BuyDipSimulator:
         self, position_id: str, timeout: float = 2.0
     ) -> None:
         """Wait for a position to close."""
+        from src.strategies.buy_dip.position import PositionState
+
         await wait_for_condition(
             lambda: (pos := self.get_position_by_id(position_id)) is not None
-            and pos.state == "COMPLETED",
+            and pos.state == PositionState.COMPLETED,
             timeout=timeout,
         )
 
@@ -417,7 +519,7 @@ class BuyDipSimulator:
         """Wait for all orders of a position to be cancelled/filled."""
         await wait_for_condition(
             lambda: (pos := self.get_position_by_id(position_id)) is not None
-            and len(pos.pending_orders) == 0,
+            and pos.pending_order is None,
             timeout=timeout,
         )
 
@@ -427,11 +529,11 @@ class BuyDipSimulator:
 
     def get_available_budget(self) -> float:
         """Get current available budget."""
-        return self.strategy.budget_manager.available_budget
+        return float(self.strategy._budget_manager.get_available_budget())
 
     def get_locked_budget(self) -> float:
         """Get total locked budget across all positions."""
-        return self.strategy.budget_manager.locked_budget
+        return float(self.strategy._budget_manager.get_locked_budget())
 
     def get_total_budget(self) -> float:
         """Get total budget (available + locked)."""

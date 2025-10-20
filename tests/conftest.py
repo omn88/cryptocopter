@@ -1253,3 +1253,46 @@ def sample_position():
         dca_distances_pct=[1.618, 2.718, 3.142],  # φ, e, π
         order_size=Decimal("200"),
     )
+
+
+@pytest.fixture
+def sample_buy_dip_config():
+    """Create a sample BuyDipConfig for E2E testing."""
+    from src.strategies.buy_dip.config import BuyDipConfig
+
+    return BuyDipConfig(
+        atr_period=14,
+        order_size_percentage=2.0,
+        dca_distances_pct=[1.618, 2.718, 3.142],  # φ, e, π
+        min_consecutive_rising=3,
+        min_total_gain_pct=0.25,
+        atr_multiplier=1.5,
+        min_pullback_pct=0.5,
+    )
+
+
+@pytest.fixture
+def mock_broker():
+    """Create a mock broker for E2E testing."""
+    from unittest.mock import MagicMock
+
+    broker = MagicMock()
+    broker.place_order = MagicMock()
+    broker.cancel_order = MagicMock()
+    return broker
+
+
+@pytest.fixture
+def buy_dip_strategy(sample_buy_dip_config):
+    """Create a BuyDipStrategy instance for E2E testing."""
+    from decimal import Decimal
+    from src.strategies.buy_dip.strategy import BuyDipStrategy
+
+    strategy = BuyDipStrategy(
+        config=sample_buy_dip_config,
+        total_budget=Decimal("10000"),
+        order_budget_pct=Decimal("2.0"),
+    )
+    # Add BTCUSDC symbol for testing
+    strategy.add_symbol("BTCUSDC")
+    return strategy

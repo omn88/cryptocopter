@@ -105,10 +105,15 @@ class BuyDipStrategy:
         atr = self._atr_indicators[symbol]
         atr.add_candle(candle)
 
+        # Update HWM detector with latest ATR (if available)
+        atr_value = atr.get_atr()
+        hwm_detector = self._hwm_detectors[symbol]
+        if atr_value is not None:
+            hwm_detector.update_atr(atr_value)
+
         rising_detector = self._rising_detectors[symbol]
         rising_detector.add_candle(candle)
 
-        hwm_detector = self._hwm_detectors[symbol]
         hwm_detector.add_candle(candle)
 
         # Check for top invalidation (new high invalidates previous potential tops)
@@ -172,13 +177,32 @@ class BuyDipStrategy:
             symbol: Symbol with confirmed top
             candle: Current candle
         """
-        top_price = Decimal(str(candle["high"]))
+        # Get the confirmed top from HWM detector (not the current candle's high)
+        hwm_detector = self._hwm_detectors[symbol]
+        confirmed_top = hwm_detector.get_confirmed_top()
+
+        if confirmed_top is None:
+            return  # No confirmed top yet
+
+        top_price = Decimal(str(confirmed_top))
 
         # Update all WATCHING positions for this symbol
         for pos_id in self._symbol_positions[symbol]:
             position = self._positions[pos_id]
             if position.state == PositionState.WATCHING:
                 position.set_potential_top(top_price)
+
+                # Place first DCA order at the calculated level
+                # DCA price is: top_price * (1 - dca_distance_pct / 100)
+                if len(position.dca_distances_pct) > 0:
+                    dca_distance = position.dca_distances_pct[0]  # First DCA level
+                    dca_price = float(top_price) * (1 - dca_distance / 100)
+
+                    # Generate order ID
+                    order_id = f"{position.position_id}_dca_0"
+
+                    # Place the order through the strategy
+                    self.place_order(pos_id, dca_price, order_id)
 
     def _handle_top_invalidation(self, symbol: str, candle: Dict) -> None:
         """
@@ -278,14 +302,25 @@ class BuyDipStrategy:
         # Clear order tracking
         del self._order_to_position[order_id]
 
+        # If position just became ACTIVE (first fill), place sell order
+        if position.state == PositionState.ACTIVE and position.sell_order is None:
+            sell_order_id = f"{position_id}_sell"
+            self.place_sell_order(position_id, sell_order_id)
+
         # Check if position wants to place next DCA order
         if position.state == PositionState.ACTIVE and position.can_place_order():
-            # Calculate next DCA price
-            if position.average_entry is not None:
-                current_price = position.average_entry  # Use average as reference
+            # Check if we've reached max DCA level
+            if position.next_dca_level >= len(position.dca_distances_pct):
+                return  # Max DCA reached, no more orders to place
+
+            # Calculate next DCA price from confirmed top
+            if position.confirmed_top is not None:
+                reference_price = (
+                    position.confirmed_top
+                )  # Use confirmed top as reference
                 dca_pct = position.dca_distances_pct[position.next_dca_level]
                 next_price = float(
-                    current_price
+                    reference_price
                     * (Decimal("1") - Decimal(str(dca_pct)) / Decimal("100"))
                 )
 

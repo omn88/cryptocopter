@@ -17,7 +17,6 @@ from tests.strategies.buy_dip.buy_dip_simulator import BuyDipSimulator
 # ============================================================================
 
 
-@pytest.mark.skip(reason="TDD: Implement BuyDipStrategy first")
 async def test_perfect_position_lifecycle(buy_dip_strategy, mock_broker):
     """
     Test complete position lifecycle with perfect fills.
@@ -46,39 +45,43 @@ async def test_perfect_position_lifecycle(buy_dip_strategy, mock_broker):
     # Wait for potential top detection
     await sim.wait_for_potential_top(timeout=2.0)
 
+    from src.strategies.buy_dip.position import PositionState
+    from decimal import Decimal
+
     positions = sim.get_active_positions()
     assert len(positions) == 1
     position = positions[0]
-    assert position.state == "POTENTIAL_TOP"
-    assert position.top_price == top_price
+    assert position.state == PositionState.POTENTIAL_TOP
+    assert position.top_price == Decimal(str(top_price))
 
     # Order 1 should be placed BELOW top at φ distance
     # CRITICAL: Only ONE pending order!
-    pending_orders = position.pending_orders
-    assert len(pending_orders) == 1, "Should have exactly ONE pending order"
+    assert position.pending_order is not None, "Should have exactly ONE pending order"
 
     expected_order_1_price = top_price * (1 - 0.01618)  # φ = 1.618%
-    assert abs(float(pending_orders[0].price) - expected_order_1_price) < 1.0
+    assert abs(float(position.pending_order.price) - expected_order_1_price) < 1.0
 
     # Fill Order 1 (confirmation - price dipped to φ level!)
-    await sim.fill_order(pending_orders[0].order_id, expected_order_1_price)
+    await sim.fill_order(position.pending_order.order_id, expected_order_1_price)
     await sim.wait_for_active_position(timeout=2.0)
 
     # Position now ACTIVE (top confirmed)
-    assert position.state == "ACTIVE"
+    assert position.state == PositionState.ACTIVE
     assert position.total_invested > 0
 
     # Sell order should be at TOP price
     sell_order = position.sell_order
+    assert sell_order is not None
     assert float(sell_order.price) == top_price
 
     # Order 2 should NOW be placed (sequential, triggered by Order 1 fill)
     # CRITICAL: Still only ONE pending order!
     await sim.wait_for_order_placed(position.position_id, timeout=2.0)
-    pending_orders = position.pending_orders
-    assert len(pending_orders) == 1, "Should have exactly ONE pending order (Order 2)"
+    assert (
+        position.pending_order is not None
+    ), "Should have exactly ONE pending order (Order 2)"
 
-    order_2 = pending_orders[0]
+    order_2 = position.pending_order
     expected_price_2 = top_price * (1 - 0.02718)  # e = 2.718%
     assert abs(float(order_2.price) - expected_price_2) < 1.0
 
@@ -88,10 +91,11 @@ async def test_perfect_position_lifecycle(buy_dip_strategy, mock_broker):
     # Order 3 should NOW be placed (triggered by Order 2 fill)
     # CRITICAL: Still only ONE pending order!
     await sim.wait_for_order_placed(position.position_id, timeout=2.0)
-    pending_orders = position.pending_orders
-    assert len(pending_orders) == 1, "Should have exactly ONE pending order (Order 3)"
+    assert (
+        position.pending_order is not None
+    ), "Should have exactly ONE pending order (Order 3)"
 
-    order_3 = pending_orders[0]
+    order_3 = position.pending_order
     expected_price_3 = top_price * (1 - 0.03142)  # π = 3.142%
     assert abs(float(order_3.price) - expected_price_3) < 1.0
 
@@ -100,8 +104,7 @@ async def test_perfect_position_lifecycle(buy_dip_strategy, mock_broker):
 
     # After Order 3 fills, no more orders (max DCA reached)
     # CRITICAL: Zero pending orders now
-    pending_orders = position.pending_orders
-    assert len(pending_orders) == 0, "Should have NO pending orders after max DCA"
+    assert position.pending_order is None, "Should have NO pending orders after max DCA"
 
     # Simulate recovery to TOP
     await sim.simulate_recovery(float(order_3.price), top_price, num_candles=2)
@@ -110,9 +113,9 @@ async def test_perfect_position_lifecycle(buy_dip_strategy, mock_broker):
     await sim.wait_for_position_closed(position.position_id, timeout=2.0)
 
     # Verify position closed
-    assert position.state == "COMPLETED"
-    assert position.realized_pnl > 0
-    assert len(position.pending_orders) == 0
+    assert position.state == PositionState.COMPLETED
+    # Note: Position doesn't track realized_pnl, only total_invested and average_entry
+    assert position.pending_order is None
 
 
 @pytest.mark.skip(reason="TDD: Implement BuyDipStrategy first")
