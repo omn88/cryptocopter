@@ -40,6 +40,7 @@ class BuyDipStrategy:
         total_budget: Decimal,
         order_budget_pct: Decimal,
         broker=None,
+        broker_adapter=None,
     ):
         """
         Initialize strategy with configuration.
@@ -49,11 +50,13 @@ class BuyDipStrategy:
             total_budget: Total budget available for trading
             order_budget_pct: Percentage of total budget per order (e.g., 2.0 for 2%)
             broker: Optional broker instance for order placement (for E2E testing)
+            broker_adapter: Optional broker adapter for production use
         """
         self.config = config
         self.total_budget = total_budget
         self.order_budget_pct = order_budget_pct
         self.broker = broker
+        self.broker_adapter = broker_adapter
 
         # Detection components (per-symbol)
         self._candle_buffers: Dict[str, CandleBuffer] = {}
@@ -614,7 +617,7 @@ class BuyDipStrategy:
         # Track order
         self._order_to_position[order_id] = position_id
 
-        # Place order through broker (E2E flow)
+        # Place order through broker (E2E flow - for testing)
         if self.broker:
             try:
                 self.broker.place_order(
@@ -626,6 +629,27 @@ class BuyDipStrategy:
                 )
             except Exception:
                 logger.exception("Broker order placement failed for %s", order_id)
+
+        # Place order through broker adapter (production flow)
+        if self.broker_adapter:
+            try:
+                # Schedule async order placement
+                import asyncio
+
+                loop = asyncio.get_event_loop()
+                asyncio.ensure_future(
+                    self.broker_adapter.place_order(
+                        order_id=order_id,
+                        side="BUY",
+                        price=Decimal(str(price)),
+                        quantity=quantity,
+                    ),
+                    loop=loop,
+                )
+            except Exception:
+                logger.exception(
+                    "Broker adapter order placement failed for %s", order_id
+                )
 
         return True
 
@@ -774,6 +798,26 @@ class BuyDipStrategy:
         # Track order
         self._order_to_position[order_id] = position_id
 
+        # Place order through broker adapter (production flow)
+        if self.broker_adapter:
+            try:
+                import asyncio
+
+                loop = asyncio.get_event_loop()
+                asyncio.ensure_future(
+                    self.broker_adapter.place_order(
+                        order_id=order_id,
+                        side="SELL",
+                        price=sell_price,
+                        quantity=position.total_quantity,
+                    ),
+                    loop=loop,
+                )
+            except Exception:
+                logger.exception(
+                    "Broker adapter sell order placement failed for %s", order_id
+                )
+
         return True
 
     def handle_sell_fill(self, order_id: str, filled_price: float) -> None:
@@ -818,8 +862,8 @@ class BuyDipStrategy:
             )
 
         # Calculate profit
-        invested = float(position.total_quantity)
-        proceeds = filled_price * float(position.total_quantity)
+        invested = float(position.total_invested)
+        proceeds = float(filled_price) * float(position.total_quantity)
         profit = proceeds - invested
 
         # Update position with full quantity

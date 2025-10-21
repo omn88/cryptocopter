@@ -100,6 +100,89 @@ class AsyncApp(App):
         self.setup_portfolio_manager()
         # Always setup HP Manager as default strategy
         self.setup_hp_manager()
+        # Optionally setup Buy Dip strategy (uncomment to enable)
+        # self.setup_buy_dip()
+
+    def setup_buy_dip(self, strategy_id: Optional[str] = None) -> None:
+        """Setup Buy Dip strategy."""
+        from decimal import Decimal
+        from kivy.lang import Builder
+        from src.strategies.buy_dip.config import BuyDipConfig
+        from src.strategies.buy_dip.executor import BuyDipExecutor
+        from src.strategies.buy_dip.ui import BuyDipFront
+
+        strategy_name = "BuyDip"
+        if strategy_id is None:
+            strategy_id = "buy_dip_default"
+
+        logger.info("Setting up Buy Dip strategy with ID: %s", strategy_id)
+
+        # Load UI
+        Builder.load_file("src/strategies/buy_dip/ui/buy_dip_front.kv")
+
+        # Create UI queue
+        ui_queue: queue.Queue = queue.Queue()
+
+        # Create strategy configuration
+        config = BuyDipConfig(
+            # Detection parameters
+            min_consecutive_rising=3,
+            min_total_gain_pct=0.3,
+            atr_period=14,
+            atr_multiplier=0.5,
+            min_pullback_pct=0.5,
+            # DCA levels (φ, e, π, 5%, 10%, 15%)
+            dca_distances_pct=[1.618, 2.718, 3.142, 5.0, 10.0, 15.0],
+        )
+
+        # Create executor
+        executor = BuyDipExecutor(
+            db=self.db,
+            broker=self.broker,
+            client=self.client,
+            ui_queue=ui_queue,
+            config=config,
+            total_budget=Decimal("10000"),  # $10k budget
+            order_budget_pct=Decimal("2.0"),  # 2% per order
+            symbols=["BTCUSDC"],
+        )
+
+        # Store in trading systems
+        self.trading_systems.append(executor)
+
+        # Create frontend
+        frontend = BuyDipFront(
+            client=self.client,
+            config_queue=queue.Queue(),  # Not used yet
+            db=self.db,
+            ui_queue=ui_queue,
+            price_resolver=self.price_resolver,
+        )
+
+        frontend.initialize()
+
+        # Create tab
+        tab = TabbedPanelItem(
+            text=strategy_name,
+            content=frontend,
+        )
+
+        # Store strategy info
+        strategy_info = {
+            "name": strategy_name,
+            "tab": tab,
+            "backend": executor,
+            "frontend": frontend,
+        }
+        self.active_strategies.append(strategy_info)
+
+        # Add tab
+        self.root.add_widget(tab)
+
+        # Start executor
+        executor.start()
+
+        logger.info("Buy Dip strategy setup complete.")
 
     def setup_portfolio_manager(self) -> None:
         # Load the portfolio UI from portfolio.kv
@@ -272,8 +355,9 @@ class AsyncApp(App):
             logger.info("Stopping all active strategies...")
             for system in self.trading_systems:
                 logger.info("System: %s", system)
-                assert isinstance(system, StrategyExecutor)
-                system.stop()
+                # Handle both StrategyExecutor and BuyDipExecutor
+                if hasattr(system, "stop"):
+                    system.stop()
 
         logger.info("Stop portfolio")
         if self.portfolio:

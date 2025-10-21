@@ -20,7 +20,7 @@ from tests.strategies.buy_dip.buy_dip_simulator import BuyDipSimulator
 # ============================================================================
 
 
-async def test_perfect_position_lifecycle(buy_dip_strategy, mock_broker_buy_dip):
+async def test_perfect_position_lifecycle(buy_dip_strategy):
     """
     Test complete position lifecycle with perfect fills.
 
@@ -38,7 +38,7 @@ async def test_perfect_position_lifecycle(buy_dip_strategy, mock_broker_buy_dip)
     9. Sell fills at top → position CLOSED
     10. No pending orders remain
     """
-    sim = BuyDipSimulator(buy_dip_strategy, mock_broker_buy_dip)
+    sim = BuyDipSimulator(buy_dip_strategy)
 
     # Rising pattern to top
     top_price = await sim.simulate_rising_to_top(
@@ -118,9 +118,7 @@ async def test_perfect_position_lifecycle(buy_dip_strategy, mock_broker_buy_dip)
     assert position.pending_order is None
 
 
-async def test_top_invalidation_before_confirmation(
-    buy_dip_strategy, mock_broker_buy_dip
-):
+async def test_top_invalidation_before_confirmation(buy_dip_strategy):
     """
     Test top invalidation when new high detected before first order fills.
 
@@ -134,7 +132,7 @@ async def test_top_invalidation_before_confirmation(
     from src.strategies.buy_dip.position import PositionState
     from decimal import Decimal
 
-    sim = BuyDipSimulator(buy_dip_strategy, mock_broker_buy_dip)
+    sim = BuyDipSimulator(buy_dip_strategy)
 
     # First top
     first_top = await sim.simulate_rising_to_top(67000, 67890)
@@ -168,7 +166,7 @@ async def test_top_invalidation_before_confirmation(
     assert position.top_price == Decimal(str(second_top))  # Updated top
 
 
-async def test_sell_cancels_all_remaining_orders(buy_dip_strategy, mock_broker_buy_dip):
+async def test_sell_cancels_all_remaining_orders(buy_dip_strategy):
     """
     Test that selling cancels remaining buy order (if any).
 
@@ -179,7 +177,7 @@ async def test_sell_cancels_all_remaining_orders(buy_dip_strategy, mock_broker_b
     4. Order 3 CANCELLED immediately
     5. Position CLOSED
     """
-    sim = BuyDipSimulator(buy_dip_strategy, mock_broker_buy_dip)
+    sim = BuyDipSimulator(buy_dip_strategy)
 
     # Create active position
     top_price = await sim.simulate_rising_to_top(67000, 67890)
@@ -221,7 +219,7 @@ async def test_sell_cancels_all_remaining_orders(buy_dip_strategy, mock_broker_b
     ), f"Expected budget > 9800 after close, got {final_budget}"
 
 
-async def test_only_one_pending_order_at_a_time(buy_dip_strategy, mock_broker_buy_dip):
+async def test_only_one_pending_order_at_a_time(buy_dip_strategy):
     """
     Test CRITICAL constraint: Never have multiple pending buy orders.
 
@@ -231,7 +229,7 @@ async def test_only_one_pending_order_at_a_time(buy_dip_strategy, mock_broker_bu
     3. Order 2 fills → Order 3 placed (1 pending)
     4. At NO point should we have 2+ pending buy orders
     """
-    sim = BuyDipSimulator(buy_dip_strategy, mock_broker_buy_dip)
+    sim = BuyDipSimulator(buy_dip_strategy)
 
     top_price = await sim.simulate_rising_to_top(67000, 67890)
     await sim.wait_for_potential_top()
@@ -271,7 +269,7 @@ async def test_only_one_pending_order_at_a_time(buy_dip_strategy, mock_broker_bu
 # ============================================================================
 
 
-async def test_percentage_based_order_sizing(buy_dip_strategy, mock_broker_buy_dip):
+async def test_percentage_based_order_sizing(buy_dip_strategy):
     """
     Test that orders are sized as percentage of available budget.
 
@@ -282,7 +280,7 @@ async def test_percentage_based_order_sizing(buy_dip_strategy, mock_broker_buy_d
     - Order 2: $9,800 × 2% = $196
     - Order 3: $9,604 × 2% = $192.08
     """
-    sim = BuyDipSimulator(buy_dip_strategy, mock_broker_buy_dip)
+    sim = BuyDipSimulator(buy_dip_strategy)
 
     initial_budget = sim.get_available_budget()
     assert initial_budget == 10000
@@ -323,7 +321,7 @@ async def test_percentage_based_order_sizing(buy_dip_strategy, mock_broker_buy_d
     ), f"Order 2: expected ~${expected_size_2}, got ${actual_size_2}"
 
 
-async def test_budget_released_on_position_close(buy_dip_strategy, mock_broker_buy_dip):
+async def test_budget_released_on_position_close(buy_dip_strategy):
     """
     Test that closing position releases all locked funds plus profit.
 
@@ -332,7 +330,7 @@ async def test_budget_released_on_position_close(buy_dip_strategy, mock_broker_b
     2. Position closes with profit
     3. Available budget = initial + realized PnL
     """
-    sim = BuyDipSimulator(buy_dip_strategy, mock_broker_buy_dip)
+    sim = BuyDipSimulator(buy_dip_strategy)
 
     initial_budget = sim.get_available_budget()
 
@@ -358,9 +356,7 @@ async def test_budget_released_on_position_close(buy_dip_strategy, mock_broker_b
     ), f"Budget mismatch (diff=${budget_diff:.2f}). Expected: ${expected_budget:.2f}, Got: ${final_budget:.2f}"
 
 
-async def test_cancelled_orders_release_funds_immediately(
-    buy_dip_strategy, mock_broker_buy_dip
-):
+async def test_cancelled_orders_release_funds_immediately(buy_dip_strategy):
     """
     Test that cancelled orders release locked funds immediately.
 
@@ -375,7 +371,7 @@ async def test_cancelled_orders_release_funds_immediately(
     4. Position 2 created at top 68100 → Order 1 locks $200
     5. Result: Still $200 locked, but by different position
     """
-    sim = BuyDipSimulator(buy_dip_strategy, mock_broker_buy_dip)
+    sim = BuyDipSimulator(buy_dip_strategy)
 
     initial_budget = sim.get_available_budget()
 
@@ -439,7 +435,7 @@ async def test_cancelled_orders_release_funds_immediately(
 # ============================================================================
 
 
-async def test_multiple_concurrent_positions(buy_dip_strategy, mock_broker_buy_dip):
+async def test_multiple_concurrent_positions(buy_dip_strategy):
     """
     Test multiple positions running simultaneously with shared budget.
 
@@ -450,7 +446,7 @@ async def test_multiple_concurrent_positions(buy_dip_strategy, mock_broker_buy_d
     4. Budget shared across both
     5. Both close successfully
     """
-    sim = BuyDipSimulator(buy_dip_strategy, mock_broker_buy_dip)
+    sim = BuyDipSimulator(buy_dip_strategy)
 
     initial_budget = sim.get_available_budget()
 
@@ -496,7 +492,7 @@ async def test_multiple_concurrent_positions(buy_dip_strategy, mock_broker_buy_d
     assert total_locked + total_available > initial_budget * 0.95  # Accounting sound
 
 
-async def test_insufficient_funds_graceful_wait(buy_dip_strategy, mock_broker_buy_dip):
+async def test_insufficient_funds_graceful_wait(buy_dip_strategy):
     """
     Test graceful handling when budget exhausted with multiple concurrent positions.
 
@@ -525,7 +521,7 @@ async def test_insufficient_funds_graceful_wait(buy_dip_strategy, mock_broker_bu
     # Configure strategy with extended DCA levels for more orders per position
     buy_dip_strategy.config.dca_distances_pct = [1.618, 2.718, 3.142, 5.0, 10.0, 15.0]
 
-    sim = BuyDipSimulator(buy_dip_strategy, mock_broker_buy_dip)
+    sim = BuyDipSimulator(buy_dip_strategy)
 
     # Track positions for later closing
     positions_created = []
@@ -684,7 +680,7 @@ async def test_insufficient_funds_graceful_wait(buy_dip_strategy, mock_broker_bu
 # ============================================================================
 
 
-async def test_rapid_invalidations(buy_dip_strategy, mock_broker_buy_dip):
+async def test_rapid_invalidations(buy_dip_strategy):
     """
     Test multiple rapid top invalidations.
 
@@ -695,7 +691,7 @@ async def test_rapid_invalidations(buy_dip_strategy, mock_broker_buy_dip):
     4. Top at 68200 (invalidate)
     5. Finally confirms at 68200
     """
-    sim = BuyDipSimulator(buy_dip_strategy, mock_broker_buy_dip)
+    sim = BuyDipSimulator(buy_dip_strategy)
 
     tops = [67890, 68000, 68100, 68200]
 
@@ -726,7 +722,7 @@ async def test_rapid_invalidations(buy_dip_strategy, mock_broker_buy_dip):
         assert final_position.state == PositionState.ACTIVE
 
 
-async def test_sell_crosses_top_not_invalidation(buy_dip_strategy, mock_broker_buy_dip):
+async def test_sell_crosses_top_not_invalidation(buy_dip_strategy):
     """
     Test that sell crossing top doesn't trigger new top detection.
 
@@ -737,7 +733,7 @@ async def test_sell_crosses_top_not_invalidation(buy_dip_strategy, mock_broker_b
     4. Should NOT treat as new top
     5. Should close position and cancel orders
     """
-    sim = BuyDipSimulator(buy_dip_strategy, mock_broker_buy_dip)
+    sim = BuyDipSimulator(buy_dip_strategy)
 
     # Create active position
     top_price = await sim.simulate_rising_to_top(67000, 67890)

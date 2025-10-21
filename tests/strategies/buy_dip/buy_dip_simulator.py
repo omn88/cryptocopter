@@ -183,17 +183,14 @@ class BuyDipSimulator:
     def __init__(
         self,
         strategy: BuyDipStrategy,
-        broker: Any,
     ) -> None:
         """
         Initialize simulator.
 
         Args:
             strategy: BuyDipStrategy instance
-            broker: Mock broker for order execution
         """
         self.strategy: BuyDipStrategy = strategy
-        self.broker = broker
         self.candle_buffer: List[Dict] = []
         self.current_time = datetime.now()
 
@@ -381,25 +378,19 @@ class BuyDipSimulator:
 
     async def fill_order(self, order_id: str, fill_price: float) -> None:
         """
-        Simulate order fill through E2E broker callback path.
+        Simulate order fill through broker adapter ExecutionReport path.
 
         This simulates the real flow:
-        1. Order was placed through broker.place_order (already done by strategy)
+        1. Order was placed through broker_adapter.place_order (already done by strategy)
         2. Exchange fills the order
-        3. Websocket user stream sends fill event
-        4. Strategy receives callback with fill details
+        3. WebSocket user stream sends executionReport event
+        4. Broker adapter processes event via handle_user_stream_update()
+        5. Broker adapter triggers callback to strategy
 
         Args:
             order_id: Order ID to fill
             fill_price: Execution price
         """
-        # Verify order was actually placed through broker
-        if order_id not in self.broker.placed_orders:
-            logger.warning(
-                f"Order {order_id} was not placed through broker.place_order"
-            )
-            return
-
         # Find which position this order belongs to
         position_id = self.strategy._order_to_position.get(order_id)
         if not position_id:
@@ -418,20 +409,41 @@ class BuyDipSimulator:
             logger.warning(f"Order {order_id} not pending for position {position_id}")
             return
 
-        # Simulate websocket user stream callback - this is the E2E path
-        # In production: websocket receives fill -> calls strategy.handle_order_fill
-        self.strategy.handle_order_fill(order_id, fill_price, fill_quantity)
+        # Simulate executionReport event from WebSocket (if using broker_adapter)
+        if self.strategy.broker_adapter:
+            execution_report = {
+                "e": "executionReport",  # Event type
+                "s": "BTCUSDC",  # Symbol
+                "c": order_id,  # Client order ID
+                "S": "BUY",  # Side
+                "o": "LIMIT",  # Order type
+                "q": str(fill_quantity),  # Order quantity
+                "p": str(fill_price),  # Price
+                "X": "FILLED",  # Order status
+                "l": str(fill_quantity),  # Last executed quantity (full fill)
+                "L": str(fill_price),  # Last executed price
+                "z": str(fill_quantity),  # Cumulative filled quantity
+                "n": "0",  # Commission
+                "N": "USDC",  # Commission asset
+            }
+            # Process through broker adapter (simulates WebSocket event)
+            self.strategy.broker_adapter.handle_user_stream_update(execution_report)
+        else:
+            # Fallback: direct callback (for old-style tests)
+            self.strategy.handle_order_fill(order_id, fill_price, fill_quantity)
+
         logger.info(f"Filled order {order_id} at {fill_price} qty {fill_quantity}")
 
     async def fill_sell_order(self, order_id: str, fill_price: float) -> None:
         """
-        Simulate sell order fill through E2E broker callback path.
+        Simulate sell order fill through broker adapter ExecutionReport path.
 
         This simulates the real flow:
-        1. Sell order was placed through broker.place_order
+        1. Sell order was placed through broker_adapter.place_order
         2. Exchange fills the sell order
-        3. Websocket user stream sends fill event
-        4. Strategy receives callback
+        3. WebSocket user stream sends executionReport event
+        4. Broker adapter processes event
+        5. Broker adapter triggers callback to strategy
 
         Args:
             order_id: Sell order ID to fill
@@ -456,9 +468,29 @@ class BuyDipSimulator:
         # Get sell quantity
         fill_quantity = float(position.sell_order.quantity)
 
-        # Simulate websocket user stream callback for sell fill
-        # In production: websocket receives fill -> calls strategy.handle_sell_fill
-        self.strategy.handle_sell_fill(order_id, fill_price)
+        # Simulate executionReport event from WebSocket (if using broker_adapter)
+        if self.strategy.broker_adapter:
+            execution_report = {
+                "e": "executionReport",  # Event type
+                "s": "BTCUSDC",  # Symbol
+                "c": order_id,  # Client order ID
+                "S": "SELL",  # Side
+                "o": "LIMIT",  # Order type
+                "q": str(fill_quantity),  # Order quantity
+                "p": str(fill_price),  # Price
+                "X": "FILLED",  # Order status
+                "l": str(fill_quantity),  # Last executed quantity (full fill)
+                "L": str(fill_price),  # Last executed price
+                "z": str(fill_quantity),  # Cumulative filled quantity
+                "n": "0",  # Commission
+                "N": "USDC",  # Commission asset
+            }
+            # Process through broker adapter (simulates WebSocket event)
+            self.strategy.broker_adapter.handle_user_stream_update(execution_report)
+        else:
+            # Fallback: direct callback (for old-style tests)
+            self.strategy.handle_sell_fill(order_id, fill_price)
+
         logger.info(f"Filled sell order {order_id} at {fill_price} qty {fill_quantity}")
 
     async def cancel_order(self, order_id: str) -> None:
@@ -468,7 +500,30 @@ class BuyDipSimulator:
         Args:
             order_id: Order ID to cancel
         """
-        await self.broker.simulate_cancel(order_id)
+        # Create executionReport for cancellation
+        execution_report = {
+            "e": "executionReport",
+            "s": (
+                self.strategy.broker_adapter.symbol
+                if self.strategy.broker_adapter
+                else "BTCUSDC"
+            ),
+            "c": order_id,
+            "S": "BUY",  # Side
+            "o": "LIMIT",  # Order type
+            "q": "0",  # Original quantity
+            "p": "0",  # Price
+            "X": "CANCELED",  # Order status
+            "l": "0",  # Last executed quantity
+            "L": "0",  # Last executed price
+            "z": "0",  # Cumulative filled quantity
+            "n": "0",  # Commission amount
+            "N": "USDC",  # Commission asset
+        }
+
+        if self.strategy.broker_adapter:
+            self.strategy.broker_adapter.handle_user_stream_update(execution_report)
+
         logger.info(f"Cancelled order {order_id}")
 
     # ========================================================================

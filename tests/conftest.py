@@ -1272,47 +1272,116 @@ def sample_buy_dip_config():
 
 
 @pytest.fixture
-def mock_broker_buy_dip():
-    """Create a mock broker for Buy Dip E2E testing."""
-    from unittest.mock import MagicMock
+def mock_binance_client_buy_dip():
+    """Create a mock BinanceClient for Buy Dip E2E testing (simulates real integration)."""
+    from unittest.mock import AsyncMock
 
-    broker = MagicMock()
+    client = AsyncMock()
 
     # Track placed orders for E2E testing
-    broker.placed_orders = {}  # order_id -> {price, quantity, symbol, side}
+    client.placed_orders = {}  # order_id -> {price, quantity, symbol, side}
 
-    def place_order_side_effect(*args, **kwargs):
-        """Track order placement"""
-        # Capture order details from arguments
-        # This allows tests to simulate fills through proper callback path
-        order_id = kwargs.get("order_id") or (args[0] if len(args) > 0 else None)
-        if order_id:
-            broker.placed_orders[order_id] = {
-                "price": kwargs.get("price") or (args[1] if len(args) > 1 else None),
-                "quantity": kwargs.get("quantity")
-                or (args[2] if len(args) > 2 else None),
-                "symbol": kwargs.get("symbol", "BTCUSDC"),
-                "side": kwargs.get("side", "BUY"),
-            }
-        return None  # Return None or order confirmation
+    async def create_order_side_effect(*args, **kwargs):
+        """Simulate BinanceClient.create_order() - returns order dict like Binance API"""
+        symbol = kwargs.get("symbol", "BTCUSDC")
+        side = kwargs.get("side", "BUY")
+        price = kwargs.get("price", 0.0)
+        quantity = kwargs.get("quantity", 0.0)
 
-    broker.place_order = MagicMock(side_effect=place_order_side_effect)
-    broker.cancel_order = MagicMock()
-    return broker
+        # Generate unique order ID like get_new_order() pattern
+        order_id = int(abs(hash((float(price) * float(quantity))))) % 1_000_000_000
+
+        # Track order
+        client.placed_orders[order_id] = {
+            "symbol": symbol,
+            "side": side,
+            "price": float(price),
+            "quantity": float(quantity),
+            "status": "NEW",
+        }
+
+        # Return dict matching Binance API response
+        return {
+            "orderId": order_id,
+            "symbol": symbol,
+            "price": str(price),
+            "origQty": str(quantity),
+            "status": "NEW",
+            "side": side,
+            "type": "LIMIT",
+            "timeInForce": "GTC",
+        }
+
+    client.create_order = AsyncMock(side_effect=create_order_side_effect)
+    client.cancel_order = AsyncMock(return_value={"orderId": 0, "status": "CANCELED"})
+
+    return client
 
 
 @pytest.fixture
-def buy_dip_strategy(sample_buy_dip_config, mock_broker_buy_dip):
-    """Create a BuyDipStrategy instance for E2E testing with broker integration."""
+def broker_adapter_buy_dip(mock_binance_client_buy_dip):
+    """Create BuyDipBrokerAdapter with mocked BinanceClient for E2E testing."""
+    from src.strategies.buy_dip.broker_adapter import BuyDipBrokerAdapter
+
+    adapter = BuyDipBrokerAdapter(
+        client=mock_binance_client_buy_dip,
+        symbol="BTCUSDC",
+    )
+    return adapter
+
+
+@pytest.fixture
+def buy_dip_strategy(sample_buy_dip_config, broker_adapter_buy_dip):
+    """Create a BuyDipStrategy instance for E2E testing with broker adapter integration."""
     from decimal import Decimal
+    import queue
     from src.strategies.buy_dip.strategy import BuyDipStrategy
 
     strategy = BuyDipStrategy(
         config=sample_buy_dip_config,
         total_budget=Decimal("10000"),
         order_budget_pct=Decimal("2.0"),
-        broker=mock_broker_buy_dip,  # Pass broker for E2E testing
+        broker_adapter=broker_adapter_buy_dip,  # Real integration path!
     )
+
+    # Add worker queue for execution reports (like HP Manager)
+    strategy.worker_queue = queue.Queue()
+
+    # Set the callback on broker adapter to route fills to strategy
+    # Note: broker_adapter calls callback with (order_id, fill_price)
+    # We need to determine if it's a buy order or sell order
+    def on_order_filled(order_id: str, filled_price: float):
+        """Callback invoked by broker adapter when order fills"""
+        # Find the position for this order
+        position_id = strategy._order_to_position.get(order_id)
+        if not position_id:
+            return  # Unknown order
+
+        position = strategy._positions.get(position_id)
+        if not position:
+            return  # Position not found
+
+        # Check if this is a sell order
+        if position.sell_order and position.sell_order.order_id == order_id:
+            # SELL order filled
+            strategy.handle_sell_fill(order_id, filled_price)
+        elif position.pending_order and position.pending_order.order_id == order_id:
+            # BUY order filled
+            fill_quantity = float(position.pending_order.quantity)
+            strategy.handle_order_fill(order_id, filled_price, fill_quantity)
+
+    def on_order_cancelled(order_id: str):
+        """Callback invoked by broker adapter when order is cancelled"""
+        # Strategy should handle cancellation logic
+        position_id = strategy._order_to_position.get(order_id)
+        if position_id:
+            position = strategy._positions.get(position_id)
+            if position:
+                strategy.handle_order_cancellation(order_id)
+
+    broker_adapter_buy_dip.set_order_filled_callback(on_order_filled)
+    broker_adapter_buy_dip.set_order_cancelled_callback(on_order_cancelled)
+
     # Add BTCUSDC symbol for testing
     strategy.add_symbol("BTCUSDC")
     return strategy

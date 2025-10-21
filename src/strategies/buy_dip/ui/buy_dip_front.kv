@@ -1,0 +1,135 @@
+#:kivy 2.0.0
+
+<BuyDipFront>:
+    orientation: 'vertical'
+    padding: 10
+    spacing: 10
+    
+    # Header
+    BoxLayout:
+        size_hint_y: None
+        height: 50
+        
+        Label:
+            text: 'Buy Dip Strategy'
+            font_size: '20sp'
+            bold: True
+            size_hint_x: 0.5
+            
+        Label:
+            text: root.status_text
+            size_hint_x: 0.5
+            color: 0, 1, 0, 1 if root.status_text == 'Running' else 1, 0, 0, 1
+            
+    # Budget Section
+    BoxLayout:
+        size_hint_y: None
+        height: 100
+        orientation: 'vertical'
+        padding: 5
+        
+        Label:
+            text: 'Budget'
+            font_size: '16sp'
+            bold: True
+            size_hint_y: 0.3
+            
+        GridLayout:
+            cols: 3
+            spacing: 10
+            size_hint_y: 0.7
+            
+            # Total Budget
+            BoxLayout:
+                orientation: 'vertical'
+                Label:
+                    text: 'Total'
+                    font_size: '12sp'
+                Label:
+                    text: f'${root.total_budget:.2f}'
+                    font_size: '14sp'
+                    bold: True
+                    
+            # Available Budget
+            BoxLayout:
+                orientation: 'vertical'
+                Label:
+                    text: 'Available'
+                    font_size: '12sp'
+                Label:
+                    text: f'${root.available_budget:.2f}'
+                    font_size: '14sp'
+                    bold: True
+                    color: 0, 1, 0, 1
+                    
+            # Locked Budget
+            BoxLayout:
+                orientation: 'vertical'
+                Label:
+                    text: 'Locked'
+                    font_size: '12sp'
+                Label:
+                    text: f'${root.locked_budget:.2f}'
+                    font_size: '14sp'
+                    bold: True
+                    color: 1, 1, 0, 1
+                    
+    # Positions Section
+    BoxLayout:
+        size_hint_y: None
+        height: 80
+        orientation: 'vertical'
+        padding: 5
+        
+        Label:
+            text: 'Positions'
+            font_size: '16sp'
+            bold: True
+            size_hint_y: 0.3
+            
+        GridLayout:
+            cols: 2
+            spacing: 10
+            size_hint_y: 0.7
+            
+            # Active Positions
+            BoxLayout:
+                orientation: 'vertical'
+                Label:
+                    text: 'Active'
+                    font_size: '12sp'
+                Label:
+                    text: str(root.active_positions)
+                    font_size: '14sp'
+                    bold: True
+                    color: 0, 1, 0, 1
+                    
+            # Total Positions
+            BoxLayout:
+                orientation: 'vertical'
+                Label:
+                    text: 'Total'
+                    font_size: '12sp'
+                Label:
+                    text: str(root.total_positions)
+                    font_size: '14sp'
+                    bold: True
+                    
+    # Activity Log
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 5
+        
+        Label:
+            text: 'Activity'
+            font_size: '16sp'
+            bold: True
+            size_hint_y: None
+            height: 30
+            
+        ScrollView:
+            Label:
+                text: 'Activity log will appear here...'
+                size_hint_y: None
+                height: self.texture_size[1]
+                text_size: self.width, None
