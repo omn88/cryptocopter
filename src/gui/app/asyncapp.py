@@ -101,7 +101,7 @@ class AsyncApp(App):
         # Always setup HP Manager as default strategy
         self.setup_hp_manager()
         # Optionally setup Buy Dip strategy (uncomment to enable)
-        # self.setup_buy_dip()
+        self.setup_buy_dip()
 
     def setup_buy_dip(self, strategy_id: Optional[str] = None) -> None:
         """Setup Buy Dip strategy."""

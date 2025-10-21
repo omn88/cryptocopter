@@ -183,20 +183,20 @@ class WebSocketManager:
         # Create kline socket tasks for each subscribed symbol
         if self._kline_message_handler:
             from src.common.identifiers import SubscriptionType
-            
+
             # Collect unique symbols that need kline streams
             kline_symbols = set()
             for _, subscription_list in self.subscriptions.items():
                 for sub_info in subscription_list:
                     if sub_info.data_type == SubscriptionType.KLINE:
                         kline_symbols.add(sub_info.symbol)
-            
+
             # Create a kline socket task for each symbol
             for symbol in kline_symbols:
                 task_key = f"kline_{symbol}"
                 self._kline_socket_tasks[task_key] = self.loop.create_task(
                     self._handle_socket(
-                        socket_manager.kline_socket(symbol=symbol, interval='15m'),
+                        socket_manager.kline_socket(symbol=symbol, interval="15m"),
                         self._kline_message_handler,
                         reconnect_attempts=self._ws_config.max_reconnect_attempts,
                     )

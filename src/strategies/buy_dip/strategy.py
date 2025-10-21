@@ -41,6 +41,7 @@ class BuyDipStrategy:
         order_budget_pct: Decimal,
         broker=None,
         broker_adapter=None,
+        on_position_update=None,
     ):
         """
         Initialize strategy with configuration.
@@ -51,12 +52,14 @@ class BuyDipStrategy:
             order_budget_pct: Percentage of total budget per order (e.g., 2.0 for 2%)
             broker: Optional broker instance for order placement (for E2E testing)
             broker_adapter: Optional broker adapter for production use
+            on_position_update: Optional callback for position updates (position_id, event_type)
         """
         self.config = config
         self.total_budget = total_budget
         self.order_budget_pct = order_budget_pct
         self.broker = broker
         self.broker_adapter = broker_adapter
+        self.on_position_update = on_position_update  # Callback for UI updates
 
         # Detection components (per-symbol)
         self._candle_buffers: Dict[str, CandleBuffer] = {}
@@ -332,6 +335,10 @@ class BuyDipStrategy:
         self._positions[position_id] = position
         self._symbol_positions[symbol].append(position_id)
 
+        # Notify UI of new position
+        if self.on_position_update:
+            self.on_position_update(position_id, "position_created")
+
     def _handle_top_confirmed(self, symbol: str, candle: Dict) -> None:
         """
         Handle top confirmation - set potential top for watching positions.
@@ -354,6 +361,10 @@ class BuyDipStrategy:
             position = self._positions[pos_id]
             if position.state == PositionState.WATCHING:
                 position.set_potential_top(top_price)
+
+                # Notify UI of state change
+                if self.on_position_update:
+                    self.on_position_update(pos_id, "position_updated")
 
                 # Place first DCA order at the calculated level
                 # DCA price is: top_price * (1 - dca_distance_pct / 100)
@@ -679,6 +690,10 @@ class BuyDipStrategy:
         # Clear order tracking
         del self._order_to_position[order_id]
 
+        # Notify UI of position update
+        if self.on_position_update:
+            self.on_position_update(position_id, "position_updated")
+
         # If position just became ACTIVE (first fill), place sell order
         if position.state == PositionState.ACTIVE and position.sell_order is None:
             sell_order_id = f"{position_id}_sell"
@@ -876,6 +891,10 @@ class BuyDipStrategy:
 
         # Clear order tracking
         del self._order_to_position[order_id]
+
+        # Notify UI of position completion
+        if self.on_position_update:
+            self.on_position_update(position_id, "position_completed")
 
     def get_position(self, position_id: str) -> Optional[BuyDipPosition]:
         """Get position by ID."""

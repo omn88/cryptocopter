@@ -14,7 +14,7 @@ import logging
 import queue
 import threading
 from decimal import Decimal
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
 from src.common.client import BinanceClient
 from src.database import Database
@@ -91,6 +91,7 @@ class BuyDipExecutor:
             order_budget_pct=order_budget_pct,
             broker=None,  # Will use broker adapter instead
             broker_adapter=primary_adapter,
+            on_position_update=self._on_position_update,  # UI callback
         )
 
         # Set up adapter callbacks
@@ -215,21 +216,21 @@ class BuyDipExecutor:
         # Skip non-dict events (e.g., threading.Event, ticker updates we don't need)
         if not isinstance(event, dict):
             return
-        
+
         event_type = event.get("e")
 
         # Handle kline (candlestick) events
         if event_type == "kline":
             kline_data = event.get("k", {})
             is_closed = kline_data.get("x", False)  # x = is closed candle
-            
+
             # Only process closed candles
             if is_closed:
                 symbol = event.get("s")
                 if not symbol:
                     logger.warning("Kline event without symbol")
                     return
-                
+
                 # Create candle dict for strategy
                 candle = {
                     "open_time": kline_data.get("t"),
@@ -241,7 +242,7 @@ class BuyDipExecutor:
                     "close": float(kline_data.get("c", 0)),
                     "volume": float(kline_data.get("v", 0)),
                 }
-                
+
                 # Send to strategy
                 self.strategy.process_candle(symbol, candle)
                 logger.debug(f"Processed closed {symbol} candle: {candle['close']}")
@@ -297,6 +298,19 @@ class BuyDipExecutor:
         # Strategy already handles cancellation internally
         self._send_budget_update()
 
+    def _on_position_update(self, position_id: str, event_type: str) -> None:
+        """
+        Callback from strategy when position is created/updated/completed.
+
+        Args:
+            position_id: Position that changed
+            event_type: Type of event (position_created, position_updated, position_completed)
+        """
+        # Send position update to UI
+        self._send_position_update(position_id, event_type)
+        # Also update budget when position changes
+        self._send_budget_update()
+
     def _send_budget_update(self) -> None:
         """
         Send budget status to UI.
@@ -314,17 +328,65 @@ class BuyDipExecutor:
             }
         )
 
-        # Count positions
-        active_count = sum(
-            1
-            for pos in self.strategy._positions.values()
-            if pos.state.name in ["POTENTIAL_TOP", "ACTIVE"]
-        )
+    def _send_position_update(
+        self, position_id: str, update_type: str = "position_updated"
+    ) -> None:
+        """
+        Send position details to UI.
 
-        self.ui_queue.put(
-            {
-                "type": "positions",
-                "active": active_count,
-                "total": len(self.strategy._positions),
+        Args:
+            position_id: Position to send update for
+            update_type: Type of update (position_created, position_updated, position_completed)
+        """
+        position = self.strategy._positions.get(position_id)
+        if not position:
+            logger.warning(f"Position {position_id} not found for UI update")
+            return
+
+        # Build position data for UI
+        position_data: Dict[str, Any] = {
+            "type": update_type,
+            "position_id": position_id,
+            "symbol": position.symbol,
+            "state": position.state.name,
+            "top_price": float(position.top_price) if position.top_price else 0,
+            "current_dca_level": position.next_dca_level,  # next_dca_level = how many filled so far
+            "total_dca_levels": len(self.strategy.config.dca_distances_pct),
+            "avg_entry_price": (
+                float(position.average_entry) if position.average_entry else 0
+            ),
+            "total_invested": float(position.total_invested),
+            "pending_order": None,
+            "sell_order": None,
+            "pnl": 0,
+        }
+
+        # Pending buy order
+        if position.pending_order:
+            position_data["pending_order"] = {
+                "order_id": position.pending_order.order_id,
+                "price": float(position.pending_order.price),
+                "quantity": float(position.pending_order.quantity),
             }
-        )
+
+        # Sell order
+        if position.sell_order:
+            position_data["sell_order"] = {
+                "order_id": position.sell_order.order_id,
+                "price": float(position.sell_order.price),
+                "quantity": float(position.sell_order.quantity),
+            }
+
+        # PnL calculation (placeholder - need current price for accurate PnL)
+        # For now, just set to 0 unless position is completed
+        # position_data["pnl"] already set above
+
+        self.ui_queue.put(position_data)
+        logger.debug(f"Sent {update_type} for position {position_id}")
+
+    def _send_all_positions_update(self) -> None:
+        """
+        Send updates for all positions to UI (e.g., on startup).
+        """
+        for position_id in self.strategy._positions.keys():
+            self._send_position_update(position_id, "position_updated")

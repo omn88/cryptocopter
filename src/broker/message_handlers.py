@@ -224,15 +224,15 @@ def handle_kline_message(
         subscriptions: Dict mapping system_id to list of SubscriptionInfo
     """
     event_type = msg.get("e")
-    
+
     if event_type != "kline":
         return
-    
+
     symbol = msg.get("s")
     if not symbol:
         logger.warning("Kline message without symbol: %s", msg)
         return
-    
+
     # Forward to systems subscribed to KLINE for this symbol
     for _, subscription_list in subscriptions.items():
         for subscription_info in subscription_list:
