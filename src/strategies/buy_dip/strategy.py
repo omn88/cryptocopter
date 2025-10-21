@@ -35,7 +35,11 @@ class BuyDipStrategy:
     """
 
     def __init__(
-        self, config: BuyDipConfig, total_budget: Decimal, order_budget_pct: Decimal
+        self,
+        config: BuyDipConfig,
+        total_budget: Decimal,
+        order_budget_pct: Decimal,
+        broker=None,
     ):
         """
         Initialize strategy with configuration.
@@ -44,10 +48,12 @@ class BuyDipStrategy:
             config: Strategy configuration (DCA levels, detection params, etc.)
             total_budget: Total budget available for trading
             order_budget_pct: Percentage of total budget per order (e.g., 2.0 for 2%)
+            broker: Optional broker instance for order placement (for E2E testing)
         """
         self.config = config
         self.total_budget = total_budget
         self.order_budget_pct = order_budget_pct
+        self.broker = broker
 
         # Detection components (per-symbol)
         self._candle_buffers: Dict[str, CandleBuffer] = {}
@@ -300,13 +306,17 @@ class BuyDipStrategy:
         if order_size is None:
             return  # No budget available
 
-        # Check if we already have an active position in WATCHING state
+        # Check if we already have a position in WATCHING state
+        # Multiple positions can exist (different tops), but only one should be WATCHING
+        # for the next rising pattern at any time
         for pos_id in self._symbol_positions[symbol]:
             position = self._positions[pos_id]
             if position.state == PositionState.WATCHING:
-                return  # Already tracking this symbol
+                return  # Already have a position watching for next top
 
-        # Create new position
+        # Create new position in WATCHING state
+        # This will track the next potential top while other positions
+        # (POTENTIAL_TOP, ACTIVE) continue their own processes
         position_id = f"{symbol}_{candle['timestamp']}"
         position = BuyDipPosition(
             position_id=position_id,
@@ -596,13 +606,26 @@ class BuyDipStrategy:
         # Calculate quantity based on price
         quantity = Decimal(str(order_size)) / Decimal(str(price))
 
-        # Place order on position
+        # Place order on position (internal state)
         position.place_buy_order(
             order_id, Decimal(str(price)), quantity, position.next_dca_level
         )
 
         # Track order
         self._order_to_position[order_id] = position_id
+
+        # Place order through broker (E2E flow)
+        if self.broker:
+            try:
+                self.broker.place_order(
+                    order_id=order_id,
+                    symbol=position.symbol,
+                    side="BUY",
+                    price=float(price),
+                    quantity=float(quantity),
+                )
+            except Exception:
+                logger.exception("Broker order placement failed for %s", order_id)
 
         return True
 

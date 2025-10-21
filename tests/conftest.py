@@ -1277,14 +1277,33 @@ def mock_broker_buy_dip():
     from unittest.mock import MagicMock
 
     broker = MagicMock()
-    broker.place_order = MagicMock()
+
+    # Track placed orders for E2E testing
+    broker.placed_orders = {}  # order_id -> {price, quantity, symbol, side}
+
+    def place_order_side_effect(*args, **kwargs):
+        """Track order placement"""
+        # Capture order details from arguments
+        # This allows tests to simulate fills through proper callback path
+        order_id = kwargs.get("order_id") or (args[0] if len(args) > 0 else None)
+        if order_id:
+            broker.placed_orders[order_id] = {
+                "price": kwargs.get("price") or (args[1] if len(args) > 1 else None),
+                "quantity": kwargs.get("quantity")
+                or (args[2] if len(args) > 2 else None),
+                "symbol": kwargs.get("symbol", "BTCUSDC"),
+                "side": kwargs.get("side", "BUY"),
+            }
+        return None  # Return None or order confirmation
+
+    broker.place_order = MagicMock(side_effect=place_order_side_effect)
     broker.cancel_order = MagicMock()
     return broker
 
 
 @pytest.fixture
-def buy_dip_strategy(sample_buy_dip_config):
-    """Create a BuyDipStrategy instance for E2E testing."""
+def buy_dip_strategy(sample_buy_dip_config, mock_broker_buy_dip):
+    """Create a BuyDipStrategy instance for E2E testing with broker integration."""
     from decimal import Decimal
     from src.strategies.buy_dip.strategy import BuyDipStrategy
 
@@ -1292,6 +1311,7 @@ def buy_dip_strategy(sample_buy_dip_config):
         config=sample_buy_dip_config,
         total_budget=Decimal("10000"),
         order_budget_pct=Decimal("2.0"),
+        broker=mock_broker_buy_dip,  # Pass broker for E2E testing
     )
     # Add BTCUSDC symbol for testing
     strategy.add_symbol("BTCUSDC")

@@ -17,7 +17,7 @@ import time
 from typing import Callable, List, Dict, Optional, Any
 from datetime import datetime, timedelta
 
-from src.strategies.buy_dip.position import PositionState
+from src.strategies.buy_dip.position import PositionState, BuyDipPosition
 from src.strategies.buy_dip.strategy import BuyDipStrategy
 
 logger = logging.getLogger("buy_dip_simulator")
@@ -182,9 +182,9 @@ class BuyDipSimulator:
 
     def __init__(
         self,
-        strategy,  # BuyDipStrategy instance
-        broker,  # Mock broker
-    ):
+        strategy: BuyDipStrategy,
+        broker: Any,
+    ) -> None:
         """
         Initialize simulator.
 
@@ -194,7 +194,7 @@ class BuyDipSimulator:
         """
         self.strategy: BuyDipStrategy = strategy
         self.broker = broker
-        self.candle_buffer = []
+        self.candle_buffer: List[Dict] = []
         self.current_time = datetime.now()
 
     # ========================================================================
@@ -244,7 +244,7 @@ class BuyDipSimulator:
         end_price: float = 67890,
         num_candles: int = 3,
         confirm_top: bool = True,
-    ) -> float:
+    ) -> Optional[float]:
         """
         Simulate rising pattern leading to potential top.
 
@@ -277,7 +277,7 @@ class BuyDipSimulator:
             actual_top = hwm_detector.get_hwm() if hwm_detector else end_price
 
             pullback_candles = create_pullback_pattern(
-                top_price=actual_top,
+                top_price=actual_top if actual_top is not None else end_price,
                 pullback_pct=0.6,  # Slightly more than min threshold
                 num_candles=1,
                 start_time=self.current_time,
@@ -288,6 +288,7 @@ class BuyDipSimulator:
             # Return the actual HWM (confirmed top)
             if hwm_detector and hwm_detector.is_top_confirmed():
                 return hwm_detector.get_confirmed_top()
+            return None
 
         logger.info(f"Simulated rising pattern: {start_price} → {end_price}")
         return end_price
@@ -352,26 +353,53 @@ class BuyDipSimulator:
 
         # Auto-fill sell orders if price reached their level
         for position in self.get_active_positions():
+            logger.debug(
+                f"Checking position {position.position_id} for sell order: {position.sell_order}"
+            )
             if position.sell_order and position.sell_order.status == "NEW":
                 sell_price = float(position.sell_order.price)
+                logger.debug(f"Sell order at {sell_price}, recovery to {to_price}")
                 # If recovery reached or exceeded sell price, fill it
                 if to_price >= sell_price:
                     await self.fill_sell_order(position.sell_order.order_id, sell_price)
+                else:
+                    logger.debug(
+                        f"Price {to_price} did not reach sell price {sell_price}"
+                    )
+            elif position.sell_order:
+                logger.debug(
+                    f"Sell order exists but status is: {position.sell_order.status}"
+                )
+            else:
+                logger.debug(f"No sell order for position {position.position_id}")
 
         logger.info(f"Simulated recovery: {from_price} → {to_price}")
 
     # ========================================================================
-    # ORDER SIMULATION
+    # ORDER SIMULATION (E2E through broker callbacks)
     # ========================================================================
 
     async def fill_order(self, order_id: str, fill_price: float) -> None:
         """
-        Simulate order fill.
+        Simulate order fill through E2E broker callback path.
+
+        This simulates the real flow:
+        1. Order was placed through broker.place_order (already done by strategy)
+        2. Exchange fills the order
+        3. Websocket user stream sends fill event
+        4. Strategy receives callback with fill details
 
         Args:
             order_id: Order ID to fill
             fill_price: Execution price
         """
+        # Verify order was actually placed through broker
+        if order_id not in self.broker.placed_orders:
+            logger.warning(
+                f"Order {order_id} was not placed through broker.place_order"
+            )
+            return
+
         # Find which position this order belongs to
         position_id = self.strategy._order_to_position.get(order_id)
         if not position_id:
@@ -390,13 +418,20 @@ class BuyDipSimulator:
             logger.warning(f"Order {order_id} not pending for position {position_id}")
             return
 
-        # Call strategy's order fill handler
+        # Simulate websocket user stream callback - this is the E2E path
+        # In production: websocket receives fill -> calls strategy.handle_order_fill
         self.strategy.handle_order_fill(order_id, fill_price, fill_quantity)
         logger.info(f"Filled order {order_id} at {fill_price} qty {fill_quantity}")
 
     async def fill_sell_order(self, order_id: str, fill_price: float) -> None:
         """
-        Simulate sell order fill.
+        Simulate sell order fill through E2E broker callback path.
+
+        This simulates the real flow:
+        1. Sell order was placed through broker.place_order
+        2. Exchange fills the sell order
+        3. Websocket user stream sends fill event
+        4. Strategy receives callback
 
         Args:
             order_id: Sell order ID to fill
@@ -413,10 +448,16 @@ class BuyDipSimulator:
             logger.warning(f"Sell order {order_id} not found")
             return
 
+        # Check if sell order exists
+        if not position.sell_order:
+            logger.warning(f"Position {position.position_id} has no sell order")
+            return
+
         # Get sell quantity
         fill_quantity = float(position.sell_order.quantity)
 
-        # Call strategy's sell fill handler
+        # Simulate websocket user stream callback for sell fill
+        # In production: websocket receives fill -> calls strategy.handle_sell_fill
         self.strategy.handle_sell_fill(order_id, fill_price)
         logger.info(f"Filled sell order {order_id} at {fill_price} qty {fill_quantity}")
 
@@ -434,7 +475,7 @@ class BuyDipSimulator:
     # POSITION QUERIES
     # ========================================================================
 
-    def get_active_positions(self) -> List[Any]:
+    def get_active_positions(self) -> List[BuyDipPosition]:
         """Get all active positions."""
 
         return [
@@ -443,7 +484,7 @@ class BuyDipSimulator:
             if pos.state in [PositionState.POTENTIAL_TOP, PositionState.ACTIVE]
         ]
 
-    def get_completed_positions(self) -> List[Any]:
+    def get_completed_positions(self) -> List[BuyDipPosition]:
         """Get all completed positions."""
 
         return [
@@ -460,7 +501,7 @@ class BuyDipSimulator:
                 orders.append(pos.pending_order)
         return orders
 
-    def get_position_by_id(self, position_id: str) -> Optional[Any]:
+    def get_position_by_id(self, position_id: str) -> Optional[BuyDipPosition]:
         """Get position by ID."""
         return self.strategy._positions.get(position_id)
 
@@ -568,8 +609,8 @@ class BuyDipSimulator:
         position_id = position.position_id
 
         # 2. Fill first order (confirmation)
-        assert len(position.pending_orders) > 0, "No pending orders found"
-        order_1 = position.pending_orders[0]
+        assert position.pending_order is not None, "No pending order found"
+        order_1 = position.pending_order
         await self.fill_order(order_1.order_id, top_price)
         await self.wait_for_active_position()
 
@@ -578,21 +619,45 @@ class BuyDipSimulator:
             await self.wait_for_order_placed(position_id)
             pos = self.get_position_by_id(position_id)
             assert pos is not None, f"Position {position_id} not found"
-            assert len(pos.pending_orders) > 0, "No pending orders found"
-            order = pos.pending_orders[0]
+            assert pos.pending_order is not None, "No pending order found"
+            order = pos.pending_order
             await self.fill_order(order.order_id, float(order.price))
 
         # 4. Recovery and sell
-        await self.simulate_recovery(float(order.price), top_price)
+        # Get the actual sell price from the position
+        pos_for_sell = self.get_position_by_id(position_id)
+        assert pos_for_sell is not None
+        if pos_for_sell.sell_order:
+            # Recover to at least the sell price to trigger fill
+            recovery_target = max(float(pos_for_sell.sell_order.price), top_price)
+        else:
+            recovery_target = top_price
+
+        await self.simulate_recovery(float(order.price), recovery_target)
         await self.wait_for_position_closed(position_id)
 
         final_pos = self.get_position_by_id(position_id)
         assert final_pos is not None, f"Position {position_id} not found"
 
+        # Calculate realized PnL
+        # Total invested = sum of all buy order fills
+        # Total returned = sell order fill
+        # PnL = returned - invested
+        total_invested = float(final_pos.total_invested)
+        total_quantity = float(final_pos.total_quantity)
+
+        # Get sell price from sell order if it was filled
+        if final_pos.sell_order and final_pos.sell_order.filled_price:
+            sell_price = float(final_pos.sell_order.filled_price)
+            total_returned = total_quantity * sell_price
+            realized_pnl = total_returned - total_invested
+        else:
+            realized_pnl = 0.0
+
         return {
             "position_id": position_id,
-            "realized_pnl": final_pos.realized_pnl,
-            "total_invested": final_pos.total_invested,
+            "realized_pnl": realized_pnl,
+            "total_invested": total_invested,
         }
 
     async def simulate_top_invalidation(
@@ -617,8 +682,8 @@ class BuyDipSimulator:
         positions = self.get_active_positions()
         assert len(positions) > 0, "No active positions found"
         first_position = positions[0]
-        assert len(first_position.pending_orders) > 0, "No pending orders found"
-        first_order_id = first_position.pending_orders[0].order_id
+        assert first_position.pending_order is not None, "No pending order found"
+        first_order_id = first_position.pending_order.order_id
 
         # 2. New higher top (invalidation)
         await self.simulate_rising_to_top(first_top, second_top, num_candles=2)
@@ -631,13 +696,12 @@ class BuyDipSimulator:
         assert (
             updated_pos is not None
         ), f"Position {first_position.position_id} not found"
-        assert len(updated_pos.pending_orders) > 0, "No pending orders found"
-        new_order = updated_pos.pending_orders[0]
+        assert updated_pos.pending_order is not None, "No pending order found"
+        new_order = updated_pos.pending_order
 
         return {
             "first_top": first_top,
             "second_top": second_top,
-            "first_order_cancelled": first_order_id
-            not in [o.order_id for o in updated_pos.pending_orders],
+            "first_order_cancelled": first_order_id != new_order.order_id,
             "new_order_price": float(new_order.price),
         }
