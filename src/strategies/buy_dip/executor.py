@@ -143,21 +143,21 @@ class BuyDipExecutor:
         """
         logger.info("BuyDipExecutor async loop started")
 
-        # Subscribe to price streams for each symbol (will receive ticker/price updates)
+        # Subscribe to kline streams for each symbol (15m candles)
         for symbol in self.symbols:
-            subscription_info = SubscriptionInfo(
-                data_type=SubscriptionType.PRICE,
+            kline_subscription = SubscriptionInfo(
+                data_type=SubscriptionType.KLINE,
                 symbol=symbol,
                 target=SubscriptionTarget.BACKEND,
                 queue=self.worker_queue,
             )
 
             self.broker.subscribe(
-                system_id=f"buy_dip_{symbol}",
-                subscription_info=subscription_info,
+                system_id=f"buy_dip_{symbol}_kline",
+                subscription_info=kline_subscription,
             )
 
-            logger.info(f"Subscribed to {symbol} price updates")
+            logger.info(f"Subscribed to {symbol} 15m kline stream")
 
         # Subscribe to user data stream for order updates
         user_stream_sub = SubscriptionInfo(
@@ -205,20 +205,48 @@ class BuyDipExecutor:
 
         logger.info("BuyDipExecutor worker loop stopped")
 
-    async def _process_event(self, event: Dict) -> None:
+    async def _process_event(self, event) -> None:
         """
         Process an event from the worker queue.
 
         Args:
-            event: Event dictionary (price update, user stream update, etc.)
+            event: Event from queue (dict for websocket events, or other types)
         """
+        # Skip non-dict events (e.g., threading.Event, ticker updates we don't need)
+        if not isinstance(event, dict):
+            return
+        
         event_type = event.get("e")
 
-        # For now, we're using price stream which provides ticker updates
-        # TODO: Subscribe to dedicated kline stream for proper 15m candles
-        # Currently this is a placeholder - real kline subscription needed
+        # Handle kline (candlestick) events
+        if event_type == "kline":
+            kline_data = event.get("k", {})
+            is_closed = kline_data.get("x", False)  # x = is closed candle
+            
+            # Only process closed candles
+            if is_closed:
+                symbol = event.get("s")
+                if not symbol:
+                    logger.warning("Kline event without symbol")
+                    return
+                
+                # Create candle dict for strategy
+                candle = {
+                    "open_time": kline_data.get("t"),
+                    "close_time": kline_data.get("T"),
+                    "symbol": symbol,
+                    "open": float(kline_data.get("o", 0)),
+                    "high": float(kline_data.get("h", 0)),
+                    "low": float(kline_data.get("l", 0)),
+                    "close": float(kline_data.get("c", 0)),
+                    "volume": float(kline_data.get("v", 0)),
+                }
+                
+                # Send to strategy
+                self.strategy.process_candle(symbol, candle)
+                logger.debug(f"Processed closed {symbol} candle: {candle['close']}")
 
-        if event_type == "executionReport":
+        elif event_type == "executionReport":
             # Order update from user stream
             symbol = event.get("s")
             if symbol in self.broker_adapters:

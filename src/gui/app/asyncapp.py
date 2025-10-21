@@ -117,7 +117,7 @@ class AsyncApp(App):
 
         logger.info("Setting up Buy Dip strategy with ID: %s", strategy_id)
 
-        # Load UI
+        # Load UI (after imports so BuyDipFront class is registered)
         Builder.load_file("src/strategies/buy_dip/ui/buy_dip_front.kv")
 
         # Create UI queue

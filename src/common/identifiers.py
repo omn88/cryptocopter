@@ -439,6 +439,7 @@ class HPSell:
 class SubscriptionType(Enum):
     PRICE = auto()
     USER = auto()
+    KLINE = auto()
 
 
 class SubscriptionTarget(Enum):
