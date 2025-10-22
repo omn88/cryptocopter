@@ -124,8 +124,18 @@ class BuyDipStrategy:
         if order_size is None:
             order_size = 0  # No budget available, but still create for visibility
 
-        # Create placeholder position
+        # Create placeholder position with unique ID
+        # Use timestamp to ensure uniqueness when previous WATCHING positions become ACTIVE
         position_id = f"{symbol}_watching"
+
+        # Check if this ID already exists (e.g., former WATCHING position now ACTIVE)
+        # If so, generate a unique ID with timestamp
+        if position_id in self._positions:
+            import time
+
+            position_id = f"{symbol}_watching_{int(time.time() * 1000)}"
+            logger.info(f"[PLACEHOLDER] Base ID exists, using unique ID: {position_id}")
+
         position = BuyDipPosition(
             position_id=position_id,
             symbol=symbol,

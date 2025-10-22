@@ -195,6 +195,15 @@ class BuyDipSimulator:
         self.current_time = datetime.now()
 
     # ========================================================================
+    # PROPERTIES FOR EASY ACCESS
+    # ========================================================================
+
+    @property
+    def broker_adapter(self):
+        """Access to broker adapter for order management."""
+        return self.strategy.broker_adapter
+
+    # ========================================================================
     # CANDLE INJECTION
     # ========================================================================
 
