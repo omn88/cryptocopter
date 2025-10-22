@@ -793,27 +793,18 @@ class BuyDipStrategy:
         if self.on_position_update:
             self.on_position_update(position_id, "position_updated")
 
-        # If position just became ACTIVE (first fill), place sell order
+        # If position just became ACTIVE (first fill), place sell order and create new WATCHING placeholder
         if position.state == PositionState.ACTIVE and position.sell_order is None:
             sell_order_id = f"{position_id}_sell"
             self.place_sell_order(position_id, sell_order_id)
 
-        # If position just became COMPLETED (sell filled), create new WATCHING placeholder
-        if position.state == PositionState.COMPLETED:
+            # Create new WATCHING placeholder for next opportunity
+            # This allows tracking multiple positions simultaneously
             symbol = position.symbol
-            # Check if we already have a WATCHING placeholder
-            has_watching = False
-            for pos_id in self._symbol_positions[symbol]:
-                pos = self._positions.get(pos_id)
-                if pos and pos.state == PositionState.WATCHING:
-                    has_watching = True
-                    break
-
-            if not has_watching:
-                logger.info(
-                    f"Position {position_id} completed, creating new WATCHING placeholder for {symbol}"
-                )
-                self._create_placeholder_watching_position(symbol)
+            logger.info(
+                f"Position {position_id} became ACTIVE, creating new WATCHING placeholder for {symbol}"
+            )
+            self._create_placeholder_watching_position(symbol)
 
         # Check if position wants to place next DCA order
         if position.state == PositionState.ACTIVE and position.can_place_order():
