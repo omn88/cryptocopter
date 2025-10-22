@@ -432,6 +432,51 @@ class BuyDipStrategy:
                     # Place the order through the strategy
                     self.place_order(pos_id, dca_price, order_id)
 
+    def check_for_invalidation(self, symbol: str, current_price: float) -> None:
+        """
+        Check if current price invalidates any POTENTIAL_TOP positions.
+        Called every 5 seconds with real-time price.
+
+        Args:
+            symbol: Symbol to check
+            current_price: Current market price
+        """
+        # Check all POTENTIAL_TOP positions for this symbol
+        for pos_id in self._symbol_positions.get(symbol, []):
+            position = self._positions.get(pos_id)
+            if not position:
+                continue
+
+            # Only invalidate POTENTIAL_TOP positions
+            if position.state != PositionState.POTENTIAL_TOP:
+                continue
+
+            # Check if price exceeded the confirmed top
+            if position.confirmed_top and current_price > float(position.confirmed_top):
+                logger.info(
+                    f"Position {pos_id} invalidated: price ${current_price:.2f} > top ${float(position.confirmed_top):.2f}"
+                )
+
+                # Cancel pending buy order if exists
+                if position.pending_order and self.broker_adapter:
+                    import asyncio
+
+                    try:
+                        asyncio.create_task(
+                            self.broker_adapter.cancel_order(
+                                position.pending_order.order_id
+                            )
+                        )
+                    except Exception as e:
+                        logger.error(f"Error cancelling order: {e}")
+
+                # Mark as invalidated
+                position.state = PositionState.INVALIDATED
+
+                # Notify UI
+                if self.on_position_update:
+                    self.on_position_update(pos_id, "position_updated")
+
     def _handle_top_invalidation(self, symbol: str, candle: Dict) -> None:
         """
         Handle top invalidation - cancel pending orders and update to new top.
@@ -752,6 +797,23 @@ class BuyDipStrategy:
         if position.state == PositionState.ACTIVE and position.sell_order is None:
             sell_order_id = f"{position_id}_sell"
             self.place_sell_order(position_id, sell_order_id)
+
+        # If position just became COMPLETED (sell filled), create new WATCHING placeholder
+        if position.state == PositionState.COMPLETED:
+            symbol = position.symbol
+            # Check if we already have a WATCHING placeholder
+            has_watching = False
+            for pos_id in self._symbol_positions[symbol]:
+                pos = self._positions.get(pos_id)
+                if pos and pos.state == PositionState.WATCHING:
+                    has_watching = True
+                    break
+
+            if not has_watching:
+                logger.info(
+                    f"Position {position_id} completed, creating new WATCHING placeholder for {symbol}"
+                )
+                self._create_placeholder_watching_position(symbol)
 
         # Check if position wants to place next DCA order
         if position.state == PositionState.ACTIVE and position.can_place_order():

@@ -80,6 +80,10 @@ class BuyDipExecutor:
         # Worker queue for async event processing
         self.worker_queue: queue.Queue = queue.Queue()
 
+        # Price tracking for invalidation checks (throttled to 5 seconds)
+        self._last_price_check: Dict[str, float] = {}  # symbol -> timestamp
+        self._current_prices: Dict[str, float] = {}  # symbol -> price
+
         # Broker adapters per symbol (create first)
         self.broker_adapters: Dict[str, BuyDipBrokerAdapter] = {}
 
@@ -162,6 +166,21 @@ class BuyDipExecutor:
             )
 
             logger.info(f"Subscribed to {symbol} 15m kline stream")
+
+            # Subscribe to real-time price updates for invalidation checks
+            price_subscription = SubscriptionInfo(
+                data_type=SubscriptionType.PRICE,
+                symbol=symbol,
+                target=SubscriptionTarget.BACKEND,
+                queue=self.worker_queue,
+            )
+
+            self.broker.subscribe(
+                system_id=f"buy_dip_{symbol}_price",
+                subscription_info=price_subscription,
+            )
+
+            logger.info(f"Subscribed to {symbol} real-time price stream")
 
         # Subscribe to user data stream for order updates
         user_stream_sub = SubscriptionInfo(
@@ -257,6 +276,25 @@ class BuyDipExecutor:
                 # Send to strategy
                 self.strategy.process_candle(symbol, candle)
                 logger.debug(f"Processed closed {symbol} candle: {candle['close']}")
+
+        # Handle real-time price updates for invalidation checks
+        elif event_type == "24hrTicker":
+            symbol = event.get("s")
+            if not symbol:
+                return
+
+            current_price = float(event.get("c", 0))  # 'c' = current price
+            self._current_prices[symbol] = current_price
+
+            # Throttle checks to every 5 seconds
+            import time
+
+            current_time = time.time()
+            last_check = self._last_price_check.get(symbol, 0)
+
+            if current_time - last_check >= 5.0:  # 5 seconds
+                self._last_price_check[symbol] = current_time
+                self.strategy.check_for_invalidation(symbol, current_price)
 
         elif event_type == "executionReport":
             # Order update from user stream

@@ -482,7 +482,8 @@ async def test_multiple_concurrent_positions(buy_dip_strategy):
     await sim.wait_for_potential_top()
 
     positions = sim.get_active_positions()
-    assert len(positions) == 1  # Position A closed, B active
+    # Position A is now COMPLETED (sell filled), Position B (from WATCHING placeholder) is POTENTIAL_TOP
+    assert len(positions) == 1  # Only Position B (POTENTIAL_TOP)
     position_b = positions[0]
     assert position_b.position_id != position_a.position_id
 
@@ -563,9 +564,17 @@ async def test_insufficient_funds_graceful_wait(buy_dip_strategy):
 
         positions = sim.get_active_positions()
 
-        # Check if new position was created
-        if len(positions) > len(positions_created):
-            new_position = positions[-1]
+        # Check if new position was created (exclude WATCHING placeholders)
+        potential_top_positions = [
+            p for p in positions if p.state == PositionState.POTENTIAL_TOP
+        ]
+
+        if len(potential_top_positions) > 0 and (
+            len(positions_created) == 0
+            or potential_top_positions[-1].position_id
+            not in [p.position_id for p in positions_created]
+        ):
+            new_position = potential_top_positions[-1]
             positions_created.append(new_position)
 
             # Fill all 6 DCA orders to maximize budget usage
@@ -774,7 +783,8 @@ async def test_sell_crosses_top_not_invalidation(buy_dip_strategy):
     assert final_pos.state == PositionState.COMPLETED
 
     # Verify no new position created (only completed ones)
+    # Note: WATCHING placeholders are excluded from get_active_positions()
     active_positions = sim.get_active_positions()
     assert (
         len(active_positions) == 0
-    ), "Should not have created new position when sell executed"
+    ), "Should not have created new POTENTIAL_TOP/ACTIVE position when sell executed"

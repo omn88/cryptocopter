@@ -25,6 +25,7 @@ class PositionState(Enum):
     POTENTIAL_TOP = "POTENTIAL_TOP"
     ACTIVE = "ACTIVE"
     COMPLETED = "COMPLETED"
+    INVALIDATED = "INVALIDATED"  # Top invalidated by price going above confirmed top
 
 
 @dataclass

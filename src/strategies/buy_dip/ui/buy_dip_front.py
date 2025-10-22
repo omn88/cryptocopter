@@ -79,6 +79,9 @@ class BuyDipFront(BoxLayout):
         self._position_widgets: Dict[str, PositionRowWidget] = (
             {}
         )  # position_id -> widget
+        self._completed_positions: Dict[str, float] = (
+            {}
+        )  # position_id -> completion_timestamp
 
         # Strategy state
         self._is_running = False
@@ -88,6 +91,8 @@ class BuyDipFront(BoxLayout):
         # UI update scheduling
         self._update_interval = 0.1  # 100ms
         self._update_event = None
+        self._cleanup_interval = 60.0  # 60 seconds - check for old completed positions
+        self._cleanup_event = None
 
         logger.info("BuyDipFront initialized")
 
@@ -97,6 +102,9 @@ class BuyDipFront(BoxLayout):
         """
         self._update_event = Clock.schedule_interval(
             self._process_ui_queue, self._update_interval
+        )
+        self._cleanup_event = Clock.schedule_interval(
+            self._cleanup_old_positions, self._cleanup_interval
         )
         # Don't set status here - it's set by asyncapp.py
         logger.info("BuyDipFront UI update loop started")
@@ -144,11 +152,25 @@ class BuyDipFront(BoxLayout):
             # Update existing position
             self._update_position_row(update)
 
+            # Track INVALIDATED positions for auto-removal
+            state = update.get("state")
+            position_id = update.get("position_id")
+            if state == "INVALIDATED" and position_id:
+                import time
+
+                self._completed_positions[position_id] = time.time()
+                logger.info(f"Position invalidated: {position_id}")
+
         elif update_type == "position_completed":
-            # Mark position as completed (could remove or keep with COMPLETED state)
+            # Mark position as completed and schedule for removal after 5 minutes
             self._update_position_row(update)
+            position_id = update.get("position_id")
+            if position_id:
+                import time
+
+                self._completed_positions[position_id] = time.time()
             logger.info(
-                f"Position completed: {update.get('position_id')}, PnL: {update.get('pnl', 0):.2f}"
+                f"Position completed: {position_id}, PnL: {update.get('pnl', 0):.2f}"
             )
 
     def _add_position_row(self, position_data: dict) -> None:
@@ -356,10 +378,40 @@ class BuyDipFront(BoxLayout):
         for widget in list(self._position_widgets.values()):
             position_container.remove_widget(widget)
 
-        # Clear tracking dict
+        # Clear tracking dicts
         self._position_widgets.clear()
+        self._completed_positions.clear()
 
         logger.info("Cleared all position rows from UI")
+
+    def _cleanup_old_positions(self, dt) -> None:
+        """
+        Remove COMPLETED/INVALIDATED positions older than 5 minutes.
+
+        Args:
+            dt: Time delta (from Clock.schedule_interval)
+        """
+        import time
+
+        current_time = time.time()
+        positions_to_remove = []
+
+        # Find positions older than 5 minutes (300 seconds)
+        for position_id, completion_time in self._completed_positions.items():
+            if current_time - completion_time > 300:  # 5 minutes
+                positions_to_remove.append(position_id)
+
+        # Remove old positions
+        if positions_to_remove:
+            container = self.ids.position_list_container
+            for position_id in positions_to_remove:
+                if position_id in self._position_widgets:
+                    widget = self._position_widgets[position_id]
+                    container.remove_widget(widget)
+                    del self._position_widgets[position_id]
+                    logger.info(f"Removed old completed position: {position_id}")
+
+                del self._completed_positions[position_id]
 
     def show_config_dialog(self) -> None:
         """
