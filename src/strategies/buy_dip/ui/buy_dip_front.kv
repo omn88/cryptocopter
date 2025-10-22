@@ -5,29 +5,87 @@
     padding: 10
     spacing: 5
     
-    # Header with Status
+    # Header with Status and Controls
     BoxLayout:
         size_hint_y: None
-        height: 40
+        height: 70
         spacing: 10
+        orientation: 'vertical'
         
-        Label:
-            text: 'Buy Dip Strategy'
-            font_size: '18sp'
-            bold: True
-            size_hint_x: 0.6
-            halign: 'left'
-            valign: 'middle'
-            text_size: self.size
+        # Title row
+        BoxLayout:
+            size_hint_y: 0.5
+            spacing: 10
             
-        Label:
-            text: root.status_text
-            font_size: '14sp'
-            size_hint_x: 0.4
-            halign: 'right'
-            valign: 'middle'
-            text_size: self.size
-            color: (0, 1, 0, 1) if root.status_text == 'Running' else (1, 0, 0, 1)
+            Label:
+                text: 'Buy Dip Strategy'
+                font_size: '18sp'
+                bold: True
+                size_hint_x: 0.4
+                halign: 'left'
+                valign: 'middle'
+                text_size: self.size
+                
+            Label:
+                text: root.status_text
+                font_size: '14sp'
+                size_hint_x: 0.3
+                halign: 'center'
+                valign: 'middle'
+                text_size: self.size
+                color: (0, 1, 0, 1) if root.status_text == 'Running' else (1, 0, 0, 1)
+            
+            # Control buttons
+            BoxLayout:
+                size_hint_x: 0.3
+                spacing: 5
+                
+                Button:
+                    id: config_btn
+                    text: 'Configure'
+                    size_hint_x: 0.5
+                    on_release: root.show_config_dialog()
+                    
+                Button:
+                    id: start_stop_btn
+                    text: 'Stop' if root.status_text == 'Running' else 'Start'
+                    size_hint_x: 0.5
+                    on_release: root.toggle_strategy()
+                    background_color: (1, 0.3, 0.3, 1) if root.status_text == 'Running' else (0.3, 1, 0.3, 1)
+        
+        # Info row (symbol, timeframe)
+        BoxLayout:
+            size_hint_y: 0.5
+            spacing: 10
+            padding: [0, 5, 0, 0]
+            
+            Label:
+                text: f'Symbol: {root.symbol_text}'
+                font_size: '12sp'
+                size_hint_x: 0.25
+                halign: 'left'
+                valign: 'middle'
+                text_size: self.size
+                color: 0.8, 0.8, 0.8, 1
+                
+            Label:
+                text: 'Timeframe: 15m'
+                font_size: '12sp'
+                size_hint_x: 0.25
+                halign: 'left'
+                valign: 'middle'
+                text_size: self.size
+                color: 0.8, 0.8, 0.8, 1
+                
+            Label:
+                text: f'Watching for rising patterns...' if root.status_text == 'Running' else 'Stopped'
+                font_size: '12sp'
+                size_hint_x: 0.5
+                halign: 'right'
+                valign: 'middle'
+                text_size: self.size
+                color: 0.6, 0.6, 0.6, 1
+                italic: True
             
     # Budget Summary (Compact)
     BoxLayout:

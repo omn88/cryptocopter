@@ -100,6 +100,60 @@ class BuyDipStrategy:
             min_pullback_pct=self.config.min_pullback_pct,
         )
 
+    def _create_placeholder_watching_position(self, symbol: str) -> None:
+        """
+        Create a placeholder WATCHING position for UI visibility.
+
+        This shows the user that the strategy is actively watching this symbol
+        even before any rising patterns are detected.
+
+        Args:
+            symbol: Symbol to create placeholder for
+        """
+        logger.info(f"[PLACEHOLDER] Creating watching position for {symbol}")
+
+        # Check if we already have a WATCHING position for this symbol
+        for pos_id in self._symbol_positions.get(symbol, []):
+            position = self._positions.get(pos_id)
+            if position and position.state == PositionState.WATCHING:
+                logger.info(f"[PLACEHOLDER] Already have watching position: {pos_id}")
+                return  # Already have a watching position
+
+        # Calculate order size for display
+        order_size = self._budget_manager.calculate_order_size()
+        if order_size is None:
+            order_size = 0  # No budget available, but still create for visibility
+
+        # Create placeholder position
+        position_id = f"{symbol}_watching"
+        position = BuyDipPosition(
+            position_id=position_id,
+            symbol=symbol,
+            dca_distances_pct=self.config.dca_distances_pct,
+            order_size=Decimal(str(order_size)),
+        )
+
+        # Store position
+        self._positions[position_id] = position
+        self._symbol_positions[symbol].append(position_id)
+
+        logger.info(
+            f"[PLACEHOLDER] Position stored: {position_id}, state={position.state.name}"
+        )
+        logger.info(f"[PLACEHOLDER] Total positions now: {len(self._positions)}")
+        logger.info(
+            f"[PLACEHOLDER] Callback available: {self.on_position_update is not None}"
+        )
+
+        # Notify UI
+        if self.on_position_update:
+            logger.info(f"[PLACEHOLDER] Calling UI callback for {position_id}")
+            self.on_position_update(position_id, "position_created")
+        else:
+            logger.warning(f"[PLACEHOLDER] No UI callback registered!")
+
+        logger.info(f"[PLACEHOLDER] Created placeholder WATCHING position for {symbol}")
+
     def process_candle(self, symbol: str, candle: Dict) -> None:
         """
         Process incoming candle through detection pipeline.

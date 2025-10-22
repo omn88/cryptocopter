@@ -53,6 +53,7 @@ class BuyDipExecutor:
         total_budget: Decimal,
         order_budget_pct: Decimal,
         symbols: list[str],
+        config_queue: Optional[queue.Queue] = None,
     ):
         """
         Initialize Buy Dip executor.
@@ -66,6 +67,7 @@ class BuyDipExecutor:
             total_budget: Total budget in USDC
             order_budget_pct: Order size as % of total budget
             symbols: List of symbols to trade (e.g., ["BTCUSDC"])
+            config_queue: Optional queue for runtime configuration updates
         """
         self.db = db
         self.broker = broker
@@ -73,6 +75,7 @@ class BuyDipExecutor:
         self.ui_queue = ui_queue
         self.config = config
         self.symbols = symbols
+        self.config_queue = config_queue
 
         # Worker queue for async event processing
         self.worker_queue: queue.Queue = queue.Queue()
@@ -193,7 +196,15 @@ class BuyDipExecutor:
 
         while not self.stop_event.is_set():
             try:
-                # Non-blocking queue check
+                # Check for config updates
+                if self.config_queue:
+                    try:
+                        config_update = self.config_queue.get_nowait()
+                        self._handle_config_update(config_update)
+                    except queue.Empty:
+                        pass
+
+                # Process worker queue events
                 try:
                     event = self.worker_queue.get_nowait()
                     await self._process_event(event)
@@ -201,7 +212,7 @@ class BuyDipExecutor:
                     await asyncio.sleep(0.1)  # Small delay to avoid busy loop
 
             except Exception as e:
-                logger.error(f"Error in worker loop: {e}")
+                logger.error(f"Error in worker loop: {e}", exc_info=True)
                 await asyncio.sleep(1)  # Back off on error
 
         logger.info("BuyDipExecutor worker loop stopped")
@@ -310,6 +321,81 @@ class BuyDipExecutor:
         self._send_position_update(position_id, event_type)
         # Also update budget when position changes
         self._send_budget_update()
+
+    def _handle_config_update(self, config_update: Dict) -> None:
+        """
+        Handle runtime configuration update from UI.
+
+        Args:
+            config_update: Dict with configuration changes
+        """
+        update_type = config_update.get("type")
+        logger.info(f"[CONFIG] Received config update: {config_update}")
+
+        if update_type == "update_config":
+            new_budget = config_update.get("total_budget")
+            new_order_pct = config_update.get("order_budget_pct")
+            new_symbol = config_update.get("symbol")
+
+            logger.info(
+                f"Applying config update: budget={new_budget}, "
+                f"order_pct={new_order_pct}%, symbol={new_symbol}"
+            )
+
+            # Update budget manager
+            if new_budget is not None and new_order_pct is not None:
+                from src.strategies.buy_dip.budget_manager import BudgetManager
+
+                old_available = self.strategy._budget_manager.get_available_budget()
+                old_locked = self.strategy._budget_manager.get_locked_budget()
+
+                # Calculate new available = new_total - currently_locked
+                new_total = float(new_budget)
+                new_available = new_total - old_locked
+
+                # Create new budget manager with updated values
+                # Initialize with new_available, then lock the previously locked amount
+                new_budget_mgr = BudgetManager(
+                    initial_budget=new_available,
+                    order_size_percentage=float(new_order_pct),
+                )
+
+                # Re-lock the previously locked funds
+                if old_locked > 0:
+                    new_budget_mgr._available_budget = new_available
+                    new_budget_mgr._locked_budget = old_locked
+
+                # Replace the budget manager
+                self.strategy._budget_manager = new_budget_mgr
+
+                logger.info(
+                    f"Budget updated: available ${old_available:.2f} -> ${new_available:.2f}, "
+                    f"locked ${old_locked:.2f}, order size: {new_order_pct}%"
+                )
+
+                # Send updated budget to UI
+                self._send_budget_update()
+
+                # Create placeholder WATCHING position for the new/updated config
+                if new_symbol:
+                    logger.info(
+                        f"Creating placeholder position for symbol: {new_symbol}"
+                    )
+                    # Ensure symbol is being tracked first
+                    self.strategy.add_symbol(new_symbol)
+                    logger.info(f"Symbol {new_symbol} added to tracking")
+                    # Now create placeholder position
+                    self.strategy._create_placeholder_watching_position(new_symbol)
+                    logger.info(
+                        f"Placeholder position creation requested for {new_symbol}"
+                    )
+
+            # Symbol change requires restart (not supported at runtime yet)
+            if new_symbol and new_symbol != self.symbols[0]:
+                logger.warning(
+                    f"Symbol change from {self.symbols[0]} to {new_symbol} "
+                    "requires restart (not yet implemented)"
+                )
 
     def _send_budget_update(self) -> None:
         """

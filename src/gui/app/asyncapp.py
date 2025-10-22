@@ -120,8 +120,9 @@ class AsyncApp(App):
         # Load UI (after imports so BuyDipFront class is registered)
         Builder.load_file("src/strategies/buy_dip/ui/buy_dip_front.kv")
 
-        # Create UI queue
+        # Create UI queue and config queue
         ui_queue: queue.Queue = queue.Queue()
+        config_queue: queue.Queue = queue.Queue()
 
         # Create strategy configuration
         config = BuyDipConfig(
@@ -135,7 +136,7 @@ class AsyncApp(App):
             dca_distances_pct=[1.618, 2.718, 3.142, 5.0, 10.0, 15.0],
         )
 
-        # Create executor
+        # Create executor (but don't start yet - UI will control it)
         executor = BuyDipExecutor(
             db=self.db,
             broker=self.broker,
@@ -145,19 +146,40 @@ class AsyncApp(App):
             total_budget=Decimal("10000"),  # $10k budget
             order_budget_pct=Decimal("2.0"),  # 2% per order
             symbols=["BTCUSDC"],
+            config_queue=config_queue,  # Pass config queue for runtime updates
         )
 
         # Store in trading systems
         self.trading_systems.append(executor)
 
-        # Create frontend
+        # Create executor control callbacks
+        executor_control = {
+            "start": lambda: executor.start(),
+            "stop": lambda: executor.stop(),
+            "is_running": lambda: hasattr(executor, "thread")
+            and executor.thread.is_alive(),
+        }
+
+        # Create frontend with executor control and portfolio reference
         frontend = BuyDipFront(
             client=self.client,
-            config_queue=queue.Queue(),  # Not used yet
+            config_queue=config_queue,  # Share config queue with executor
             db=self.db,
             ui_queue=ui_queue,
             price_resolver=self.price_resolver,
+            executor_control=executor_control,
         )
+
+        # Pass portfolio reference for getting USDC balance
+        frontend.portfolio = self.portfolio
+
+        # Set initial budget display from portfolio
+        usdc_available = self._get_portfolio_usdc_balance()
+        frontend.total_budget = usdc_available
+        frontend.available_budget = usdc_available
+        frontend.locked_budget = 0
+        frontend.symbol_text = "BTCUSDC"
+        frontend.status_text = "Stopped"
 
         frontend.initialize()
 
@@ -179,10 +201,10 @@ class AsyncApp(App):
         # Add tab
         self.root.add_widget(tab)
 
-        # Start executor
-        executor.start()
+        # Don't auto-start - let user start via UI button
+        # executor.start()
 
-        logger.info("Buy Dip strategy setup complete.")
+        logger.info("Buy Dip strategy setup complete (not started).")
 
     def setup_portfolio_manager(self) -> None:
         # Load the portfolio UI from portfolio.kv
@@ -339,6 +361,25 @@ class AsyncApp(App):
                     )
                     return
             self.root.ids.strategy_spinner.text = "Choose Strategy"
+
+    def _get_portfolio_usdc_balance(self) -> float:
+        """
+        Get available USDC balance from Portfolio inventory.
+
+        Returns:
+            Total available USDC quantity
+        """
+        if not self.portfolio or not hasattr(self.portfolio, "inventory"):
+            logger.warning("Portfolio not initialized, returning 0 USDC")
+            return 0.0
+
+        total_usdc = 0.0
+        for item in self.portfolio.inventory:
+            if item.coin == "USDC":
+                total_usdc += item.available_quantity
+
+        logger.info(f"Portfolio USDC available: ${total_usdc:.2f}")
+        return total_usdc
 
     def cancel_all_strategies(self) -> None:
         asyncio.create_task(self.shutdown())
