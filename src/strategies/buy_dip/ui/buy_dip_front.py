@@ -7,11 +7,20 @@ Displays multi-position tracking with real-time state updates.
 
 import logging
 import queue
+import time
+from decimal import Decimal
 from typing import Optional, Dict, TYPE_CHECKING
-from kivy.uix.boxlayout import BoxLayout
-from kivy.properties import StringProperty, NumericProperty
+
 from kivy.clock import Clock
 from kivy.lang import Builder
+from kivy.properties import StringProperty, NumericProperty
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.button import Button
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.label import Label
+from kivy.uix.popup import Popup
+from kivy.uix.textinput import TextInput
+
 from src.common.client import BinanceClient
 from src.database import Database
 from src.portfolio.usd_price_resolver import UsdPriceResolver
@@ -156,8 +165,6 @@ class BuyDipFront(BoxLayout):
             state = update.get("state")
             position_id = update.get("position_id")
             if state == "INVALIDATED" and position_id:
-                import time
-
                 self._completed_positions[position_id] = time.time()
                 logger.info(f"Position invalidated: {position_id}")
 
@@ -166,8 +173,6 @@ class BuyDipFront(BoxLayout):
             self._update_position_row(update)
             position_id = update.get("position_id")
             if position_id:
-                import time
-
                 self._completed_positions[position_id] = time.time()
             logger.info(
                 f"Position completed: {position_id}, PnL: {update.get('pnl', 0):.2f}"
@@ -391,8 +396,6 @@ class BuyDipFront(BoxLayout):
         Args:
             dt: Time delta (from Clock.schedule_interval)
         """
-        import time
-
         current_time = time.time()
         positions_to_remove = []
 
@@ -417,13 +420,6 @@ class BuyDipFront(BoxLayout):
         """
         Show configuration dialog for strategy parameters.
         """
-        from kivy.uix.popup import Popup
-        from kivy.uix.boxlayout import BoxLayout
-        from kivy.uix.label import Label
-        from kivy.uix.button import Button
-        from kivy.uix.textinput import TextInput
-        from kivy.uix.gridlayout import GridLayout
-
         # Create config form
         content = BoxLayout(orientation="vertical", padding=10, spacing=10)
 
@@ -507,8 +503,6 @@ class BuyDipFront(BoxLayout):
 
         def apply_config(instance):
             try:
-                from decimal import Decimal
-
                 # Parse values
                 new_symbol = symbol_input.text.strip().upper()
                 new_budget = Decimal(budget_input.text.strip())

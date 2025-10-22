@@ -5,18 +5,20 @@ Coordinates detection components and position lifecycle management.
 Main entry point for processing market data and managing positions.
 """
 
+import asyncio
+import logging
+import time
+from collections import defaultdict
 from decimal import Decimal
 from typing import Dict, Optional, List
-from collections import defaultdict
 
-from src.strategies.buy_dip.candle_buffer import CandleBuffer
 from src.strategies.buy_dip.atr import ATR
-from src.strategies.buy_dip.rising_detector import RisingCandleDetector
-from src.strategies.buy_dip.hwm_detector import HighWatermarkDetector
 from src.strategies.buy_dip.budget_manager import BudgetManager
+from src.strategies.buy_dip.candle_buffer import CandleBuffer
 from src.strategies.buy_dip.config import BuyDipConfig
+from src.strategies.buy_dip.hwm_detector import HighWatermarkDetector
 from src.strategies.buy_dip.position import BuyDipPosition, PositionState, OrderInfo
-import logging
+from src.strategies.buy_dip.rising_detector import RisingCandleDetector
 
 logger = logging.getLogger(__name__)
 
@@ -110,31 +112,19 @@ class BuyDipStrategy:
         Args:
             symbol: Symbol to create placeholder for
         """
-        logger.info(f"[PLACEHOLDER] Creating watching position for {symbol}")
-
-        # Check if we already have a WATCHING position for this symbol
-        for pos_id in self._symbol_positions.get(symbol, []):
-            position = self._positions.get(pos_id)
-            if position and position.state == PositionState.WATCHING:
-                logger.info(f"[PLACEHOLDER] Already have watching position: {pos_id}")
-                return  # Already have a watching position
+        # Check if WATCHING position already exists
+        if self._get_watching_position(symbol):
+            return
 
         # Calculate order size for display
         order_size = self._budget_manager.calculate_order_size()
         if order_size is None:
             order_size = 0  # No budget available, but still create for visibility
 
-        # Create placeholder position with unique ID
-        # Use timestamp to ensure uniqueness when previous WATCHING positions become ACTIVE
+        # Generate unique position ID (with timestamp if base ID exists)
         position_id = f"{symbol}_watching"
-
-        # Check if this ID already exists (e.g., former WATCHING position now ACTIVE)
-        # If so, generate a unique ID with timestamp
         if position_id in self._positions:
-            import time
-
             position_id = f"{symbol}_watching_{int(time.time() * 1000)}"
-            logger.info(f"[PLACEHOLDER] Base ID exists, using unique ID: {position_id}")
 
         position = BuyDipPosition(
             position_id=position_id,
@@ -143,26 +133,15 @@ class BuyDipStrategy:
             order_size=Decimal(str(order_size)),
         )
 
-        # Store position
+        # Store and register position
         self._positions[position_id] = position
         self._symbol_positions[symbol].append(position_id)
 
-        logger.info(
-            f"[PLACEHOLDER] Position stored: {position_id}, state={position.state.name}"
-        )
-        logger.info(f"[PLACEHOLDER] Total positions now: {len(self._positions)}")
-        logger.info(
-            f"[PLACEHOLDER] Callback available: {self.on_position_update is not None}"
-        )
+        logger.info(f"Created WATCHING position {position_id} ({len(self._positions)} total)")
 
-        # Notify UI
+        # Notify UI callback if registered
         if self.on_position_update:
-            logger.info(f"[PLACEHOLDER] Calling UI callback for {position_id}")
             self.on_position_update(position_id, "position_created")
-        else:
-            logger.warning(f"[PLACEHOLDER] No UI callback registered!")
-
-        logger.info(f"[PLACEHOLDER] Created placeholder WATCHING position for {symbol}")
 
     def process_candle(self, symbol: str, candle: Dict) -> None:
         """
@@ -197,13 +176,8 @@ class BuyDipStrategy:
 
         # Check for top invalidation (new high invalidates previous potential tops)
         current_high = Decimal(str(candle["high"]))
-        for pos_id in self._symbol_positions[symbol]:
-            position = self._positions[pos_id]
-            if (
-                position.state == PositionState.POTENTIAL_TOP
-                and position.top_price
-                and current_high > position.top_price
-            ):
+        for position in self._get_potential_top_positions(symbol):
+            if position.top_price and current_high > position.top_price:
                 # New high detected - invalidate old top and update
                 self._handle_top_invalidation(symbol, candle)
                 break  # Only need to call once per symbol
@@ -222,13 +196,8 @@ class BuyDipStrategy:
         # while still reacting promptly to new highs. We respect last_invalidation_ts
         # and a short realtime cooldown to ensure tests can observe cancellations
         # before replacement.
-        for pos_id in self._symbol_positions[symbol]:
-            position = self._positions[pos_id]
-            if (
-                position.state == PositionState.POTENTIAL_TOP
-                and position.top_price
-                and position.pending_order is None
-            ):
+        for position in self._get_potential_top_positions(symbol):
+            if position.top_price and position.pending_order is None:
                 last_inv = getattr(position, "last_invalidation_ts", None)
                 candle_ts: Optional[int] = None
                 try:
@@ -237,8 +206,6 @@ class BuyDipStrategy:
                         candle_ts = int(ts_value)
                 except Exception:
                     candle_ts = None
-
-                import time as _time
 
                 # If the invalidation happened in the same candle or a realtime
                 # cooldown is active, skip replacement for now.
@@ -251,10 +218,10 @@ class BuyDipStrategy:
                 if getattr(position, "just_invalidated", False):
                     continue
                 cooldown_until = getattr(position, "cooldown_until", None)
-                if cooldown_until is not None and _time.time() < cooldown_until:
+                if cooldown_until is not None and time.time() < cooldown_until:
                     logger.debug(
                         "Skipping replacement for %s due to cooldown until %s",
-                        pos_id,
+                        position.position_id,
                         cooldown_until,
                     )
                     continue
@@ -268,19 +235,15 @@ class BuyDipStrategy:
                         "Scheduling replacement order %s at price %s for pos %s (next tick)",
                         order_id,
                         dca_price,
-                        pos_id,
+                        position.position_id,
                     )
                     try:
-                        import asyncio
-
                         loop = asyncio.get_event_loop()
 
                         # Use a small wrapper so we can log when the scheduled callback runs
                         def _execute_scheduled_placement(
                             p_id=pos_id, p_price=dca_price, p_oid=order_id
                         ):
-                            import time as _time
-
                             logger.debug(
                                 "Executing scheduled placement for %s (pos=%s price=%s)",
                                 p_oid,
@@ -305,7 +268,7 @@ class BuyDipStrategy:
                                 # Respect realtime cooldown if set
                                 if (
                                     getattr(pos, "cooldown_until", None)
-                                    and _time.time() < pos.cooldown_until
+                                    and time.time() < pos.cooldown_until
                                 ):
                                     logger.debug(
                                         "Scheduled placement delayed: cooldown active until %s for %s",
@@ -376,13 +339,9 @@ class BuyDipStrategy:
         if order_size is None:
             return  # No budget available
 
-        # Check if we already have a position in WATCHING state
-        # Multiple positions can exist (different tops), but only one should be WATCHING
-        # for the next rising pattern at any time
-        for pos_id in self._symbol_positions[symbol]:
-            position = self._positions[pos_id]
-            if position.state == PositionState.WATCHING:
-                return  # Already have a position watching for next top
+        # Only create one WATCHING position at a time per symbol
+        if self._get_watching_position(symbol):
+            return
 
         # Create new position in WATCHING state
         # This will track the next potential top while other positions
@@ -411,36 +370,29 @@ class BuyDipStrategy:
             symbol: Symbol with confirmed top
             candle: Current candle
         """
-        # Get the confirmed top from HWM detector (not the current candle's high)
+        # Get the confirmed top from HWM detector
         hwm_detector = self._hwm_detectors[symbol]
         confirmed_top = hwm_detector.get_confirmed_top()
 
         if confirmed_top is None:
-            return  # No confirmed top yet
+            return
 
         top_price = Decimal(str(confirmed_top))
 
-        # Update all WATCHING positions for this symbol
-        for pos_id in self._symbol_positions[symbol]:
-            position = self._positions[pos_id]
-            if position.state == PositionState.WATCHING:
-                position.set_potential_top(top_price)
+        # Update all WATCHING positions to POTENTIAL_TOP state
+        for position in self._get_positions_by_state(symbol, PositionState.WATCHING):
+            position.set_potential_top(top_price)
 
-                # Notify UI of state change
-                if self.on_position_update:
-                    self.on_position_update(pos_id, "position_updated")
+            # Notify UI of state change
+            if self.on_position_update:
+                self.on_position_update(position.position_id, "position_updated")
 
-                # Place first DCA order at the calculated level
-                # DCA price is: top_price * (1 - dca_distance_pct / 100)
-                if len(position.dca_distances_pct) > 0:
-                    dca_distance = position.dca_distances_pct[0]  # First DCA level
-                    dca_price = float(top_price) * (1 - dca_distance / 100)
-
-                    # Generate order ID
-                    order_id = f"{position.position_id}_dca_0"
-
-                    # Place the order through the strategy
-                    self.place_order(pos_id, dca_price, order_id)
+            # Place first DCA order at the calculated level
+            if len(position.dca_distances_pct) > 0:
+                dca_distance = position.dca_distances_pct[0]
+                dca_price = float(top_price) * (1 - dca_distance / 100)
+                order_id = f"{position.position_id}_dca_0"
+                self.place_order(position.position_id, dca_price, order_id)
 
     def check_for_invalidation(self, symbol: str, current_price: float) -> None:
         """
@@ -451,26 +403,17 @@ class BuyDipStrategy:
             symbol: Symbol to check
             current_price: Current market price
         """
-        # Check all POTENTIAL_TOP positions for this symbol
-        for pos_id in self._symbol_positions.get(symbol, []):
-            position = self._positions.get(pos_id)
-            if not position:
-                continue
-
-            # Only invalidate POTENTIAL_TOP positions
-            if position.state != PositionState.POTENTIAL_TOP:
-                continue
-
+        # Check all POTENTIAL_TOP positions for invalidation
+        for position in self._get_potential_top_positions(symbol):
             # Check if price exceeded the confirmed top
             if position.confirmed_top and current_price > float(position.confirmed_top):
                 logger.info(
-                    f"Position {pos_id} invalidated: price ${current_price:.2f} > top ${float(position.confirmed_top):.2f}"
+                    f"Position {position.position_id} invalidated: "
+                    f"price ${current_price:.2f} > top ${float(position.confirmed_top):.2f}"
                 )
 
                 # Cancel pending buy order if exists
                 if position.pending_order and self.broker_adapter:
-                    import asyncio
-
                     try:
                         asyncio.create_task(
                             self.broker_adapter.cancel_order(
@@ -485,7 +428,7 @@ class BuyDipStrategy:
 
                 # Notify UI
                 if self.on_position_update:
-                    self.on_position_update(pos_id, "position_updated")
+                    self.on_position_update(position.position_id, "position_updated")
 
     def _handle_top_invalidation(self, symbol: str, candle: Dict) -> None:
         """
@@ -501,188 +444,182 @@ class BuyDipStrategy:
         )
 
         # Update all POTENTIAL_TOP positions for this symbol
-        for pos_id in self._symbol_positions[symbol]:
-            position = self._positions[pos_id]
+        for position in self._get_potential_top_positions(symbol):
+            if not position.top_price:
+                continue
+                
+            logger.debug(
+                "Invalidating pos=%s current_top=%s pending=%s",
+                position.position_id,
+                str(position.top_price),
+                bool(position.pending_order),
+            )
+            # Check whether the new high is sufficiently above the previous top
+            # to treat as a true invalidation (avoids noisy quick invalidations).
+            try:
+                prev_top = float(position.top_price)
+                new_top = float(new_top_price)
+                pct_delta = (new_top - prev_top) / prev_top * 100.0
+            except Exception:
+                pct_delta = 0.0
 
-            # Only invalidate if position has a top price and is in POTENTIAL_TOP state
-            if position.state == PositionState.POTENTIAL_TOP and position.top_price:
-                logger.debug(
-                    "Invalidating pos=%s current_top=%s pending=%s",
-                    pos_id,
-                    str(position.top_price),
-                    bool(position.pending_order),
-                )
-                # Check whether the new high is sufficiently above the previous top
-                # to treat as a true invalidation (avoids noisy quick invalidations).
-                try:
-                    prev_top = float(position.top_price)
-                    new_top = float(new_top_price)
-                    pct_delta = (new_top - prev_top) / prev_top * 100.0
-                except Exception:
-                    pct_delta = 0.0
-
-                # ATR-based threshold optional
+            # ATR-based threshold optional
+            atr_threshold = 0.0
+            try:
+                atr_val = self._atr_indicators[symbol].get_atr()
+                if atr_val is not None:
+                    atr_threshold = float(atr_val) * float(
+                        self.config.invalidation_atr_multiplier
+                    )
+            except Exception:
                 atr_threshold = 0.0
-                try:
-                    atr_val = self._atr_indicators[symbol].get_atr()
-                    if atr_val is not None:
-                        atr_threshold = float(atr_val) * float(
-                            self.config.invalidation_atr_multiplier
-                        )
-                except Exception:
-                    atr_threshold = 0.0
 
-                # If delta smaller than configured min and smaller than ATR threshold, skip invalidation
-                if pct_delta < float(self.config.invalidation_min_delta_pct) and (
-                    atr_threshold <= 0 or (new_top - prev_top) < atr_threshold
-                ):
-                    logger.debug(
-                        "Ignoring marginal new high for %s: delta_pct=%.6f < min_delta_pct=%.6f",
-                        symbol,
-                        pct_delta,
-                        float(self.config.invalidation_min_delta_pct),
-                    )
-                    continue
-
-                # Get pending order before invalidation
-                pending_order = position.pending_order
-
-                # Cancel pending order if exists
-                if pending_order:
-                    # Mark as canceled and release locked funds immediately
-                    pending_order.status = "CANCELED"
-
-                    # Release locked funds corresponding to this pending order
-                    try:
-                        order_amount = float(
-                            pending_order.price * pending_order.quantity
-                        )
-                    except Exception:
-                        order_amount = 0.0
-
-                    if order_amount > 0:
-                        # Return funds to available budget immediately
-                        self._budget_manager.release_funds(order_amount)
-
-                    # Clear pending order on position
-                    position.pending_order = None
-
-                    # Clear order tracking
-                    if pending_order.order_id in self._order_to_position:
-                        del self._order_to_position[pending_order.order_id]
-
-                # Update to new top price (stay in POTENTIAL_TOP state)
-                # Update to new top price (stay in POTENTIAL_TOP state)
-                position.top_price = new_top_price
-                # Mark transient flag so replacement will not occur in this cycle
-                position.just_invalidated = True
-                # Record invalidation timestamp so we don't place a replacement in the
-                # same candle (the simulator/test expects a small gap)
-                try:
-                    ts_value = candle.get("timestamp")
-                    if ts_value is not None:
-                        position.last_invalidation_ts = int(ts_value)
-                    else:
-                        position.last_invalidation_ts = None
-                except Exception:
-                    position.last_invalidation_ts = None
-
-                # Set a small realtime cooldown so tests/simulators can observe the
-                # cancellation before any replacement is attempted.
-                try:
-                    import time as _time
-
-                    position.cooldown_until = _time.time() + float(
-                        self.config.invalidation_cooldown_seconds
-                    )
-                except Exception:
-                    position.cooldown_until = None
-
+            # If delta smaller than configured min and smaller than ATR threshold, skip invalidation
+            if pct_delta < float(self.config.invalidation_min_delta_pct) and (
+                atr_threshold <= 0 or (new_top - prev_top) < atr_threshold
+            ):
                 logger.debug(
-                    "Position %s updated to new top %s; pending cleared=%s last_invalidation_ts=%s cooldown_until=%s",
-                    pos_id,
-                    str(position.top_price),
-                    position.pending_order is None,
-                    position.last_invalidation_ts,
-                    position.cooldown_until,
+                    "Ignoring marginal new high for %s: delta_pct=%.6f < min_delta_pct=%.6f",
+                    symbol,
+                    pct_delta,
+                    float(self.config.invalidation_min_delta_pct),
                 )
+                continue
 
-                # Schedule a delayed replacement task so that a replacement order
-                # will be placed after the realtime cooldown even if no further
-                # candles arrive. Store the task on the position to avoid
-                # scheduling duplicates.
+            # Get pending order before invalidation
+            pending_order = position.pending_order
+
+            # Cancel pending order if exists
+            if pending_order:
+                # Mark as canceled and release locked funds immediately
+                pending_order.status = "CANCELED"
+
+                # Release locked funds corresponding to this pending order
                 try:
-                    import asyncio
-
-                    async def _delayed_replacement(p_id=pos_id):
-                        try:
-                            await asyncio.sleep(
-                                float(self.config.invalidation_cooldown_seconds or 0)
-                            )
-                            pos = self._positions.get(p_id)
-                            if not pos:
-                                logger.debug(
-                                    "Delayed replacement aborted: position %s not found",
-                                    p_id,
-                                )
-                                return
-                            # Only place if still POTENTIAL_TOP with no pending order
-                            if pos.state != PositionState.POTENTIAL_TOP:
-                                logger.debug(
-                                    "Delayed replacement aborted: state %s for %s",
-                                    pos.state,
-                                    p_id,
-                                )
-                                return
-                            if pos.pending_order is not None:
-                                logger.debug(
-                                    "Delayed replacement aborted: pending exists for %s",
-                                    p_id,
-                                )
-                                return
-                            if not pos.top_price:
-                                logger.debug(
-                                    "Delayed replacement aborted: no top_price for %s",
-                                    p_id,
-                                )
-                                return
-
-                            # Generate order id and price (use timestamp suffix to ensure uniqueness)
-                            import time as _time
-
-                            dca_distance = (
-                                pos.dca_distances_pct[0] if pos.dca_distances_pct else 0
-                            )
-                            dca_price = float(pos.top_price) * (1 - dca_distance / 100)
-                            order_id = f"{pos.position_id}_dca_{pos.next_dca_level}_{int(_time.time()*1000)}"
-
-                            logger.debug(
-                                "Delayed placement executing for %s at price %s",
-                                order_id,
-                                dca_price,
-                            )
-                            self.place_order(pos.position_id, dca_price, order_id)
-                        except Exception:
-                            logger.exception(
-                                "Delayed replacement task failed for %s", p_id
-                            )
-
-                    loop = asyncio.get_event_loop()
-                    # Cancel previous task if exists
-                    prev_task = getattr(position, "_invalidation_task", None)
-                    if prev_task and not prev_task.done():
-                        try:
-                            prev_task.cancel()
-                        except Exception:
-                            pass
-
-                    position._invalidation_task = loop.create_task(
-                        _delayed_replacement()
+                    order_amount = float(
+                        pending_order.price * pending_order.quantity
                     )
                 except Exception:
-                    logger.exception(
-                        "Failed to schedule delayed replacement for %s", pos_id
-                    )
+                    order_amount = 0.0
+
+                if order_amount > 0:
+                    # Return funds to available budget immediately
+                    self._budget_manager.release_funds(order_amount)
+
+                # Clear pending order on position
+                position.pending_order = None
+
+                # Clear order tracking
+                if pending_order.order_id in self._order_to_position:
+                    del self._order_to_position[pending_order.order_id]
+
+            # Update to new top price (stay in POTENTIAL_TOP state)
+            position.top_price = new_top_price
+            # Mark transient flag so replacement will not occur in this cycle
+            position.just_invalidated = True
+            # Record invalidation timestamp so we don't place a replacement in the
+            # same candle (the simulator/test expects a small gap)
+            try:
+                ts_value = candle.get("timestamp")
+                if ts_value is not None:
+                    position.last_invalidation_ts = int(ts_value)
+                else:
+                    position.last_invalidation_ts = None
+            except Exception:
+                position.last_invalidation_ts = None
+
+            # Set a small realtime cooldown so tests/simulators can observe the
+            # cancellation before any replacement is attempted.
+            try:
+                position.cooldown_until = time.time() + float(
+                    self.config.invalidation_cooldown_seconds
+                )
+            except Exception:
+                position.cooldown_until = None
+
+            logger.debug(
+                "Position %s updated to new top %s; pending cleared=%s last_invalidation_ts=%s cooldown_until=%s",
+                position.position_id,
+                str(position.top_price),
+                position.pending_order is None,
+                position.last_invalidation_ts,
+                position.cooldown_until,
+            )
+
+            # Schedule a delayed replacement task so that a replacement order
+            # will be placed after the realtime cooldown even if no further
+            # candles arrive. Store the task on the position to avoid
+            # scheduling duplicates.
+            try:
+                pos_id_for_task = position.position_id
+                
+                async def _delayed_replacement(p_id=pos_id_for_task):
+                    try:
+                        await asyncio.sleep(
+                            float(self.config.invalidation_cooldown_seconds or 0)
+                        )
+                        pos = self._positions.get(p_id)
+                        if not pos:
+                            logger.debug(
+                                "Delayed replacement aborted: position %s not found",
+                                p_id,
+                            )
+                            return
+                        # Only place if still POTENTIAL_TOP with no pending order
+                        if pos.state != PositionState.POTENTIAL_TOP:
+                            logger.debug(
+                                "Delayed replacement aborted: state %s for %s",
+                                pos.state,
+                                p_id,
+                            )
+                            return
+                        if pos.pending_order is not None:
+                            logger.debug(
+                                "Delayed replacement aborted: pending exists for %s",
+                                p_id,
+                            )
+                            return
+                        if not pos.top_price:
+                            logger.debug(
+                                "Delayed replacement aborted: no top_price for %s",
+                                p_id,
+                            )
+                            return
+
+                        # Generate order id and price (use timestamp suffix to ensure uniqueness)
+                        dca_distance = (
+                            pos.dca_distances_pct[0] if pos.dca_distances_pct else 0
+                        )
+                        dca_price = float(pos.top_price) * (1 - dca_distance / 100)
+                        order_id = f"{pos.position_id}_dca_{pos.next_dca_level}_{int(time.time()*1000)}"
+
+                        logger.debug(
+                            "Delayed placement executing for %s at price %s",
+                            order_id,
+                            dca_price,
+                        )
+                        self.place_order(pos.position_id, dca_price, order_id)
+                    except Exception:
+                        logger.exception(
+                            "Delayed replacement task failed for %s", p_id
+                        )
+
+                loop = asyncio.get_event_loop()
+                # Cancel previous task if exists
+                prev_task = getattr(position, "_invalidation_task", None)
+                if prev_task and not prev_task.done():
+                    try:
+                        prev_task.cancel()
+                    except Exception:
+                        pass
+
+                position._invalidation_task = loop.create_task(
+                    _delayed_replacement()
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to schedule delayed replacement for %s", position.position_id
+                )
 
     def place_order(self, position_id: str, price: float, order_id: str) -> bool:
         """
@@ -754,8 +691,6 @@ class BuyDipStrategy:
         if self.broker_adapter:
             try:
                 # Schedule async order placement
-                import asyncio
-
                 loop = asyncio.get_event_loop()
                 asyncio.ensure_future(
                     self.broker_adapter.place_order(
@@ -933,8 +868,6 @@ class BuyDipStrategy:
         # Place order through broker adapter (production flow)
         if self.broker_adapter:
             try:
-                import asyncio
-
                 loop = asyncio.get_event_loop()
                 asyncio.ensure_future(
                     self.broker_adapter.place_order(
@@ -1034,3 +967,33 @@ class BuyDipStrategy:
             + self._budget_manager.get_locked_budget(),
             "order_size": self._budget_manager.calculate_order_size(),
         }
+
+    # === Helper Methods for Cleaner Position Filtering ===
+
+    def _get_watching_position(self, symbol: str) -> Optional[BuyDipPosition]:
+        """Get the WATCHING position for a symbol, if any."""
+        for pos_id in self._symbol_positions.get(symbol, []):
+            position = self._positions.get(pos_id)
+            if position and position.state == PositionState.WATCHING:
+                return position
+        return None
+
+    def _get_potential_top_positions(self, symbol: str) -> List[BuyDipPosition]:
+        """Get all POTENTIAL_TOP positions for a symbol."""
+        positions = []
+        for pos_id in self._symbol_positions.get(symbol, []):
+            position = self._positions.get(pos_id)
+            if position and position.state == PositionState.POTENTIAL_TOP:
+                positions.append(position)
+        return positions
+
+    def _get_positions_by_state(
+        self, symbol: str, state: PositionState
+    ) -> List[BuyDipPosition]:
+        """Get all positions for a symbol in a specific state."""
+        positions = []
+        for pos_id in self._symbol_positions.get(symbol, []):
+            position = self._positions.get(pos_id)
+            if position and position.state == state:
+                positions.append(position)
+        return positions

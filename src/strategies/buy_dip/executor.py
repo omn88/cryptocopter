@@ -13,20 +13,22 @@ import asyncio
 import logging
 import queue
 import threading
+import time
 from decimal import Decimal
 from typing import Dict, Optional, Any
 
+from src.broker import BrokerSpot
 from src.common.client import BinanceClient
-from src.database import Database
 from src.common.identifiers import (
     SubscriptionInfo,
     SubscriptionType,
     SubscriptionTarget,
 )
-from src.broker import BrokerSpot
-from src.strategies.buy_dip.strategy import BuyDipStrategy
-from src.strategies.buy_dip.config import BuyDipConfig
+from src.database import Database
 from src.strategies.buy_dip.broker_adapter import BuyDipBrokerAdapter
+from src.strategies.buy_dip.budget_manager import BudgetManager
+from src.strategies.buy_dip.config import BuyDipConfig
+from src.strategies.buy_dip.strategy import BuyDipStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -287,8 +289,6 @@ class BuyDipExecutor:
             self._current_prices[symbol] = current_price
 
             # Throttle checks to every 5 seconds
-            import time
-
             current_time = time.time()
             last_check = self._last_price_check.get(symbol, 0)
 
@@ -382,8 +382,6 @@ class BuyDipExecutor:
 
             # Update budget manager
             if new_budget is not None and new_order_pct is not None:
-                from src.strategies.buy_dip.budget_manager import BudgetManager
-
                 old_available = self.strategy._budget_manager.get_available_budget()
                 old_locked = self.strategy._budget_manager.get_locked_budget()
 
