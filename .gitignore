@@ -5,8 +5,6 @@ data
 sample_data.txt
 .pytest_cache/
 .env
-.claude
-.coverage
 *.txt
 *.csv
 linux_venv
