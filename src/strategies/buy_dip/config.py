@@ -32,7 +32,11 @@ class BuyDipConfig:
         Args:
             atr_period: ATR calculation period (default: 14)
             order_size_percentage: Order size as % of available budget (default: 2%)
-            dca_distances_pct: DCA distances below top (default: [φ=1.618, e=2.718, π=3.142])
+            dca_distances_pct: DCA distances below top as list of percentages
+                Example: [1.618, 2.718, 3.142] for 3 levels
+                Example: [1.0, 2.0, 3.0, 4.0, 5.0, 6.0] for 6 levels
+                Default: [φ=1.618, e=2.718, π=3.142] (mathematical constants)
+                Can be ANY number of levels (minimum 1)
             min_consecutive_rising: Min consecutive rising candles (default: 3)
             min_total_gain_pct: Min total gain % for rising pattern (default: 0.25%)
             atr_multiplier: ATR multiplier for adaptive threshold (default: 2.0)
@@ -41,14 +45,14 @@ class BuyDipConfig:
         Raises:
             ValueError: If any validation fails
         """
-        # Set defaults
+        # Set defaults - elegant mathematical constants
         if dca_distances_pct is None:
             dca_distances_pct = [1.618, 2.718, 3.142]  # φ, e, π
 
         # Store attributes
         self.atr_period = atr_period
         self.order_size_percentage = order_size_percentage
-        self.dca_distances_pct = dca_distances_pct
+        self.dca_distances_pct = sorted(dca_distances_pct)  # Always sort ascending
         self.min_consecutive_rising = min_consecutive_rising
         self.min_total_gain_pct = min_total_gain_pct
         self.atr_multiplier = atr_multiplier
@@ -80,3 +84,22 @@ class BuyDipConfig:
         # Validate DCA distances
         if not self.dca_distances_pct:
             raise ValueError("dca_distances_pct must not be empty")
+
+        # Validate each distance is positive
+        for i, distance in enumerate(self.dca_distances_pct):
+            if distance <= 0:
+                raise ValueError(f"dca_distances_pct[{i}] must be > 0, got {distance}")
+            if distance >= 100:
+                raise ValueError(
+                    f"dca_distances_pct[{i}] must be < 100, got {distance}"
+                )
+
+        # Warn if distances are not sorted (we auto-sort but let user know)
+        if self.dca_distances_pct != sorted(self.dca_distances_pct):
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"DCA distances auto-sorted: {self.dca_distances_pct} "
+                f"→ {sorted(self.dca_distances_pct)}"
+            )

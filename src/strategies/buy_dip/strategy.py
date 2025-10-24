@@ -18,7 +18,7 @@ from src.strategies.buy_dip.candle_buffer import CandleBuffer
 from src.strategies.buy_dip.config import BuyDipConfig
 from src.strategies.buy_dip.hwm_detector import HighWatermarkDetector
 from src.strategies.buy_dip.invalidation_handler import TopInvalidationHandler
-from src.strategies.buy_dip.position import BuyDipPosition, PositionState, OrderInfo
+from src.strategies.buy_dip.position import BuyDipPosition, PositionState
 from src.strategies.buy_dip.rising_detector import RisingCandleDetector
 
 logger = logging.getLogger(__name__)
