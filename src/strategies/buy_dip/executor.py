@@ -29,6 +29,7 @@ from src.strategies.buy_dip.broker_adapter import BuyDipBrokerAdapter
 from src.strategies.buy_dip.budget_manager import BudgetManager
 from src.strategies.buy_dip.config import BuyDipConfig
 from src.strategies.buy_dip.strategy import BuyDipStrategy
+from src.strategies.buy_dip.ui_messenger import UIMessenger
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +103,9 @@ class BuyDipExecutor:
             broker_adapter=primary_adapter,
             on_position_update=self._on_position_update,  # UI callback
         )
+
+        # Create UI messenger for budget and position updates
+        self._ui_messenger = UIMessenger(strategy=self.strategy, ui_queue=ui_queue)
 
         # Set up adapter callbacks
         primary_adapter.set_order_filled_callback(self._on_order_filled)
@@ -434,81 +438,20 @@ class BuyDipExecutor:
                 )
 
     def _send_budget_update(self) -> None:
-        """
-        Send budget status to UI.
-        """
-        available = self.strategy._budget_manager.get_available_budget()
-        locked = self.strategy._budget_manager.get_locked_budget()
-        total = available + locked
-
-        self.ui_queue.put(
-            {
-                "type": "budget",
-                "total": total,
-                "available": available,
-                "locked": locked,
-            }
-        )
+        """Send budget status to UI - delegate to UI messenger."""
+        self._ui_messenger.send_budget_update()
 
     def _send_position_update(
         self, position_id: str, update_type: str = "position_updated"
     ) -> None:
-        """
-        Send position details to UI.
+        """Send position details to UI - delegate to UI messenger.
 
         Args:
             position_id: Position to send update for
             update_type: Type of update (position_created, position_updated, position_completed)
         """
-        position = self.strategy._positions.get(position_id)
-        if not position:
-            logger.warning(f"Position {position_id} not found for UI update")
-            return
-
-        # Build position data for UI
-        position_data: Dict[str, Any] = {
-            "type": update_type,
-            "position_id": position_id,
-            "symbol": position.symbol,
-            "state": position.state.name,
-            "top_price": float(position.top_price) if position.top_price else 0,
-            "current_dca_level": position.next_dca_level,  # next_dca_level = how many filled so far
-            "total_dca_levels": len(self.strategy.config.dca_distances_pct),
-            "avg_entry_price": (
-                float(position.average_entry) if position.average_entry else 0
-            ),
-            "total_invested": float(position.total_invested),
-            "pending_order": None,
-            "sell_order": None,
-            "pnl": 0,
-        }
-
-        # Pending buy order
-        if position.pending_order:
-            position_data["pending_order"] = {
-                "order_id": position.pending_order.order_id,
-                "price": float(position.pending_order.price),
-                "quantity": float(position.pending_order.quantity),
-            }
-
-        # Sell order
-        if position.sell_order:
-            position_data["sell_order"] = {
-                "order_id": position.sell_order.order_id,
-                "price": float(position.sell_order.price),
-                "quantity": float(position.sell_order.quantity),
-            }
-
-        # PnL calculation (placeholder - need current price for accurate PnL)
-        # For now, just set to 0 unless position is completed
-        # position_data["pnl"] already set above
-
-        self.ui_queue.put(position_data)
-        logger.debug(f"Sent {update_type} for position {position_id}")
+        self._ui_messenger.send_position_update(position_id, update_type)
 
     def _send_all_positions_update(self) -> None:
-        """
-        Send updates for all positions to UI (e.g., on startup).
-        """
-        for position_id in self.strategy._positions.keys():
-            self._send_position_update(position_id, "position_updated")
+        """Send updates for all positions to UI - delegate to UI messenger."""
+        self._ui_messenger.send_all_positions_update()

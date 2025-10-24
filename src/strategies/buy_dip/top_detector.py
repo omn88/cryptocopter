@@ -80,17 +80,51 @@ class TopDetector:
             4. Check if price has dropped enough from highest to confirm as top
             5. Return top price if detected (and different from current_top)
         """
-        # TODO: Implement the logic described in tests
-        # Start with test_top_detector_identifies_simple_local_top
+        # Step 1: Add new price to recent_prices
+        new_point = PricePoint(price=price, timestamp=timestamp)
+        self.recent_prices.append(new_point)
 
-        # Hint: Follow these steps:
-        # 1. Add new price to self.recent_prices
-        # 2. Clean up old prices (outside lookback_window)
-        # 3. Find highest price in recent_prices
-        # 4. Calculate drop percentage from highest to current
-        # 5. If drop >= min_drop_to_confirm, we have a top!
+        # Step 2: Remove prices outside lookback window
+        cutoff_time = timestamp - self.lookback_window
+        self.recent_prices = [
+            p for p in self.recent_prices if p.timestamp >= cutoff_time
+        ]
 
-        raise NotImplementedError("Remove this and implement the logic!")
+        # Step 3: Find highest price in window
+        if not self.recent_prices:
+            return None
+
+        highest_point = max(self.recent_prices, key=lambda p: p.price)
+        highest_price = highest_point.price
+
+        # Step 4: Calculate drop percentage from highest to current
+        if highest_price == 0:
+            return None
+
+        # Only detect top if current price is NOT the highest
+        # (i.e., we've actually moved away from the peak)
+        if price >= highest_price:
+            return None
+
+        drop_pct = ((highest_price - price) / highest_price) * 100
+
+        # Step 5: Check if drop confirms a top (and it's different from current_top)
+        if drop_pct >= self.min_drop_to_confirm:
+            # Check if this is a new top (not the same one we already detected)
+            if (
+                self.current_top is None
+                or highest_point.timestamp != self.current_top.timestamp
+            ):
+                self.current_top = highest_point
+                logger.info(
+                    "Top detected at %.2f (current: %.2f, drop: %.2f%%)",
+                    highest_price,
+                    price,
+                    drop_pct,
+                )
+                return highest_price
+
+        return None
 
 
 if __name__ == "__main__":
