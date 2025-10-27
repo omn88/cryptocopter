@@ -9,19 +9,7 @@ import pytest
 from decimal import Decimal
 
 from src.strategies.buy_dip.strategy import BuyDipStrategy
-from src.strategies.buy_dip.config import BuyDipConfig
 from src.strategies.buy_dip.position import PositionState
-
-
-@pytest.fixture
-def sample_config():
-    """Sample configuration for testing."""
-    return BuyDipConfig(
-        order_size_percentage=2.0,
-        dca_distances_pct=[1.0, 2.0, 3.0],
-        min_consecutive_rising=3,
-        min_total_gain_pct=0.25,
-    )
 
 
 class TestStrategyInitialization:

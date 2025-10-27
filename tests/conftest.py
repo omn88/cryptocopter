@@ -3,6 +3,8 @@ import os
 # Import kivy configuration first (must be before any Kivy imports)
 import sys
 
+from src.strategies.buy_dip.config import BuyDipConfig
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import kivy_config
 
@@ -1379,3 +1381,14 @@ def buy_dip_strategy(sample_buy_dip_config, broker_adapter_buy_dip):
     # Add BTCUSDC symbol for testing
     strategy.add_symbol("BTCUSDC")
     return strategy
+
+
+@pytest.fixture
+def sample_config():
+    """Sample configuration for testing."""
+    return BuyDipConfig(
+        order_size_percentage=2.0,
+        dca_distances_pct=[1.0, 2.0, 3.0],
+        min_consecutive_rising=3,
+        min_total_gain_pct=0.25,
+    )

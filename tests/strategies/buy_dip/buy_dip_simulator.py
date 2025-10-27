@@ -13,6 +13,7 @@ Supports:
 
 import asyncio
 import logging
+import queue
 import time
 from typing import Callable, List, Dict, Optional, Any
 from datetime import datetime, timedelta
@@ -193,6 +194,70 @@ class BuyDipSimulator:
         self.strategy: BuyDipStrategy = strategy
         self.candle_buffer: List[Dict] = []
         self.current_time = datetime.now()
+        self.worker_task: Optional[asyncio.Task] = None
+        self.stop_event = asyncio.Event()
+
+        # Start background worker task to process queue
+        self.worker_task = asyncio.create_task(self._worker_loop())
+
+    async def _worker_loop(self) -> None:
+        """
+        Background task that continuously processes events from worker queue.
+
+        This mimics the executor's worker loop in production, allowing events
+        to be processed asynchronously without explicit calls.
+        """
+
+        logger.info("BuyDipSimulator worker loop started")
+
+        # Ensure worker_queue is available
+        assert self.strategy.worker_queue is not None, "Strategy must have worker_queue"
+
+        while not self.stop_event.is_set():
+            try:
+                # Try to get event from queue
+                try:
+                    event = self.strategy.worker_queue.get_nowait()
+                except queue.Empty:
+                    await asyncio.sleep(0.01)  # Small delay before checking again
+                    continue
+
+                # Process kline events (matching executor logic)
+                if isinstance(event, dict) and event.get("e") == "kline":
+                    kline_data = event.get("k", {})
+                    is_closed = kline_data.get("x", False)
+
+                    if is_closed:
+                        symbol = event.get("s")
+                        if symbol:
+                            # Create candle dict for strategy
+                            candle = {
+                                "open_time": kline_data.get("t"),
+                                "close_time": kline_data.get("T"),
+                                "symbol": symbol,
+                                "open": float(kline_data.get("o", 0)),
+                                "high": float(kline_data.get("h", 0)),
+                                "low": float(kline_data.get("l", 0)),
+                                "close": float(kline_data.get("c", 0)),
+                                "volume": float(kline_data.get("v", 0)),
+                                "timestamp": kline_data.get("t", 0)
+                                / 1000,  # Convert ms to seconds
+                            }
+
+                            # Process through strategy
+                            await self.strategy.process_candle(symbol, candle)
+
+            except Exception as e:
+                logger.error(f"Error in worker loop: {e}", exc_info=True)
+                await asyncio.sleep(0.1)
+
+        logger.info("BuyDipSimulator worker loop stopped")
+
+    async def stop(self) -> None:
+        """Stop the background worker task."""
+        self.stop_event.set()
+        if self.worker_task and not self.worker_task.done():
+            await self.worker_task
 
     # ========================================================================
     # PROPERTIES FOR EASY ACCESS
@@ -207,27 +272,50 @@ class BuyDipSimulator:
     # CANDLE INJECTION
     # ========================================================================
 
-    async def send_candle(self, candle: Dict) -> None:
+    async def send_candle(self, candle: Dict, symbol: str = "BTCUSDC") -> None:
         """
-        Send a single candle to the strategy.
+        Send a single candle to the strategy via worker queue.
+
+        This simulates the production flow where kline messages are put into
+        the worker queue and processed by the background worker loop.
 
         Args:
             candle: Candle dictionary (Binance kline format)
+            symbol: Trading pair symbol
         """
-        # Convert Binance kline format to strategy format
-        strategy_candle = {
-            "open": float(candle["o"]),
-            "high": float(candle["h"]),
-            "low": float(candle["l"]),
-            "close": float(candle["c"]),
-            "volume": float(candle["v"]),
-            "timestamp": candle["t"] / 1000,  # Convert ms to seconds
+        # Create kline event matching Binance WebSocket format
+        kline_event = {
+            "e": "kline",  # Event type
+            "E": int(time.time() * 1000),  # Event time
+            "s": symbol,  # Symbol
+            "k": {
+                "t": candle["t"],  # Kline start time
+                "T": candle["T"],  # Kline close time
+                "s": symbol,  # Symbol
+                "i": "15m",  # Interval
+                "o": candle["o"],  # Open price
+                "c": candle["c"],  # Close price
+                "h": candle["h"],  # High price
+                "l": candle["l"],  # Low price
+                "v": candle["v"],  # Base asset volume
+                "q": candle["q"],  # Quote asset volume
+                "n": candle["n"],  # Number of trades
+                "V": candle["V"],  # Taker buy base asset volume
+                "Q": candle["Q"],  # Taker buy quote asset volume
+                "x": candle["x"],  # Is closed
+            },
         }
 
-        # Process candle through strategy (async)
-        await self.strategy.process_candle("BTCUSDC", strategy_candle)
+        # Put kline event into worker queue (like production)
+        assert self.strategy.worker_queue is not None, "Strategy must have worker_queue"
+        self.strategy.worker_queue.put_nowait(kline_event)
         self.candle_buffer.append(candle)
-        logger.info(f"Sent candle: H={candle['h']}, L={candle['l']}, C={candle['c']}")
+        logger.info(
+            f"Sent kline to queue: H={candle['h']}, L={candle['l']}, C={candle['c']}"
+        )
+
+        # Small delay to allow background worker to process
+        await asyncio.sleep(0.01)
 
     async def send_candles(self, candles: List[Dict]) -> None:
         """
@@ -290,7 +378,6 @@ class BuyDipSimulator:
         start_price: float = 67000,
         end_price: float = 67890,
         num_candles: int = 3,
-        confirm_top: bool = True,
     ) -> Optional[float]:
         """
         Simulate rising pattern leading to potential top.
@@ -386,7 +473,7 @@ class BuyDipSimulator:
         # Process each candle with ticker stream simulation
         for i, candle in enumerate(candles):
             await self.send_candle(candle)
-            
+
             # Simulate ticker stream between candles for dynamic sell order management
             if use_ticker_stream and i < len(candles) - 1:
                 current_high = float(candle["h"])
@@ -428,7 +515,6 @@ class BuyDipSimulator:
                 logger.debug(f"No sell order for position {position.position_id}")
 
         logger.info(f"Simulated recovery: {from_price} → {to_price}")
-
 
     # ========================================================================
     # ORDER SIMULATION (E2E through broker callbacks)

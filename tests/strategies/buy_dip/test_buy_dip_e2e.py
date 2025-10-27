@@ -10,10 +10,23 @@ Tests complete lifecycle scenarios:
 
 import asyncio
 from decimal import Decimal
+import logging
 import pytest
 from datetime import datetime
 from src.strategies.buy_dip.position import PositionState
 from tests.strategies.buy_dip.buy_dip_simulator import BuyDipSimulator, create_candle
+
+
+logger = logging.getLogger(__name__)
+
+
+@pytest.fixture
+async def simulator(buy_dip_strategy):
+    """Create simulator with automatic cleanup of background worker task."""
+    sim = BuyDipSimulator(buy_dip_strategy)
+    yield sim
+    # Cleanup: stop background worker task
+    await sim.stop()
 
 
 # ============================================================================
@@ -21,7 +34,7 @@ from tests.strategies.buy_dip.buy_dip_simulator import BuyDipSimulator, create_c
 # ============================================================================
 
 
-async def test_perfect_position_lifecycle(buy_dip_strategy):
+async def test_perfect_position_lifecycle(simulator):
     """
     Test complete position lifecycle with perfect fills.
 
@@ -39,12 +52,13 @@ async def test_perfect_position_lifecycle(buy_dip_strategy):
     9. Sell fills at top → position CLOSED
     10. No pending orders remain
     """
-    sim = BuyDipSimulator(buy_dip_strategy)
+    sim = simulator
 
     # Rising pattern to top
     top_price = await sim.simulate_rising_to_top(
         start_price=67000, end_price=67890, num_candles=3
     )
+    logger.info("Simulated top at %.2f", top_price)
 
     # Wait for potential top detection
     await sim.wait_for_potential_top(timeout=2.0)
@@ -87,7 +101,9 @@ async def test_perfect_position_lifecycle(buy_dip_strategy):
 
     # Now sell order should be placed (price within 2% of top)
     sell_order = position.sell_order
-    assert sell_order is not None, "Sell order should be placed when price approaches top"
+    assert (
+        sell_order is not None
+    ), "Sell order should be placed when price approaches top"
     assert float(sell_order.price) == top_price
 
     # Order 2 should NOW be placed (sequential, triggered by Order 1 fill)
@@ -134,7 +150,7 @@ async def test_perfect_position_lifecycle(buy_dip_strategy):
     assert position.pending_order is None
 
 
-async def test_top_invalidation_before_confirmation(buy_dip_strategy):
+async def test_top_invalidation_before_confirmation(simulator):
     """
     Test top invalidation when new high detected before first order fills.
 
@@ -145,10 +161,8 @@ async def test_top_invalidation_before_confirmation(buy_dip_strategy):
     4. New Order 1 placed at $66,998.22 (φ below new top)
     5. Position continues with new top
     """
-    from src.strategies.buy_dip.position import PositionState
-    from decimal import Decimal
 
-    sim = BuyDipSimulator(buy_dip_strategy)
+    sim = simulator
 
     # First top
     first_top = await sim.simulate_rising_to_top(67000, 67890)
@@ -179,7 +193,7 @@ async def test_top_invalidation_before_confirmation(buy_dip_strategy):
     assert position.top_price == Decimal(str(second_top))  # Updated top
 
 
-async def test_sell_cancels_all_remaining_orders(buy_dip_strategy):
+async def test_sell_cancels_all_remaining_orders(simulator):
     """
     Test that selling cancels remaining buy order (if any).
 
@@ -190,7 +204,7 @@ async def test_sell_cancels_all_remaining_orders(buy_dip_strategy):
     4. Order 3 CANCELLED immediately
     5. Position CLOSED
     """
-    sim = BuyDipSimulator(buy_dip_strategy)
+    sim = simulator
 
     # Create active position
     top_price = await sim.simulate_rising_to_top(67000, 67890)
@@ -232,7 +246,7 @@ async def test_sell_cancels_all_remaining_orders(buy_dip_strategy):
     ), f"Expected budget > 9800 after close, got {final_budget}"
 
 
-async def test_only_one_pending_order_at_a_time(buy_dip_strategy):
+async def test_only_one_pending_order_at_a_time(simulator):
     """
     Test CRITICAL constraint: Never have multiple pending buy orders.
 
@@ -242,7 +256,7 @@ async def test_only_one_pending_order_at_a_time(buy_dip_strategy):
     3. Order 2 fills → Order 3 placed (1 pending)
     4. At NO point should we have 2+ pending buy orders
     """
-    sim = BuyDipSimulator(buy_dip_strategy)
+    sim = simulator
 
     top_price = await sim.simulate_rising_to_top(67000, 67890)
     await sim.wait_for_potential_top()
@@ -282,7 +296,7 @@ async def test_only_one_pending_order_at_a_time(buy_dip_strategy):
 # ============================================================================
 
 
-async def test_percentage_based_order_sizing(buy_dip_strategy):
+async def test_percentage_based_order_sizing(simulator):
     """
     Test that orders are sized as percentage of available budget.
 
@@ -293,7 +307,7 @@ async def test_percentage_based_order_sizing(buy_dip_strategy):
     - Order 2: $9,800 × 2% = $196
     - Order 3: $9,604 × 2% = $192.08
     """
-    sim = BuyDipSimulator(buy_dip_strategy)
+    sim = simulator
 
     initial_budget = sim.get_available_budget()
     assert initial_budget == 10000
@@ -337,7 +351,7 @@ async def test_percentage_based_order_sizing(buy_dip_strategy):
 @pytest.mark.skip(
     reason="Budget tracking with multi-position placeholder architecture needs different approach"
 )
-async def test_budget_released_on_position_close(buy_dip_strategy):
+async def test_budget_released_on_position_close(simulator):
     """
     Test that closing position releases all locked funds plus profit.
 
@@ -347,7 +361,7 @@ async def test_budget_released_on_position_close(buy_dip_strategy):
     3. WATCHING placeholder created and may lock funds for next position
     4. After canceling WATCHING order, available budget = initial + realized PnL
     """
-    sim = BuyDipSimulator(buy_dip_strategy)
+    sim = simulator
 
     initial_budget = sim.get_available_budget()
 
@@ -384,7 +398,7 @@ async def test_budget_released_on_position_close(buy_dip_strategy):
     ), f"Budget mismatch (diff=${budget_diff:.2f}). Expected: ${expected_budget:.2f}, Got: ${final_budget:.2f}"
 
 
-async def test_cancelled_orders_release_funds_immediately(buy_dip_strategy):
+async def test_cancelled_orders_release_funds_immediately(simulator):
     """
     Test that cancelled orders release locked funds immediately.
 
@@ -397,9 +411,8 @@ async def test_cancelled_orders_release_funds_immediately(buy_dip_strategy):
     4. Position updated to new top 68100 → Replacement Order placed immediately → $200 locked
     5. Result: Still $200 locked, same position but different order
     """
-    import asyncio
 
-    sim = BuyDipSimulator(buy_dip_strategy)
+    sim = simulator
 
     initial_budget = sim.get_available_budget()
 
@@ -460,7 +473,7 @@ async def test_cancelled_orders_release_funds_immediately(buy_dip_strategy):
 # ============================================================================
 
 
-async def test_multiple_concurrent_positions(buy_dip_strategy):
+async def test_multiple_concurrent_positions(simulator):
     """
     Test multiple positions running simultaneously with shared budget.
 
@@ -471,7 +484,7 @@ async def test_multiple_concurrent_positions(buy_dip_strategy):
     4. Budget shared across both
     5. Both close successfully
     """
-    sim = BuyDipSimulator(buy_dip_strategy)
+    sim = simulator
 
     initial_budget = sim.get_available_budget()
 
@@ -512,7 +525,7 @@ async def test_multiple_concurrent_positions(buy_dip_strategy):
     assert total_locked + total_available > initial_budget * 0.95  # Accounting sound
 
 
-async def test_insufficient_funds_graceful_wait(buy_dip_strategy):
+async def test_insufficient_funds_graceful_wait(simulator, buy_dip_strategy):
     """
     Test strategy handles budget exhaustion gracefully.
 
@@ -522,12 +535,11 @@ async def test_insufficient_funds_graceful_wait(buy_dip_strategy):
     3. Verify position remains ACTIVE without errors
     4. Close position and verify budget recovered
     """
-    from src.strategies.buy_dip.position import PositionState
 
     # Configure strategy with extended DCA levels (6 total)
     buy_dip_strategy.config.dca_distances_pct = [1.618, 2.718, 3.142, 5.0, 10.0, 15.0]
 
-    sim = BuyDipSimulator(buy_dip_strategy)
+    sim = simulator
     initial_budget = sim.get_available_budget()
 
     # Create position
@@ -572,7 +584,7 @@ async def test_insufficient_funds_graceful_wait(buy_dip_strategy):
 # ============================================================================
 
 
-async def test_rapid_invalidations(buy_dip_strategy):
+async def test_rapid_invalidations(simulator):
     """
     Test multiple rapid top invalidations.
 
@@ -583,7 +595,7 @@ async def test_rapid_invalidations(buy_dip_strategy):
     4. Top at 68200 (invalidate)
     5. Finally confirms at 68200
     """
-    sim = BuyDipSimulator(buy_dip_strategy)
+    sim = simulator
 
     tops = [67890, 68000, 68100, 68200]
 
@@ -614,7 +626,7 @@ async def test_rapid_invalidations(buy_dip_strategy):
         assert final_position.state == PositionState.ACTIVE
 
 
-async def test_sell_crosses_top_not_invalidation(buy_dip_strategy):
+async def test_sell_crosses_top_not_invalidation(simulator):
     """
     Test that sell crossing top doesn't trigger new top detection.
 
@@ -625,7 +637,7 @@ async def test_sell_crosses_top_not_invalidation(buy_dip_strategy):
     4. Should NOT treat recovery as new top for invalidation
     5. Should close position cleanly
     """
-    sim = BuyDipSimulator(buy_dip_strategy)
+    sim = simulator
 
     # Create active position
     top_price = await sim.simulate_rising_to_top(67000, 67890)
@@ -681,7 +693,7 @@ async def test_sell_crosses_top_not_invalidation(buy_dip_strategy):
 # ============================================================================
 
 
-async def test_three_positions_independent_lifecycle(buy_dip_strategy):
+async def test_three_positions_independent_lifecycle(simulator):
     """
     Test three positions with completely independent lifecycles.
 
@@ -700,11 +712,11 @@ async def test_three_positions_independent_lifecycle(buy_dip_strategy):
     - Sell orders execute at correct prices
     - No cross-contamination between positions
     """
-    sim = BuyDipSimulator(buy_dip_strategy)
+    sim = simulator
 
     # ========== Position A: Rise to top1 ==========
     top1 = await sim.simulate_rising_to_top(
-        start_price=65000, end_price=67000, num_candles=3, confirm_top=True
+        start_price=65000, end_price=67000, num_candles=3
     )
     await sim.wait_for_potential_top(timeout=2.0)
 
@@ -726,9 +738,11 @@ async def test_three_positions_independent_lifecycle(buy_dip_strategy):
     watching_b = next(p for p in all_positions if p.state == PositionState.WATCHING)
 
     assert abs(float(pos_a.top_price) - top1) < 1.0, "Position A should track top1"
-    
+
     # Simulate ticker stream to trigger sell order placement
-    current_price = float(pos_a.pending_order.price) if pos_a.pending_order else top1 * 0.97
+    current_price = (
+        float(pos_a.pending_order.price) if pos_a.pending_order else top1 * 0.97
+    )
     await sim.simulate_ticker_stream(
         symbol="BTCUSDC",
         from_price=current_price,
@@ -737,15 +751,17 @@ async def test_three_positions_independent_lifecycle(buy_dip_strategy):
         delay_ms=5,
     )
     await asyncio.sleep(0.05)
-    
-    assert pos_a.sell_order is not None, "Position A should have sell order after ticker stream"
+
+    assert (
+        pos_a.sell_order is not None
+    ), "Position A should have sell order after ticker stream"
 
     # Small delay before starting next rising pattern
     await asyncio.sleep(0.1)
 
     # ========== Position B: Rise to top2 (higher) ==========
     top2 = await sim.simulate_rising_to_top(
-        start_price=67500, end_price=69000, num_candles=3, confirm_top=False
+        start_price=67500, end_price=69000, num_candles=3
     )
     await sim.wait_for_potential_top(timeout=2.0)
 
@@ -765,7 +781,9 @@ async def test_three_positions_independent_lifecycle(buy_dip_strategy):
     await asyncio.sleep(0.1)
 
     # Simulate ticker stream to trigger sell order placement for Position B
-    current_price_b = float(pos_b.pending_order.price) if pos_b.pending_order else top2 * 0.97
+    current_price_b = (
+        float(pos_b.pending_order.price) if pos_b.pending_order else top2 * 0.97
+    )
     await sim.simulate_ticker_stream(
         symbol="BTCUSDC",
         from_price=current_price_b,
@@ -786,7 +804,9 @@ async def test_three_positions_independent_lifecycle(buy_dip_strategy):
     assert (
         abs(float(pos_b.top_price) - top2) < 20.0
     ), "Position B should track top2 (within 20 due to invalidations)"
-    assert pos_b.sell_order is not None, "Position B should have sell order after ticker stream"
+    assert (
+        pos_b.sell_order is not None
+    ), "Position B should have sell order after ticker stream"
 
     watching_c = next(p for p in all_positions if p.state == PositionState.WATCHING)
 
@@ -795,7 +815,7 @@ async def test_three_positions_independent_lifecycle(buy_dip_strategy):
 
     # ========== Position C: Rise to top3 (even higher) ==========
     top3 = await sim.simulate_rising_to_top(
-        start_price=69500, end_price=71000, num_candles=3, confirm_top=False
+        start_price=69500, end_price=71000, num_candles=3
     )
     await sim.wait_for_potential_top(timeout=2.0)
 
@@ -811,7 +831,9 @@ async def test_three_positions_independent_lifecycle(buy_dip_strategy):
     await asyncio.sleep(0.1)
 
     # Simulate ticker stream to trigger sell order placement for Position C
-    current_price_c = float(pos_c.pending_order.price) if pos_c.pending_order else top3 * 0.97
+    current_price_c = (
+        float(pos_c.pending_order.price) if pos_c.pending_order else top3 * 0.97
+    )
     await sim.simulate_ticker_stream(
         symbol="BTCUSDC",
         from_price=current_price_c,
@@ -837,7 +859,9 @@ async def test_three_positions_independent_lifecycle(buy_dip_strategy):
     assert pos_a.sell_order is not None, "Position A should have sell order"
     assert abs(float(pos_a.sell_order.price) - top1) < 1.0
 
-    assert pos_b.sell_order is not None, "Position B should have sell order after ticker stream"
+    assert (
+        pos_b.sell_order is not None
+    ), "Position B should have sell order after ticker stream"
     assert abs(float(pos_b.sell_order.price) - top2) < 20.0
 
     assert pos_c.sell_order is not None
@@ -849,7 +873,7 @@ async def test_three_positions_independent_lifecycle(buy_dip_strategy):
     # - Sell orders placed at correct prices for each position
 
 
-async def test_multi_position_invalidation_independence(buy_dip_strategy):
+async def test_multi_position_invalidation_independence(simulator):
     """
     Test that invalidations affect only the specific position, not others.
 
@@ -862,11 +886,11 @@ async def test_multi_position_invalidation_independence(buy_dip_strategy):
     6. A remains unchanged at top1=67000
     7. Verify each position's independence
     """
-    sim = BuyDipSimulator(buy_dip_strategy)
+    sim = simulator
 
     # ========== Position A: ACTIVE at top1 ==========
     top1 = await sim.simulate_rising_to_top(
-        start_price=65000, end_price=67000, num_candles=3, confirm_top=True
+        start_price=65000, end_price=67000, num_candles=3
     )
     await sim.wait_for_potential_top(timeout=2.0)
 
@@ -876,7 +900,9 @@ async def test_multi_position_invalidation_independence(buy_dip_strategy):
     await asyncio.sleep(0.1)
 
     # Simulate ticker stream to trigger sell order placement for Position A
-    current_price_a = float(pos_a.pending_order.price) if pos_a.pending_order else top1 * 0.97
+    current_price_a = (
+        float(pos_a.pending_order.price) if pos_a.pending_order else top1 * 0.97
+    )
     await sim.simulate_ticker_stream(
         symbol="BTCUSDC",
         from_price=current_price_a,
@@ -900,7 +926,7 @@ async def test_multi_position_invalidation_independence(buy_dip_strategy):
 
     # ========== Position B: POTENTIAL_TOP at top2 ==========
     top2 = await sim.simulate_rising_to_top(
-        start_price=67500, end_price=69000, num_candles=3, confirm_top=False
+        start_price=67500, end_price=69000, num_candles=3
     )
     await sim.wait_for_potential_top(timeout=2.0)
 
@@ -919,7 +945,9 @@ async def test_multi_position_invalidation_independence(buy_dip_strategy):
     await asyncio.sleep(0.1)
 
     # Simulate ticker stream to trigger sell order placement for Position B
-    current_price_b = float(pos_b.pending_order.price) if pos_b.pending_order else top2 * 0.97
+    current_price_b = (
+        float(pos_b.pending_order.price) if pos_b.pending_order else top2 * 0.97
+    )
     await sim.simulate_ticker_stream(
         symbol="BTCUSDC",
         from_price=current_price_b,
@@ -934,7 +962,7 @@ async def test_multi_position_invalidation_independence(buy_dip_strategy):
 
     # ========== Position C: POTENTIAL_TOP at top3 ==========
     top3 = await sim.simulate_rising_to_top(
-        start_price=69500, end_price=71000, num_candles=3, confirm_top=True
+        start_price=69500, end_price=71000, num_candles=3
     )
     await sim.wait_for_potential_top(timeout=2.0)
 
@@ -999,12 +1027,16 @@ async def test_multi_position_invalidation_independence(buy_dip_strategy):
     ), f"Position C should update to top4={top4}"
 
     # Verify sell orders exist (placed via ticker stream)
-    assert pos_a.sell_order is not None, "Position A should have sell order after ticker stream"
+    assert (
+        pos_a.sell_order is not None
+    ), "Position A should have sell order after ticker stream"
     assert (
         abs(float(pos_a.sell_order.price) - top1) < 1.0
     ), "Position A sell should be at top1"
 
-    assert pos_b.sell_order is not None, "Position B should have sell order after ticker stream"
+    assert (
+        pos_b.sell_order is not None
+    ), "Position B should have sell order after ticker stream"
     assert (
         abs(float(pos_b.sell_order.price) - top2) < 20.0
     ), "Position B sell should be at top2 (within 20 due to invalidations)"
@@ -1013,7 +1045,7 @@ async def test_multi_position_invalidation_independence(buy_dip_strategy):
     # Just verify it has the updated top price
 
 
-async def test_multi_position_budget_isolation(buy_dip_strategy):
+async def test_multi_position_budget_isolation(simulator, buy_dip_strategy):
     """
     Test that budget is properly tracked across multiple positions.
 
@@ -1026,7 +1058,7 @@ async def test_multi_position_budget_isolation(buy_dip_strategy):
     6. Position B closes → funds returned
     7. Verify budget accuracy throughout
     """
-    sim = BuyDipSimulator(buy_dip_strategy)
+    sim = simulator
 
     # Get initial available budget
     initial_budget = buy_dip_strategy._budget_manager.get_available_budget()
@@ -1034,7 +1066,7 @@ async def test_multi_position_budget_isolation(buy_dip_strategy):
 
     # ========== Position A: Commit funds ==========
     top1 = await sim.simulate_rising_to_top(
-        start_price=65000, end_price=67000, num_candles=3, confirm_top=True
+        start_price=65000, end_price=67000, num_candles=3
     )
     await sim.wait_for_potential_top(timeout=2.0)
 
@@ -1057,7 +1089,7 @@ async def test_multi_position_budget_isolation(buy_dip_strategy):
     await asyncio.sleep(0.1)
 
     top2 = await sim.simulate_rising_to_top(
-        start_price=67500, end_price=69000, num_candles=3, confirm_top=False
+        start_price=67500, end_price=69000, num_candles=3
     )
     await sim.wait_for_potential_top(timeout=2.0)
 
@@ -1085,7 +1117,7 @@ async def test_multi_position_budget_isolation(buy_dip_strategy):
     await asyncio.sleep(0.1)
 
     top3 = await sim.simulate_rising_to_top(
-        start_price=69500, end_price=71000, num_candles=3, confirm_top=False
+        start_price=69500, end_price=71000, num_candles=3
     )
     await sim.wait_for_potential_top(timeout=2.0)
 
@@ -1167,7 +1199,7 @@ async def test_multi_position_budget_isolation(buy_dip_strategy):
     # Test passed - budget tracking works across multiple positions!
 
 
-async def test_multi_position_rapid_invalidations(buy_dip_strategy):
+async def test_multi_position_rapid_invalidations(simulator):
     """
     Test multiple positions handling rapid successive invalidations.
 
@@ -1181,12 +1213,12 @@ async def test_multi_position_rapid_invalidations(buy_dip_strategy):
        - Respect invalidation cooldown
        - Not create duplicate positions
     """
-    sim = BuyDipSimulator(buy_dip_strategy)
+    sim = simulator
 
     # ========== Create Position A (POTENTIAL_TOP) ==========
     # ========== Create Position A (POTENTIAL_TOP) ==========
     top1 = await sim.simulate_rising_to_top(
-        start_price=65000, end_price=67000, num_candles=3, confirm_top=True
+        start_price=65000, end_price=67000, num_candles=3
     )
     await sim.wait_for_potential_top(timeout=2.0)
 
@@ -1204,7 +1236,7 @@ async def test_multi_position_rapid_invalidations(buy_dip_strategy):
     await asyncio.sleep(0.1)
 
     top2 = await sim.simulate_rising_to_top(
-        start_price=67500, end_price=69000, num_candles=3, confirm_top=False
+        start_price=67500, end_price=69000, num_candles=3
     )
     await sim.wait_for_potential_top(timeout=2.0)
 

@@ -7,6 +7,7 @@ Main entry point for processing market data and managing positions.
 
 import asyncio
 import logging
+import queue
 import time
 from collections import defaultdict
 from decimal import Decimal
@@ -61,6 +62,9 @@ class BuyDipStrategy:
         self.broker = broker
         self.broker_adapter = broker_adapter
         self.on_position_update = on_position_update  # Callback for UI updates
+
+        # Worker queue for async event processing (set by executor/tests)
+        self.worker_queue: Optional[queue.Queue] = None
 
         # Detection components (per-symbol)
         self._candle_buffers: Dict[str, CandleBuffer] = {}
