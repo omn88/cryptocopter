@@ -10,6 +10,7 @@ for each strategy.
 """
 
 import asyncio
+from decimal import Decimal
 import logging
 import queue
 import time
@@ -32,6 +33,9 @@ from src.portfolio.portfolio_gui import PortfolioUI
 from src.database import Database
 from src.broker import BrokerSpot
 from src.portfolio.usd_price_resolver import UsdPriceResolver
+from src.strategies.buy_dip.config import BuyDipConfig
+from src.strategies.buy_dip.executor import BuyDipExecutor
+from src.strategies.buy_dip.ui.buy_dip_front import BuyDipFront
 from src.strategy_executor import StrategyExecutor
 
 logger = logging.getLogger("async_app")
@@ -105,11 +109,6 @@ class AsyncApp(App):
 
     def setup_buy_dip(self, strategy_id: Optional[str] = None) -> None:
         """Setup Buy Dip strategy."""
-        from decimal import Decimal
-        from kivy.lang import Builder
-        from src.strategies.buy_dip.config import BuyDipConfig
-        from src.strategies.buy_dip.executor import BuyDipExecutor
-        from src.strategies.buy_dip.ui import BuyDipFront
 
         strategy_name = "BuyDip"
         if strategy_id is None:
@@ -129,9 +128,6 @@ class AsyncApp(App):
             # Detection parameters
             min_consecutive_rising=3,
             min_total_gain_pct=0.3,
-            atr_period=14,
-            atr_multiplier=0.5,
-            min_pullback_pct=0.5,
             # DCA levels (φ, e, π, 5%, 10%, 15%)
             dca_distances_pct=[1.618, 2.718, 3.142, 5.0, 10.0, 15.0],
         )

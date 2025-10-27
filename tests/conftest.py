@@ -1261,13 +1261,10 @@ def sample_buy_dip_config():
     from src.strategies.buy_dip.config import BuyDipConfig
 
     return BuyDipConfig(
-        atr_period=14,
         order_size_percentage=2.0,
         dca_distances_pct=[1.618, 2.718, 3.142],  # φ, e, π
         min_consecutive_rising=3,
         min_total_gain_pct=0.25,
-        atr_multiplier=1.5,
-        min_pullback_pct=0.5,
     )
 
 

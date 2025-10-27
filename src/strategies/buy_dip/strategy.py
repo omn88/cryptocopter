@@ -12,11 +12,9 @@ from collections import defaultdict
 from decimal import Decimal
 from typing import Dict, Optional, List
 
-from src.strategies.buy_dip.atr import ATR
 from src.strategies.buy_dip.budget_manager import BudgetManager
 from src.strategies.buy_dip.candle_buffer import CandleBuffer
 from src.strategies.buy_dip.config import BuyDipConfig
-from src.strategies.buy_dip.hwm_detector import HighWatermarkDetector
 from src.strategies.buy_dip.invalidation_handler import TopInvalidationHandler
 from src.strategies.buy_dip.position import BuyDipPosition, PositionState
 from src.strategies.buy_dip.rising_detector import RisingCandleDetector
@@ -66,9 +64,7 @@ class BuyDipStrategy:
 
         # Detection components (per-symbol)
         self._candle_buffers: Dict[str, CandleBuffer] = {}
-        self._atr_indicators: Dict[str, ATR] = {}
         self._rising_detectors: Dict[str, RisingCandleDetector] = {}
-        self._hwm_detectors: Dict[str, HighWatermarkDetector] = {}
 
         # Budget manager (shared across all positions)
         self._budget_manager = BudgetManager(
@@ -96,14 +92,9 @@ class BuyDipStrategy:
             return  # Already tracking
 
         self._candle_buffers[symbol] = CandleBuffer(maxlen=50)
-        self._atr_indicators[symbol] = ATR(period=self.config.atr_period)
         self._rising_detectors[symbol] = RisingCandleDetector(
             min_consecutive=self.config.min_consecutive_rising,
             min_total_gain_pct=self.config.min_total_gain_pct,
-        )
-        self._hwm_detectors[symbol] = HighWatermarkDetector(
-            atr_multiplier=self.config.atr_multiplier,
-            min_pullback_pct=self.config.min_pullback_pct,
         )
 
     def _create_placeholder_watching_position(self, symbol: str) -> None:
@@ -161,24 +152,13 @@ class BuyDipStrategy:
         if symbol not in self._candle_buffers:
             self.add_symbol(symbol)
 
-        # Add to buffer
-        buffer = self._candle_buffers[symbol]
-        buffer.add(candle)
+        # Add candle to buffer
+        candle_buffer = self._candle_buffers[symbol]
+        candle_buffer.add(candle)
 
-        # Update indicators
-        atr = self._atr_indicators[symbol]
-        atr.add_candle(candle)
-
-        # Update HWM detector with latest ATR (if available)
-        atr_value = atr.get_atr()
-        hwm_detector = self._hwm_detectors[symbol]
-        if atr_value is not None:
-            hwm_detector.update_atr(atr_value)
-
+        # Update rising detector
         rising_detector = self._rising_detectors[symbol]
         rising_detector.add_candle(candle)
-
-        hwm_detector.add_candle(candle)
 
         # Check for top invalidation (new high invalidates previous potential tops)
         current_high = Decimal(str(candle["high"]))
@@ -191,10 +171,6 @@ class BuyDipStrategy:
         # Check for rising pattern detection
         if rising_detector.is_rising():
             self._handle_rising_pattern(symbol, candle)
-
-        # Check for top confirmation (for positions in WATCHING state)
-        if hwm_detector.is_top_confirmed():
-            self._handle_top_confirmed(symbol, candle)
 
         # For positions that are in POTENTIAL_TOP but have no pending order (eg. after
         # an invalidation), place a replacement order using the updated top_price.
@@ -414,24 +390,6 @@ class BuyDipStrategy:
                 f"placing first order @ ${dca_price:.2f} ({dca_distance}% below ${float(current_high):.2f})"
             )
             self.place_order(position_id, dca_price, order_id)
-
-    def _handle_top_confirmed(self, symbol: str, candle: Dict) -> None:
-        """
-        Handle top confirmation - NO LONGER USED in new flow.
-
-        In the new design:
-        - Rising pattern → POTENTIAL_TOP + place order immediately
-        - Order fill → confirms top → ACTIVE
-
-        This method kept for backward compatibility but does nothing.
-
-        Args:
-            symbol: Symbol with confirmed top
-            candle: Current candle
-        """
-        # New flow: Rising pattern places order immediately,
-        # so we don't need HWM confirmation to trigger order placement
-        pass
 
     def check_for_invalidation(self, symbol: str, current_price: float) -> None:
         """

@@ -14,7 +14,6 @@ Total: 24 unit tests
 
 import pytest
 
-# Component imports - modules to be implemented via TDD
 from src.strategies.buy_dip.candle_buffer import CandleBuffer
 from src.strategies.buy_dip.atr import ATR
 from src.strategies.buy_dip.rising_detector import RisingCandleDetector
@@ -502,18 +501,9 @@ class TestConfiguration:
 
     def test_rejects_invalid_configuration(self):
         """Test that invalid configurations are rejected."""
-        # Invalid: negative percentages
-        with pytest.raises(ValueError):
-            BuyDipConfig(
-                atr_period=-14,
-                order_size_percentage=2.0,
-                dca_distances_pct=[1.618, 2.718, 3.142],
-            )
-
         # Invalid: empty DCA distances
         with pytest.raises(ValueError):
             BuyDipConfig(
-                atr_period=14,
                 order_size_percentage=2.0,
                 dca_distances_pct=[],
             )
@@ -521,7 +511,6 @@ class TestConfiguration:
         # Invalid: order size too large (>100%)
         with pytest.raises(ValueError):
             BuyDipConfig(
-                atr_period=14,
                 order_size_percentage=150.0,
                 dca_distances_pct=[1.618, 2.718, 3.142],
             )

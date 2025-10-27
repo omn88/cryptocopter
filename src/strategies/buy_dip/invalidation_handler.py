@@ -154,22 +154,8 @@ class TopInvalidationHandler:
         except Exception:
             pct_delta = 0.0
 
-        # ATR-based threshold
-        atr_threshold = 0.0
-        try:
-            symbol = position.symbol
-            atr_val = self.strategy._atr_indicators[symbol].get_atr()
-            if atr_val is not None:
-                atr_threshold = float(atr_val) * float(
-                    self.strategy.config.invalidation_atr_multiplier
-                )
-        except Exception:
-            atr_threshold = 0.0
-
-        # Check if delta is below both thresholds (too small to be significant)
-        if pct_delta < float(self.strategy.config.invalidation_min_delta_pct) and (
-            atr_threshold <= 0 or (new_top - prev_top) < atr_threshold
-        ):
+        # Check if delta is below threshold (too small to be significant)
+        if pct_delta < float(self.strategy.config.invalidation_min_delta_pct):
             logger.debug(
                 "Ignoring marginal new high for %s: delta_pct=%.6f < min_delta_pct=%.6f",
                 position.symbol,

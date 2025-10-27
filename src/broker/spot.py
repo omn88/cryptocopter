@@ -21,6 +21,7 @@ from src.common.identifiers import (
 )
 from src.websocket import WebSocketManager
 from src.broker.message_handlers import (
+    handle_kline_message,
     handle_user_message,
     handle_ticker_message,
 )
@@ -187,7 +188,6 @@ class BrokerSpot:
 
     def _create_kline_message_handler(self):
         """Create kline message handler."""
-        from src.broker.message_handlers import handle_kline_message
 
         def handler(msg):
             handle_kline_message(msg, self.subscriptions)

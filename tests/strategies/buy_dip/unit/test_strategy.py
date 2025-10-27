@@ -17,13 +17,10 @@ from src.strategies.buy_dip.position import PositionState
 def sample_config():
     """Sample configuration for testing."""
     return BuyDipConfig(
-        atr_period=14,
         order_size_percentage=2.0,
         dca_distances_pct=[1.0, 2.0, 3.0],
         min_consecutive_rising=3,
         min_total_gain_pct=0.25,
-        atr_multiplier=2.0,
-        min_pullback_pct=0.5,
     )
 
 
@@ -53,9 +50,7 @@ class TestStrategyInitialization:
 
         # Verify components created
         assert "BTCUSDC" in strategy._candle_buffers
-        assert "BTCUSDC" in strategy._atr_indicators
         assert "BTCUSDC" in strategy._rising_detectors
-        assert "BTCUSDC" in strategy._hwm_detectors
 
     def test_add_symbol_idempotent(self, sample_config):
         """Adding same symbol multiple times is safe."""

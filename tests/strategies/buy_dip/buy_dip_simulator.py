@@ -256,12 +256,13 @@ class BuyDipSimulator:
 
         Args:
             start_price: Starting price
-            end_price: Top price
+            end_price: Top price (highest high in pattern)
             num_candles: Number of candles
-            confirm_top: If True, send pullback candle to confirm top (default: True)
+            confirm_top: DEPRECATED (kept for backward compatibility)
+                        Rising detector now creates POTENTIAL_TOP immediately
 
         Returns:
-            The top price reached
+            The top price reached (highest high from generated candles)
         """
         total_gain = ((end_price - start_price) / start_price) * 100
         gain_per_candle = total_gain / num_candles
@@ -276,28 +277,13 @@ class BuyDipSimulator:
         await self.send_candles(candles)
         self.current_time += timedelta(minutes=15 * num_candles)
 
-        # Send pullback candle to confirm the top (default min_pullback_pct is 0.5%)
-        if confirm_top:
-            # Get the actual HWM from the detector (might be slightly higher than end_price)
-            hwm_detector = self.strategy._hwm_detectors.get("BTCUSDC")
-            actual_top = hwm_detector.get_hwm() if hwm_detector else end_price
+        # Return the actual highest high from the last candle
+        # (Rising detector uses highs, not closes)
+        # Candles use Binance kline format: "h" key, not "high"
+        actual_top = float(candles[-1]["h"]) if candles else end_price
 
-            pullback_candles = create_pullback_pattern(
-                top_price=actual_top if actual_top is not None else end_price,
-                pullback_pct=0.6,  # Slightly more than min threshold
-                num_candles=1,
-                start_time=self.current_time,
-            )
-            await self.send_candles(pullback_candles)
-            self.current_time += timedelta(minutes=15)
-
-            # Return the actual HWM (confirmed top)
-            if hwm_detector and hwm_detector.is_top_confirmed():
-                return hwm_detector.get_confirmed_top()
-            return None
-
-        logger.info(f"Simulated rising pattern: {start_price} → {end_price}")
-        return end_price
+        logger.info(f"Simulated rising pattern: {start_price} → {actual_top}")
+        return actual_top
 
     async def simulate_pullback(
         self,

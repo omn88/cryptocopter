@@ -689,13 +689,10 @@ async def main():
         end_date=datetime(2024, 10, 31),
         initial_budget=Decimal("10000"),
         config={
-            "atr_period": 14,
             "order_size_percentage": 2.0,
             "dca_distances_pct": [1.618, 2.718, 3.142],  # φ, e, π
             "min_consecutive_rising": 3,
             "min_total_gain_pct": 0.25,
-            "atr_multiplier": 2.0,
-            "min_pullback_pct": 0.5,
         },
     )
 
@@ -708,11 +705,8 @@ async def main():
         end_date=datetime(2024, 10, 31),
         initial_budget=Decimal("10000"),
         base_config={
-            "atr_period": 14,
             "min_consecutive_rising": 3,
             "min_total_gain_pct": 0.25,
-            "atr_multiplier": 2.0,
-            "min_pullback_pct": 0.5,
         },
         parameter_ranges={
             "dca_distances_pct": [
