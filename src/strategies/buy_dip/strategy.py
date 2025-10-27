@@ -149,7 +149,7 @@ class BuyDipStrategy:
         if self.on_position_update:
             self.on_position_update(position_id, "position_created")
 
-    def process_candle(self, symbol: str, candle: Dict) -> None:
+    async def process_candle(self, symbol: str, candle: Dict) -> None:
         """
         Process incoming candle through detection pipeline.
 
@@ -185,7 +185,7 @@ class BuyDipStrategy:
         for position in self._get_potential_top_positions(symbol):
             if position.top_price and current_high > position.top_price:
                 # New high detected - invalidate old top and update
-                self._handle_top_invalidation(symbol, candle)
+                await self._handle_top_invalidation(symbol, candle)
                 break  # Only need to call once per symbol
 
         # Check for rising pattern detection
@@ -203,7 +203,12 @@ class BuyDipStrategy:
         # and a short realtime cooldown to ensure tests can observe cancellations
         # before replacement.
         for position in self._get_potential_top_positions(symbol):
-            if position.top_price and position.pending_order is None:
+            # Only place replacement for first DCA order (before any fills)
+            if (
+                position.top_price
+                and position.pending_order is None
+                and position.next_dca_level == 0
+            ):
                 last_inv = getattr(position, "last_invalidation_ts", None)
                 candle_ts: Optional[int] = None
                 try:
@@ -335,7 +340,12 @@ class BuyDipStrategy:
 
     def _handle_rising_pattern(self, symbol: str, candle: Dict) -> None:
         """
-        Handle detection of rising pattern - create new position.
+        Handle detection of rising pattern - create POTENTIAL_TOP position and place order.
+
+        When rising pattern is detected, we immediately:
+        1. Create position in POTENTIAL_TOP state with current high as top
+        2. Place first DCA buy order
+        3. Order fill will confirm the top and transition to ACTIVE
 
         Args:
             symbol: Symbol with rising pattern
@@ -346,13 +356,35 @@ class BuyDipStrategy:
         if order_size is None:
             return  # No budget available
 
-        # Only create one WATCHING position at a time per symbol
-        if self._get_watching_position(symbol):
+        # Check if there's a WATCHING position that should transition to POTENTIAL_TOP
+        watching_pos = self._get_watching_position(symbol)
+        if watching_pos:
+            # Transition WATCHING → POTENTIAL_TOP with new top
+            current_high = Decimal(str(candle["high"]))
+            watching_pos.set_potential_top(current_high)
+
+            # Place first DCA order
+            if len(watching_pos.dca_distances_pct) > 0:
+                dca_distance = watching_pos.dca_distances_pct[0]
+                dca_price = float(current_high) * (1 - dca_distance / 100)
+                order_id = f"{watching_pos.position_id}_dca_0"
+                logger.info(
+                    f"WATCHING position {watching_pos.position_id} detected rising pattern! "
+                    f"Transitioning to POTENTIAL_TOP, placing first order @ ${dca_price:.2f} "
+                    f"({dca_distance}% below ${float(current_high):.2f})"
+                )
+                self.place_order(watching_pos.position_id, dca_price, order_id)
             return
 
-        # Create new position in WATCHING state
-        # This will track the next potential top while other positions
-        # (POTENTIAL_TOP, ACTIVE) continue their own processes
+        # Also check for existing POTENTIAL_TOP positions waiting for first fill
+        for pos in self._get_potential_top_positions(symbol):
+            if pos.next_dca_level == 0:  # First order not filled yet
+                return  # Wait for this one to fill first
+
+        # Get current high as the potential top
+        current_high = Decimal(str(candle["high"]))
+
+        # Create new position in POTENTIAL_TOP state (not WATCHING!)
         position_id = f"{symbol}_{candle['timestamp']}"
         position = BuyDipPosition(
             position_id=position_id,
@@ -360,6 +392,9 @@ class BuyDipStrategy:
             dca_distances_pct=self.config.dca_distances_pct,
             order_size=Decimal(str(order_size)),
         )
+
+        # Set as potential top immediately
+        position.set_potential_top(current_high)
 
         # Store position
         self._positions[position_id] = position
@@ -369,37 +404,34 @@ class BuyDipStrategy:
         if self.on_position_update:
             self.on_position_update(position_id, "position_created")
 
+        # Place first DCA order immediately
+        if len(position.dca_distances_pct) > 0:
+            dca_distance = position.dca_distances_pct[0]
+            dca_price = float(current_high) * (1 - dca_distance / 100)
+            order_id = f"{position_id}_dca_0"
+            logger.info(
+                f"Rising pattern detected! Created POTENTIAL_TOP position {position_id}, "
+                f"placing first order @ ${dca_price:.2f} ({dca_distance}% below ${float(current_high):.2f})"
+            )
+            self.place_order(position_id, dca_price, order_id)
+
     def _handle_top_confirmed(self, symbol: str, candle: Dict) -> None:
         """
-        Handle top confirmation - set potential top for watching positions.
+        Handle top confirmation - NO LONGER USED in new flow.
+
+        In the new design:
+        - Rising pattern → POTENTIAL_TOP + place order immediately
+        - Order fill → confirms top → ACTIVE
+
+        This method kept for backward compatibility but does nothing.
 
         Args:
             symbol: Symbol with confirmed top
             candle: Current candle
         """
-        # Get the confirmed top from HWM detector
-        hwm_detector = self._hwm_detectors[symbol]
-        confirmed_top = hwm_detector.get_confirmed_top()
-
-        if confirmed_top is None:
-            return
-
-        top_price = Decimal(str(confirmed_top))
-
-        # Update all WATCHING positions to POTENTIAL_TOP state
-        for position in self._get_positions_by_state(symbol, PositionState.WATCHING):
-            position.set_potential_top(top_price)
-
-            # Notify UI of state change
-            if self.on_position_update:
-                self.on_position_update(position.position_id, "position_updated")
-
-            # Place first DCA order at the calculated level
-            if len(position.dca_distances_pct) > 0:
-                dca_distance = position.dca_distances_pct[0]
-                dca_price = float(top_price) * (1 - dca_distance / 100)
-                order_id = f"{position.position_id}_dca_0"
-                self.place_order(position.position_id, dca_price, order_id)
+        # New flow: Rising pattern places order immediately,
+        # so we don't need HWM confirmation to trigger order placement
+        pass
 
     def check_for_invalidation(self, symbol: str, current_price: float) -> None:
         """
@@ -437,7 +469,7 @@ class BuyDipStrategy:
                 if self.on_position_update:
                     self.on_position_update(position.position_id, "position_updated")
 
-    def _handle_top_invalidation(self, symbol: str, candle: Dict) -> None:
+    async def _handle_top_invalidation(self, symbol: str, candle: Dict) -> None:
         """
         Handle top invalidation - delegate to invalidation handler.
 
@@ -445,7 +477,7 @@ class BuyDipStrategy:
             symbol: Symbol with invalidated top
             candle: Current candle with new high
         """
-        self._invalidation_handler.handle_invalidation(symbol, candle)
+        await self._invalidation_handler.handle_invalidation(symbol, candle)
 
     def place_order(self, position_id: str, price: float, order_id: str) -> bool:
         """

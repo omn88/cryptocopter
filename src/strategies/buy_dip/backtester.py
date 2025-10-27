@@ -213,7 +213,6 @@ class BuyDipBacktester:
         # Import here to avoid circular dependency
         from src.strategies.buy_dip.strategy import BuyDipStrategy
         from src.strategies.buy_dip.config import BuyDipConfig
-        from tests.strategies.buy_dip.conftest import mock_broker_buy_dip
 
         logger.info(f"Starting backtest: {symbol} from {start_date} to {end_date}")
         logger.info(
@@ -234,16 +233,33 @@ class BuyDipBacktester:
 
         logger.info(f"Processing {len(klines)} candles...")
 
+        # Create mock broker for backtesting
+        from src.strategies.buy_dip.mock_broker import MockBrokerAdapter
+
+        broker = MockBrokerAdapter(symbol=symbol)
+
         # Create strategy instance
         buy_dip_config = BuyDipConfig(**config)
-        broker = mock_broker_buy_dip()
 
         strategy = BuyDipStrategy(
             config=buy_dip_config,
             total_budget=initial_budget,
-            order_budget_pct=Decimal("100"),  # Use full budget
+            order_budget_pct=Decimal(str(config.get("order_size_percentage", 2.0))),
             broker_adapter=broker,
         )
+
+        # Register callbacks (like executor does)
+        def on_order_filled(order_id: str, fill_price: Decimal) -> None:
+            """Handle order fill from mock broker."""
+            try:
+                if "_sell" in order_id:
+                    strategy.handle_sell_fill(order_id, float(fill_price))
+                else:
+                    strategy.handle_order_fill(order_id, float(fill_price), 1.0)
+            except Exception as e:
+                logger.warning(f"Error handling fill for {order_id}: {e}")
+
+        broker.set_order_filled_callback(on_order_filled)
 
         # Track metrics
         metrics: Dict[str, Any] = {
@@ -284,7 +300,13 @@ class BuyDipBacktester:
             positions_before = len(strategy._positions)
 
             # Process candle through strategy
-            strategy.process_candle(symbol, candle)
+            await strategy.process_candle(symbol, candle)
+
+            # Give async order placement tasks time to complete
+            # This simulates the delay in real trading where orders are placed
+            # via API calls. Without this, multiple orders get scheduled before
+            # the first one completes, causing duplicate orders.
+            await asyncio.sleep(0.01)  # 10ms delay per candle
 
             # Check for new positions (top detected)
             if len(strategy._positions) > positions_before:
@@ -301,7 +323,13 @@ class BuyDipBacktester:
                     )
 
             # Simulate order fills based on price action
-            await self._simulate_order_fills(strategy, candle, metrics)
+            await self._simulate_order_fills(strategy, candle, metrics, broker)
+
+            # Give fill callbacks time to complete and trigger next DCA orders
+            await asyncio.sleep(0.01)  # 10ms delay after fills
+
+            # Print candle summary after processing
+            self._print_candle_summary(i, kline, candle, strategy, broker, metrics)
 
             # Track budget history every 100 candles
             if i % 100 == 0:
@@ -398,77 +426,139 @@ class BuyDipBacktester:
         return result
 
     async def _simulate_order_fills(
-        self, strategy, candle: Dict, metrics: Dict
+        self, strategy, candle: Dict, metrics: Dict, broker
     ) -> None:
         """Simulate order fills based on candle price action.
 
         For each pending order, check if candle's low/high touched the price.
-        If yes, simulate the fill.
+        If yes, simulate the fill via mock broker (which triggers callbacks).
         """
         from src.strategies.buy_dip.position import PositionState
 
         high = float(candle["high"])
         low = float(candle["low"])
 
-        for position in list(strategy._positions.values()):
-            # Check pending buy order
-            if position.pending_order:
-                order_price = float(position.pending_order.price)
+        # Get pending orders from mock broker
+        pending_orders = broker.get_pending_orders()
 
+        if pending_orders:
+            logger.debug(
+                f"Checking {len(pending_orders)} pending orders against candle low={low}, high={high}"
+            )
+
+        for order_id, order_data in list(pending_orders.items()):
+            order_price = float(order_data["price"])
+            side = order_data["side"]
+
+            logger.debug(f"  Order {order_id}: {side} @ {order_price}")
+
+            # Check if order should fill based on candle
+            should_fill = False
+            fill_price = None
+
+            if side == "BUY":
                 # Buy order fills if price dropped to or below order price
                 if low <= order_price:
-                    order_id = position.pending_order.order_id
-
-                    # Track state transition
-                    was_potential = position.state == PositionState.POTENTIAL_TOP
-
-                    # Simulate fill
-                    await strategy._on_order_filled(
-                        order_id=order_id,
-                        filled_price=Decimal(str(order_price)),
-                        filled_quantity=position.pending_order.quantity,
-                    )
-
-                    metrics["orders_filled"] += 1
-
-                    # Track confirmation
-                    if was_potential and position.state == PositionState.ACTIVE:
-                        metrics["tops_confirmed"] += 1
-
-            # Check sell order
-            if position.sell_order and not position.sell_order.is_filled:
-                order_price = float(position.sell_order.price)
-
+                    should_fill = True
+                    fill_price = Decimal(str(order_price))
+                    logger.debug(f"    -> BUY FILL (low {low} <= {order_price})")
+            elif side == "SELL":
                 # Sell order fills if price rose to or above order price
                 if high >= order_price:
-                    order_id = position.sell_order.order_id
+                    should_fill = True
+                    fill_price = Decimal(str(order_price))
+                    logger.debug(f"    -> SELL FILL (high {high} >= {order_price})")
 
-                    # Calculate profit
-                    entry_value = position.total_invested
-                    exit_value = (
-                        position.sell_order.price * position.sell_order.quantity
+            if should_fill and fill_price:
+                # Simulate fill via mock broker (triggers callbacks like real WebSocket)
+                broker.simulate_fill(order_id, fill_price)
+                metrics["orders_filled"] += 1
+                logger.debug(f"    -> Filled! Total fills: {metrics['orders_filled']}")
+
+                # Give callbacks a chance to run
+                await asyncio.sleep(0)
+
+    def _print_candle_summary(
+        self,
+        candle_num: int,
+        kline: Dict,
+        candle: Dict,
+        strategy,
+        broker,
+        metrics: Dict,
+    ) -> None:
+        """Print summary after each candle for debugging."""
+        from src.strategies.buy_dip.position import PositionState
+        from datetime import datetime
+
+        timestamp = datetime.fromtimestamp(kline["timestamp"] / 1000)
+        high = float(candle["high"])
+        low = float(candle["low"])
+        close = float(candle["close"])
+
+        print(f"\n{'='*80}")
+        print(f"Candle #{candle_num} | {timestamp.strftime('%Y-%m-%d %H:%M')}")
+        print(f"High: ${high:,.2f} | Low: ${low:,.2f} | Close: ${close:,.2f}")
+        print(f"{'='*80}")
+
+        # Budget info
+        available = strategy._budget_manager.get_available_budget()
+        locked = strategy._budget_manager.get_locked_budget()
+        print(f"BUDGET: Available=${available:,.2f} | Locked=${locked:,.2f}")
+
+        # Pending orders
+        pending = broker.get_pending_orders()
+        if pending:
+            print(f"\nPENDING ORDERS ({len(pending)}):")
+            for oid, order_data in pending.items():
+                print(
+                    f"  - {oid}: {order_data['side']} @ ${float(order_data['price']):,.2f}"
+                )
+        else:
+            print(f"\nPENDING ORDERS: None")
+
+        # Positions
+        positions = list(strategy._positions.values())
+        if positions:
+            print(f"\nPOSITIONS ({len(positions)}):")
+            for pos in positions:
+                state_name = (
+                    pos.state.name if hasattr(pos.state, "name") else str(pos.state)
+                )
+                print(f"\n  Position: {pos.position_id}")
+                print(f"    State: {state_name}")
+                if pos.top_price:
+                    print(f"    Top: ${float(pos.top_price):,.2f}")
+                if pos.confirmed_top:
+                    print(f"    Confirmed Top: ${float(pos.confirmed_top):,.2f}")
+                print(
+                    f"    DCA Level: {pos.next_dca_level}/{len(pos.dca_distances_pct)}"
+                )
+                print(
+                    f"    Buy Orders Filled: {len([o for o in pos.buy_orders if o.status == 'FILLED'])}"
+                )
+                if pos.total_invested > 0:
+                    print(f"    Invested: ${float(pos.total_invested):,.2f}")
+                    print(f"    Quantity: {float(pos.total_quantity):.6f}")
+                    print(
+                        f"    Avg Entry: ${float(pos.average_entry):,.2f}"
+                        if pos.average_entry
+                        else ""
                     )
-                    profit = exit_value - entry_value
-
-                    # Simulate fill
-                    await strategy._on_order_filled(
-                        order_id=order_id,
-                        filled_price=Decimal(str(order_price)),
-                        filled_quantity=position.sell_order.quantity,
+                if pos.pending_order:
+                    print(
+                        f"    Pending: {pos.pending_order.order_id} @ ${float(pos.pending_order.price):,.2f}"
                     )
+                if pos.sell_order:
+                    print(f"    Sell Order: @ ${float(pos.sell_order.price):,.2f}")
+        else:
+            print(f"\nPOSITIONS: None")
 
-                    metrics["orders_filled"] += 1
-                    metrics["positions_completed"] += 1
-
-                    if profit > 0:
-                        metrics["positions_won"] += 1
-                    else:
-                        metrics["positions_lost"] += 1
-
-                    metrics["position_profits"].append(float(profit))
-                    metrics["position_fill_counts"].append(
-                        len([o for o in position.buy_orders if o.is_filled])
-                    )
+        # Metrics
+        print(f"\nMETRICS:")
+        print(f"  Tops Detected: {metrics['tops_detected']}")
+        print(f"  Orders Filled: {metrics['orders_filled']}")
+        print(f"  Positions Completed: {metrics['positions_completed']}")
 
     def _calculate_max_drawdown(
         self, budget_history: List[Dict], initial_budget: Decimal

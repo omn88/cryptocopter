@@ -77,7 +77,8 @@ class TestStrategyInitialization:
 class TestCandleProcessing:
     """Test candle processing through detection pipeline."""
 
-    def test_processes_candle_for_new_symbol(self, sample_config, sample_candle):
+    @pytest.mark.asyncio
+    async def test_processes_candle_for_new_symbol(self, sample_config, sample_candle):
         """Processes candle and auto-adds symbol if needed."""
         strategy = BuyDipStrategy(
             config=sample_config,
@@ -85,13 +86,14 @@ class TestCandleProcessing:
             order_budget_pct=Decimal("2.0"),
         )
 
-        strategy.process_candle("BTCUSDC", sample_candle())
+        await strategy.process_candle("BTCUSDC", sample_candle())
 
         # Verify symbol was added
         assert "BTCUSDC" in strategy._candle_buffers
         assert len(strategy._candle_buffers["BTCUSDC"].get_all()) == 1
 
-    def test_processes_multiple_candles(self, sample_config, sample_candle):
+    @pytest.mark.asyncio
+    async def test_processes_multiple_candles(self, sample_config, sample_candle):
         """Processes multiple candles correctly."""
         strategy = BuyDipStrategy(
             config=sample_config,
@@ -102,7 +104,7 @@ class TestCandleProcessing:
         # Add 5 candles
         for i in range(5):
             candle = {**sample_candle(), "timestamp": 1000 + i * 60}
-            strategy.process_candle("BTCUSDC", candle)
+            await strategy.process_candle("BTCUSDC", candle)
 
         # Verify all candles stored
         candles = strategy._candle_buffers["BTCUSDC"].get_all()
@@ -112,7 +114,10 @@ class TestCandleProcessing:
 class TestRisingPatternDetection:
     """Test rising pattern detection and position creation."""
 
-    def test_creates_position_on_rising_pattern(self, sample_candle, sample_config):
+    @pytest.mark.asyncio
+    async def test_creates_position_on_rising_pattern(
+        self, sample_candle, sample_config
+    ):
         """Creates position when rising pattern detected."""
         strategy = BuyDipStrategy(
             config=sample_config,
@@ -128,15 +133,17 @@ class TestRisingPatternDetection:
                 "high": 105.0 + i * 10,
                 "timestamp": 1000 + i * 60,
             }
-            strategy.process_candle("BTCUSDC", candle)
+            await strategy.process_candle("BTCUSDC", candle)
 
         # Verify position created
         positions = strategy.get_all_positions()
         assert len(positions) == 1
         assert positions[0].symbol == "BTCUSDC"
-        assert positions[0].state == PositionState.WATCHING
+        # New behavior: Rising pattern creates POTENTIAL_TOP directly (not WATCHING)
+        assert positions[0].state == PositionState.POTENTIAL_TOP
 
-    def test_no_position_without_budget(self, sample_candle, sample_config):
+    @pytest.mark.asyncio
+    async def test_no_position_without_budget(self, sample_candle, sample_config):
         """Does not create position if no budget available."""
         strategy = BuyDipStrategy(
             config=sample_config,
@@ -154,13 +161,16 @@ class TestRisingPatternDetection:
                 "close": 100.0 + i * 10,
                 "timestamp": 1000 + i * 60,
             }
-            strategy.process_candle("BTCUSDC", candle)
+            await strategy.process_candle("BTCUSDC", candle)
 
         # No position created due to budget
         assert len(strategy.get_all_positions()) == 0
 
-    def test_does_not_duplicate_watching_position(self, sample_candle, sample_config):
-        """Does not create duplicate position for same symbol in WATCHING state."""
+    @pytest.mark.asyncio
+    async def test_does_not_duplicate_watching_position(
+        self, sample_candle, sample_config
+    ):
+        """Does not create duplicate position for same symbol in POTENTIAL_TOP state."""
         strategy = BuyDipStrategy(
             config=sample_config,
             total_budget=Decimal("10000"),
@@ -175,7 +185,7 @@ class TestRisingPatternDetection:
                 "close": 100.0 + i * 10,
                 "timestamp": 1000 + i * 60,
             }
-            strategy.process_candle("BTCUSDC", candle)
+            await strategy.process_candle("BTCUSDC", candle)
 
         assert len(strategy.get_all_positions()) == 1
 
@@ -187,7 +197,7 @@ class TestRisingPatternDetection:
                 "close": 100.0 + i * 10,
                 "timestamp": 1000 + i * 60,
             }
-            strategy.process_candle("BTCUSDC", candle)
+            await strategy.process_candle("BTCUSDC", candle)
 
         # Still only one position
         assert len(strategy.get_all_positions()) == 1
@@ -196,7 +206,10 @@ class TestRisingPatternDetection:
 class TestTopConfirmation:
     """Test top confirmation and order placement."""
 
-    def test_sets_potential_top_on_confirmation(self, sample_candle, sample_config):
+    @pytest.mark.asyncio
+    async def test_sets_potential_top_on_confirmation(
+        self, sample_candle, sample_config
+    ):
         """Sets potential top when confirmed."""
         strategy = BuyDipStrategy(
             config=sample_config,
@@ -212,10 +225,12 @@ class TestTopConfirmation:
                 "high": 100.0 + i * 10,
                 "timestamp": 1000 + i * 60,
             }
-            strategy.process_candle("BTCUSDC", candle)
+            await strategy.process_candle("BTCUSDC", candle)
 
         position = strategy.get_all_positions()[0]
-        assert position.state == PositionState.WATCHING
+        # New behavior: Rising pattern creates POTENTIAL_TOP immediately
+        assert position.state == PositionState.POTENTIAL_TOP
+        assert position.top_price is not None
 
         # Add candle at the top
         candle = {
@@ -224,20 +239,9 @@ class TestTopConfirmation:
             "high": 120.0,
             "timestamp": 1000 + 3 * 60,
         }
-        strategy.process_candle("BTCUSDC", candle)
+        await strategy.process_candle("BTCUSDC", candle)
 
-        # Add pullback candle to confirm the top (needs to pullback by min threshold)
-        # With default min_pullback_pct=0.5%, pullback from 120.0 needs to be at least 0.6
-        pullback_candle = {
-            **sample_candle(),
-            "close": 119.0,
-            "high": 119.0,
-            "low": 119.0,
-            "timestamp": 1000 + 4 * 60,
-        }
-        strategy.process_candle("BTCUSDC", pullback_candle)
-
-        # Position should transition to POTENTIAL_TOP
+        # Position should remain in POTENTIAL_TOP with potentially updated top
         assert position.state == PositionState.POTENTIAL_TOP
         assert position.top_price is not None
 
@@ -404,7 +408,8 @@ class TestOrderCancellation:
 class TestTopInvalidation:
     """Test top invalidation handling."""
 
-    def test_invalidates_top_on_new_high(self, sample_candle, sample_config):
+    @pytest.mark.asyncio
+    async def test_invalidates_top_on_new_high(self, sample_candle, sample_config):
         """Invalidates top and cancels orders when new high detected."""
         strategy = BuyDipStrategy(
             config=sample_config,
@@ -439,7 +444,7 @@ class TestTopInvalidation:
                 "high": 100.0,
                 "timestamp": 1000 + i * 60,
             }
-            strategy.process_candle("BTCUSDC", candle)
+            await strategy.process_candle("BTCUSDC", candle)
 
         # Now add a new high
         new_high_candle = {
@@ -448,13 +453,17 @@ class TestTopInvalidation:
             "high": 110.0,
             "timestamp": 1000 + 10 * 60,
         }
-        strategy.process_candle("BTCUSDC", new_high_candle)
+        await strategy.process_candle("BTCUSDC", new_high_candle)
 
         # Position should stay in POTENTIAL_TOP with updated top price
         assert position.state == PositionState.POTENTIAL_TOP
         assert position.top_price == Decimal("110.0")  # Updated to new high
-        assert position.pending_order is None  # Order was cancelled
-        assert "order_123" not in strategy._order_to_position
+        # New behavior: Replacement order placed immediately (not None)
+        assert position.pending_order is not None
+        assert position.pending_order.order_id != "order_123"  # Different order ID
+        assert (
+            "order_123" not in strategy._order_to_position
+        )  # Old order removed from tracking
 
 
 class TestMultiPositionManagement:

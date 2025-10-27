@@ -279,8 +279,8 @@ class BuyDipExecutor:
                     "volume": float(kline_data.get("v", 0)),
                 }
 
-                # Send to strategy
-                self.strategy.process_candle(symbol, candle)
+                # Send to strategy (async)
+                await self.strategy.process_candle(symbol, candle)
                 logger.debug(f"Processed closed {symbol} candle: {candle['close']}")
 
         # Handle real-time price updates for invalidation checks

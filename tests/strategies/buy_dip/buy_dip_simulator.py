@@ -224,8 +224,8 @@ class BuyDipSimulator:
             "timestamp": candle["t"] / 1000,  # Convert ms to seconds
         }
 
-        # Strategy process_candle is sync, not async
-        self.strategy.process_candle("BTCUSDC", strategy_candle)
+        # Process candle through strategy (async)
+        await self.strategy.process_candle("BTCUSDC", strategy_candle)
         self.candle_buffer.append(candle)
         logger.info(f"Sent candle: H={candle['h']}, L={candle['l']}, C={candle['c']}")
 

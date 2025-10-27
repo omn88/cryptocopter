@@ -55,11 +55,11 @@ class HighWatermarkDetector:
             if not self._confirmed_top and self._hwm is not None:
                 # Calculate threshold: max(ATR * multiplier, HWM * min_pullback_pct / 100)
                 if self._atr is not None:
-                    atr_threshold = self._atr * self._atr_multiplier
+                    atr_threshold = float(self._atr) * self._atr_multiplier
                 else:
-                    atr_threshold = 0
+                    atr_threshold = 0.0
 
-                pct_threshold = self._hwm * (self._min_pullback_pct / 100.0)
+                pct_threshold = float(self._hwm) * (self._min_pullback_pct / 100.0)
                 threshold = max(atr_threshold, pct_threshold)
 
                 # Check if pullback exceeds threshold

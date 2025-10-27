@@ -1372,12 +1372,9 @@ def buy_dip_strategy(sample_buy_dip_config, broker_adapter_buy_dip):
 
     def on_order_cancelled(order_id: str):
         """Callback invoked by broker adapter when order is cancelled"""
-        # Strategy should handle cancellation logic
-        position_id = strategy._order_to_position.get(order_id)
-        if position_id:
-            position = strategy._positions.get(position_id)
-            if position:
-                strategy.handle_order_cancellation(order_id)
+        # Invalidation handler already handles cancellation internally
+        # No action needed here - just log it
+        pass
 
     broker_adapter_buy_dip.set_order_filled_callback(on_order_filled)
     broker_adapter_buy_dip.set_order_cancelled_callback(on_order_cancelled)

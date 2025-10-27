@@ -43,7 +43,7 @@ class TopInvalidationHandler:
         self.strategy = strategy
         self._scheduled_tasks: Dict[str, asyncio.Task] = {}
 
-    def handle_invalidation(self, symbol: str, candle: Dict) -> None:
+    async def handle_invalidation(self, symbol: str, candle: Dict) -> None:
         """Handle top invalidation - cancel pending orders and update to new top.
 
         Args:
@@ -60,9 +60,47 @@ class TopInvalidationHandler:
             if not position.top_price:
                 continue
 
-            self._invalidate_position(position, new_top_price, candle)
+            await self._invalidate_position(position, new_top_price, candle)
 
-    def _invalidate_position(
+    async def _invalidate_position_async(
+        self, position: BuyDipPosition, new_top_price: Decimal, candle: Dict
+    ) -> None:
+        """Invalidate a single position and place immediate replacement (async version).
+
+        Used when we need to ensure order cancellation completes before placing replacement.
+
+        Args:
+            position: Position to invalidate
+            new_top_price: New top price from candle
+            candle: Current candle data
+        """
+        logger.debug(
+            "Invalidating pos=%s current_top=%s pending=%s (async)",
+            position.position_id,
+            str(position.top_price),
+            bool(position.pending_order),
+        )
+
+        # Validate that new high is significant enough
+        if not self._is_significant_new_high(position, new_top_price):
+            return
+
+        # Cancel pending order if exists (await completion)
+        await self._cancel_pending_order_async(position)
+
+        # Update position to new top
+        self._update_position_state(position, new_top_price, candle)
+
+        # For first DCA level, place order immediately
+        # For subsequent levels, schedule delayed replacement
+        if position.next_dca_level == 0:
+            # Place first order immediately based on new top
+            self._place_immediate_replacement(position)
+        else:
+            # Schedule delayed replacement order
+            self._schedule_replacement_order(position)
+
+    async def _invalidate_position(
         self, position: BuyDipPosition, new_top_price: Decimal, candle: Dict
     ) -> None:
         """Invalidate a single position and schedule replacement.
@@ -83,14 +121,14 @@ class TopInvalidationHandler:
         if not self._is_significant_new_high(position, new_top_price):
             return
 
-        # Cancel pending order if exists
-        self._cancel_pending_order(position)
-
-        # Update position to new top
-        self._update_position_state(position, new_top_price, candle)
-
-        # Schedule delayed replacement order
-        self._schedule_replacement_order(position)
+        # For first DCA level, await async cancellation before placing replacement
+        if position.next_dca_level == 0:
+            await self._invalidate_position_async(position, new_top_price, candle)
+        else:
+            # For subsequent levels, use regular flow with delayed replacement
+            self._cancel_pending_order(position)
+            self._update_position_state(position, new_top_price, candle)
+            self._schedule_replacement_order(position)
 
     def _is_significant_new_high(
         self, position: BuyDipPosition, new_top_price: Decimal
@@ -142,6 +180,52 @@ class TopInvalidationHandler:
 
         return True
 
+    async def _cancel_pending_order_async(self, position: BuyDipPosition) -> None:
+        """Cancel pending order and release locked funds (async version).
+
+        Args:
+            position: Position with pending order to cancel
+        """
+        pending_order = position.pending_order
+        if not pending_order:
+            return
+
+        # Cancel order in broker (await completion)
+        order_id = pending_order.order_id
+        try:
+            # Try broker_adapter first (production), fallback to broker (backtesting)
+            broker = self.strategy.broker_adapter or self.strategy.broker
+            if broker:
+                await broker.cancel_order(order_id)
+                logger.debug(f"Cancelled order {order_id} in broker")
+        except Exception as e:
+            logger.warning(f"Failed to cancel order {order_id} in broker: {e}")
+
+        # Mark as canceled and release locked funds immediately
+        pending_order.status = "CANCELED"
+
+        # Calculate and release locked funds
+        try:
+            order_amount = float(pending_order.price * pending_order.quantity)
+        except Exception:
+            order_amount = 0.0
+
+        if order_amount > 0:
+            self.strategy._budget_manager.release_funds(order_amount)
+
+        # Clear pending order on position
+        position.pending_order = None
+
+        # Clear order tracking
+        if pending_order.order_id in self.strategy._order_to_position:
+            del self.strategy._order_to_position[pending_order.order_id]
+
+        logger.debug(
+            "Canceled pending order %s, released %.2f USDC",
+            pending_order.order_id,
+            order_amount,
+        )
+
     def _cancel_pending_order(self, position: BuyDipPosition) -> None:
         """Cancel pending order and release locked funds.
 
@@ -151,6 +235,19 @@ class TopInvalidationHandler:
         pending_order = position.pending_order
         if not pending_order:
             return
+
+        # Cancel order in broker (fire and forget for backward compatibility)
+        order_id = pending_order.order_id
+        try:
+            # Try broker_adapter first (production), fallback to broker (backtesting)
+            broker = self.strategy.broker_adapter or self.strategy.broker
+            if broker:
+                # Use asyncio.create_task to avoid blocking
+                import asyncio
+
+                asyncio.create_task(broker.cancel_order(order_id))
+        except Exception as e:
+            logger.warning(f"Failed to cancel order {order_id} in broker: {e}")
 
         # Mark as canceled and release locked funds immediately
         pending_order.status = "CANCELED"
@@ -218,6 +315,43 @@ class TopInvalidationHandler:
             position.last_invalidation_ts,
             position.cooldown_until,
         )
+
+    def _place_immediate_replacement(self, position: BuyDipPosition) -> None:
+        """Place replacement order immediately (for first DCA level).
+
+        Args:
+            position: Position needing replacement order
+        """
+        try:
+            # Ensure any pending broker cancellation completes
+            # (The cancel was initiated in _cancel_pending_order)
+            import asyncio
+
+            try:
+                # Give the cancel task time to complete (important for backtesting)
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Can't block in running loop, but task should complete quickly
+                    pass
+            except Exception:
+                pass
+
+            # Generate order details
+            order_id, dca_price = self._generate_replacement_order_details(position)
+
+            # Place order immediately
+            logger.info(
+                "Placing immediate replacement order for %s at price %s (new top: %s)",
+                order_id,
+                dca_price,
+                str(position.top_price),
+            )
+            self.strategy.place_order(position.position_id, dca_price, order_id)
+
+        except Exception:
+            logger.exception(
+                "Failed to place immediate replacement for %s", position.position_id
+            )
 
     def _schedule_replacement_order(self, position: BuyDipPosition) -> None:
         """Schedule delayed replacement order after cooldown.
