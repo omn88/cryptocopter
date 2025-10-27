@@ -554,11 +554,9 @@ class BuyDipStrategy:
         if self.on_position_update:
             self.on_position_update(position_id, "position_updated")
 
-        # If position just became ACTIVE (first fill), place sell order and create new WATCHING placeholder
+        # If position just became ACTIVE (first fill), create new WATCHING placeholder
+        # Note: Sell order will be placed dynamically via process_ticker() when price approaches top
         if position.state == PositionState.ACTIVE and position.sell_order is None:
-            sell_order_id = f"{position_id}_sell"
-            self.place_sell_order(position_id, sell_order_id)
-
             # Create new WATCHING placeholder for next opportunity
             # This allows tracking multiple positions simultaneously
             symbol = position.symbol
@@ -566,6 +564,10 @@ class BuyDipStrategy:
                 f"Position {position_id} became ACTIVE, creating new WATCHING placeholder for {symbol}"
             )
             self._create_placeholder_watching_position(symbol)
+            logger.info(
+                f"Position {position_id} ACTIVE - sell order will be placed when price within "
+                f"{self.config.sell_placement_distance_pct}% of top via ticker stream"
+            )
 
         # Check if position wants to place next DCA order
         if position.state == PositionState.ACTIVE and position.can_place_order():
@@ -813,3 +815,119 @@ class BuyDipStrategy:
             if position and position.state == state:
                 positions.append(position)
         return positions
+
+    # === Ticker Stream Processing ===
+
+    async def process_ticker(self, symbol: str, price: float) -> None:
+        """
+        Process real-time price updates for dynamic sell order management.
+
+        Called when ticker price update is received. Manages sell orders
+        dynamically based on price distance from confirmed top:
+        - Places sell when price is within sell_placement_distance_pct of top
+        - Cancels sell when price drops sell_cancellation_distance_pct from top
+
+        Args:
+            symbol: Trading pair symbol
+            price: Current market price
+        """
+        # Only process ACTIVE positions (those with confirmed top and filled buys)
+        active_positions = self._get_positions_by_state(symbol, PositionState.ACTIVE)
+
+        for position in active_positions:
+            await self._manage_sell_order(position, price)
+
+    async def _manage_sell_order(
+        self, position: BuyDipPosition, current_price: float
+    ) -> None:
+        """
+        Dynamically manage sell order based on price distance from top.
+
+        Args:
+            position: Position to manage sell order for
+            current_price: Current market price
+        """
+        if not position.confirmed_top:
+            return
+
+        # Calculate distance from top as percentage
+        top_price = float(position.confirmed_top)
+        distance_from_top_pct = ((top_price - current_price) / top_price) * 100
+
+        logger.debug(
+            "Position %s: price=%s, top=%s, distance=%.2f%%",
+            position.position_id,
+            current_price,
+            top_price,
+            distance_from_top_pct,
+        )
+
+        # Decision logic
+        if position.sell_order is None:
+            # No sell order - check if should place
+            if distance_from_top_pct <= self.config.sell_placement_distance_pct:
+                logger.info(
+                    "Position %s: Placing sell order (price %.2f%% from top)",
+                    position.position_id,
+                    distance_from_top_pct,
+                )
+                order_id = f"{position.position_id}_sell"
+                self.place_sell_order(position.position_id, order_id)
+        else:
+            # Sell order exists - check if should cancel
+            if distance_from_top_pct >= self.config.sell_cancellation_distance_pct:
+                logger.info(
+                    "Position %s: Cancelling sell order (price %.2f%% from top)",
+                    position.position_id,
+                    distance_from_top_pct,
+                )
+                await self.cancel_sell_order(position.sell_order.order_id)
+
+    async def cancel_sell_order(self, order_id: str) -> None:
+        """
+        Cancel an active sell order.
+
+        Args:
+            order_id: Order ID to cancel
+        """
+        position_id = self._order_to_position.get(order_id)
+        if not position_id:
+            logger.warning("Cannot cancel sell order %s: order not tracked", order_id)
+            return
+
+        position = self._positions.get(position_id)
+        if not position:
+            logger.warning(
+                "Cannot cancel sell order %s: position %s not found",
+                order_id,
+                position_id,
+            )
+            return
+
+        # Cancel through broker adapter
+        if self.broker_adapter:
+            try:
+                await self.broker_adapter.cancel_order(order_id)
+                logger.info("Cancelled sell order %s via broker adapter", order_id)
+            except Exception:
+                logger.exception("Failed to cancel sell order %s", order_id)
+                return
+
+        # Cancel through broker (E2E testing)
+        if self.broker:
+            try:
+                self.broker.cancel_order(order_id)
+                logger.info("Cancelled sell order %s via broker", order_id)
+            except Exception:
+                logger.exception("Failed to cancel sell order %s via broker", order_id)
+                return
+
+        # Clear sell order from position
+        position.sell_order = None
+
+        # Remove from order tracking
+        del self._order_to_position[order_id]
+
+        logger.info(
+            "Sell order %s cancelled for position %s", order_id, position.position_id
+        )

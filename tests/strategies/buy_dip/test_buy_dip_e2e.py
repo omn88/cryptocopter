@@ -70,9 +70,24 @@ async def test_perfect_position_lifecycle(buy_dip_strategy):
     assert position.state == PositionState.ACTIVE
     assert position.total_invested > 0
 
-    # Sell order should be at TOP price
+    # Sell order NOT placed immediately - need ticker stream to approach top
+    # Simulate price rising from current level to within 2% of top
+    current_price = expected_order_1_price
+    target_price = top_price * 0.99  # Within 1% of top (below 2% threshold)
+    await sim.simulate_ticker_stream(
+        symbol="BTCUSDC",
+        from_price=current_price,
+        to_price=target_price,
+        num_ticks=20,
+        delay_ms=5,
+    )
+
+    # Small delay for async processing
+    await asyncio.sleep(0.05)
+
+    # Now sell order should be placed (price within 2% of top)
     sell_order = position.sell_order
-    assert sell_order is not None
+    assert sell_order is not None, "Sell order should be placed when price approaches top"
     assert float(sell_order.price) == top_price
 
     # Order 2 should NOW be placed (sequential, triggered by Order 1 fill)
@@ -711,7 +726,19 @@ async def test_three_positions_independent_lifecycle(buy_dip_strategy):
     watching_b = next(p for p in all_positions if p.state == PositionState.WATCHING)
 
     assert abs(float(pos_a.top_price) - top1) < 1.0, "Position A should track top1"
-    assert pos_a.sell_order is not None, "Position A should have sell order"
+    
+    # Simulate ticker stream to trigger sell order placement
+    current_price = float(pos_a.pending_order.price) if pos_a.pending_order else top1 * 0.97
+    await sim.simulate_ticker_stream(
+        symbol="BTCUSDC",
+        from_price=current_price,
+        to_price=top1 * 0.99,  # Within 1% of top
+        num_ticks=10,
+        delay_ms=5,
+    )
+    await asyncio.sleep(0.05)
+    
+    assert pos_a.sell_order is not None, "Position A should have sell order after ticker stream"
 
     # Small delay before starting next rising pattern
     await asyncio.sleep(0.1)
@@ -737,6 +764,17 @@ async def test_three_positions_independent_lifecycle(buy_dip_strategy):
     await sim.fill_order(pos_b.pending_order.order_id, float(pos_b.pending_order.price))
     await asyncio.sleep(0.1)
 
+    # Simulate ticker stream to trigger sell order placement for Position B
+    current_price_b = float(pos_b.pending_order.price) if pos_b.pending_order else top2 * 0.97
+    await sim.simulate_ticker_stream(
+        symbol="BTCUSDC",
+        from_price=current_price_b,
+        to_price=top2 * 0.99,  # Within 1% of top
+        num_ticks=10,
+        delay_ms=5,
+    )
+    await asyncio.sleep(0.05)
+
     # Check all positions (including WATCHING placeholder)
     all_positions = list(sim.strategy._positions.values())
     assert len(all_positions) == 3, "Should have A (ACTIVE) + B (ACTIVE) + new WATCHING"
@@ -748,7 +786,7 @@ async def test_three_positions_independent_lifecycle(buy_dip_strategy):
     assert (
         abs(float(pos_b.top_price) - top2) < 20.0
     ), "Position B should track top2 (within 20 due to invalidations)"
-    assert pos_b.sell_order is not None, "Position B should have sell order"
+    assert pos_b.sell_order is not None, "Position B should have sell order after ticker stream"
 
     watching_c = next(p for p in all_positions if p.state == PositionState.WATCHING)
 
@@ -772,6 +810,17 @@ async def test_three_positions_independent_lifecycle(buy_dip_strategy):
     await sim.fill_order(pos_c.pending_order.order_id, float(pos_c.pending_order.price))
     await asyncio.sleep(0.1)
 
+    # Simulate ticker stream to trigger sell order placement for Position C
+    current_price_c = float(pos_c.pending_order.price) if pos_c.pending_order else top3 * 0.97
+    await sim.simulate_ticker_stream(
+        symbol="BTCUSDC",
+        from_price=current_price_c,
+        to_price=top3 * 0.99,  # Within 1% of top
+        num_ticks=10,
+        delay_ms=5,
+    )
+    await asyncio.sleep(0.05)
+
     # Check all positions (including WATCHING placeholder)
     all_positions = list(sim.strategy._positions.values())
     assert len(all_positions) == 4, "Should have A, B, C (ACTIVE) + new WATCHING"
@@ -784,11 +833,11 @@ async def test_three_positions_independent_lifecycle(buy_dip_strategy):
     pos_b = next(p for p in active_positions if abs(float(p.top_price) - top2) < 20.0)
     pos_c = next(p for p in active_positions if abs(float(p.top_price) - top3) < 20.0)
 
-    # Verify each position has its own sell order at correct price
-    assert pos_a.sell_order is not None
+    # Verify each position has its own sell order at correct price (after ticker streams)
+    assert pos_a.sell_order is not None, "Position A should have sell order"
     assert abs(float(pos_a.sell_order.price) - top1) < 1.0
 
-    assert pos_b.sell_order is not None
+    assert pos_b.sell_order is not None, "Position B should have sell order after ticker stream"
     assert abs(float(pos_b.sell_order.price) - top2) < 20.0
 
     assert pos_c.sell_order is not None
@@ -826,6 +875,17 @@ async def test_multi_position_invalidation_independence(buy_dip_strategy):
     await sim.fill_order(pos_a.pending_order.order_id, float(pos_a.pending_order.price))
     await asyncio.sleep(0.1)
 
+    # Simulate ticker stream to trigger sell order placement for Position A
+    current_price_a = float(pos_a.pending_order.price) if pos_a.pending_order else top1 * 0.97
+    await sim.simulate_ticker_stream(
+        symbol="BTCUSDC",
+        from_price=current_price_a,
+        to_price=top1 * 0.99,  # Within 1% of top
+        num_ticks=10,
+        delay_ms=5,
+    )
+    await asyncio.sleep(0.05)
+
     all_positions = list(sim.strategy._positions.values())
     pos_a = next((p for p in all_positions if p.state == PositionState.ACTIVE), None)
     assert pos_a is not None, "Position A should be ACTIVE"
@@ -857,6 +917,17 @@ async def test_multi_position_invalidation_independence(buy_dip_strategy):
     # First fill Position B's order to create new WATCHING
     await sim.fill_order(pos_b.pending_order.order_id, float(pos_b.pending_order.price))
     await asyncio.sleep(0.1)
+
+    # Simulate ticker stream to trigger sell order placement for Position B
+    current_price_b = float(pos_b.pending_order.price) if pos_b.pending_order else top2 * 0.97
+    await sim.simulate_ticker_stream(
+        symbol="BTCUSDC",
+        from_price=current_price_b,
+        to_price=top2 * 0.99,  # Within 1% of top
+        num_ticks=10,
+        delay_ms=5,
+    )
+    await asyncio.sleep(0.05)
 
     # Small delay before starting next rising pattern
     await asyncio.sleep(0.1)
@@ -927,13 +998,13 @@ async def test_multi_position_invalidation_independence(buy_dip_strategy):
         abs(float(pos_c.top_price) - top4) < 1.0
     ), f"Position C should update to top4={top4}"
 
-    # Verify sell orders exist (not checking specific prices due to complexity)
-    assert pos_a.sell_order is not None, "Position A should have sell order"
+    # Verify sell orders exist (placed via ticker stream)
+    assert pos_a.sell_order is not None, "Position A should have sell order after ticker stream"
     assert (
         abs(float(pos_a.sell_order.price) - top1) < 1.0
     ), "Position A sell should be at top1"
 
-    assert pos_b.sell_order is not None, "Position B should have sell order"
+    assert pos_b.sell_order is not None, "Position B should have sell order after ticker stream"
     assert (
         abs(float(pos_b.sell_order.price) - top2) < 20.0
     ), "Position B sell should be at top2 (within 20 due to invalidations)"

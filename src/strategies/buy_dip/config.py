@@ -21,6 +21,9 @@ class BuyDipConfig:
         # Invalidation controls
         invalidation_cooldown_seconds: float = 0.15,
         invalidation_min_delta_pct: float = 0.01,
+        # Sell order management (ticker-based)
+        sell_placement_distance_pct: float = 2.0,
+        sell_cancellation_distance_pct: float = 4.0,
     ):
         """Initialize and validate configuration.
 
@@ -33,6 +36,8 @@ class BuyDipConfig:
                 Can be ANY number of levels (minimum 1)
             min_consecutive_rising: Min consecutive rising candles (default: 3)
             min_total_gain_pct: Min total gain % for rising pattern (default: 0.25%)
+            sell_placement_distance_pct: Place sell when price within this % of top (default: 2%)
+            sell_cancellation_distance_pct: Cancel sell when price drops this % from top (default: 4%)
 
         Raises:
             ValueError: If any validation fails
@@ -49,6 +54,9 @@ class BuyDipConfig:
         # Invalidation tuning
         self.invalidation_cooldown_seconds = invalidation_cooldown_seconds
         self.invalidation_min_delta_pct = invalidation_min_delta_pct
+        # Sell order management (ticker-based)
+        self.sell_placement_distance_pct = sell_placement_distance_pct
+        self.sell_cancellation_distance_pct = sell_cancellation_distance_pct
 
         # Validate on initialization
         self.validate()
@@ -86,4 +94,15 @@ class BuyDipConfig:
             logger.warning(
                 f"DCA distances auto-sorted: {self.dca_distances_pct} "
                 f"→ {sorted(self.dca_distances_pct)}"
+            )
+
+        # Validate sell order management thresholds
+        if self.sell_placement_distance_pct <= 0:
+            raise ValueError("sell_placement_distance_pct must be > 0")
+        if self.sell_cancellation_distance_pct <= 0:
+            raise ValueError("sell_cancellation_distance_pct must be > 0")
+        if self.sell_placement_distance_pct >= self.sell_cancellation_distance_pct:
+            raise ValueError(
+                f"sell_placement_distance_pct ({self.sell_placement_distance_pct}) "
+                f"must be < sell_cancellation_distance_pct ({self.sell_cancellation_distance_pct})"
             )

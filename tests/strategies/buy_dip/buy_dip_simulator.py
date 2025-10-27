@@ -240,6 +240,47 @@ class BuyDipSimulator:
             await self.send_candle(candle)
             await asyncio.sleep(0.01)  # Small delay for processing
 
+    async def simulate_ticker_stream(
+        self,
+        symbol: str,
+        from_price: float,
+        to_price: float,
+        num_ticks: int = 20,
+        delay_ms: int = 10,
+    ) -> None:
+        """
+        Simulate real-time ticker price stream between two prices.
+
+        This simulates gradual price movement to trigger dynamic sell order
+        placement/cancellation logic in process_ticker().
+
+        Args:
+            symbol: Trading pair symbol (e.g., "BTCUSDC")
+            from_price: Starting price
+            to_price: Ending price
+            num_ticks: Number of ticker updates to send
+            delay_ms: Delay between ticks in milliseconds
+        """
+        if num_ticks <= 1:
+            # Just send final price
+            await self.strategy.process_ticker(symbol, to_price)
+            return
+
+        # Calculate price step
+        price_diff = to_price - from_price
+        step = price_diff / (num_ticks - 1)
+
+        logger.info(
+            f"Simulating ticker stream: {from_price} → {to_price} ({num_ticks} ticks)"
+        )
+
+        for i in range(num_ticks):
+            current_price = from_price + (step * i)
+            await self.strategy.process_ticker(symbol, current_price)
+            await asyncio.sleep(delay_ms / 1000.0)
+
+        logger.info(f"Ticker stream complete: final price = {to_price}")
+
     # ========================================================================
     # PATTERN SIMULATION
     # ========================================================================
@@ -321,14 +362,16 @@ class BuyDipSimulator:
         from_price: float,
         to_price: float,
         num_candles: int = 2,
+        use_ticker_stream: bool = True,
     ) -> None:
         """
-        Simulate price recovery back to top.
+        Simulate price recovery back to top with ticker stream support.
 
         Args:
             from_price: Current price (bottom)
             to_price: Target price (top)
             num_candles: Number of candles
+            use_ticker_stream: If True, simulate ticker updates between candles for dynamic sell management
         """
         total_gain = ((to_price - from_price) / from_price) * 100
         gain_per_candle = total_gain / num_candles
@@ -340,10 +383,29 @@ class BuyDipSimulator:
             start_time=self.current_time,
         )
 
-        await self.send_candles(candles)
+        # Process each candle with ticker stream simulation
+        for i, candle in enumerate(candles):
+            await self.send_candle(candle)
+            
+            # Simulate ticker stream between candles for dynamic sell order management
+            if use_ticker_stream and i < len(candles) - 1:
+                current_high = float(candle["h"])
+                next_high = float(candles[i + 1]["h"])
+                # Simulate gradual price movement from current to next candle
+                await self.simulate_ticker_stream(
+                    symbol="BTCUSDC",
+                    from_price=current_high,
+                    to_price=next_high,
+                    num_ticks=10,
+                    delay_ms=5,
+                )
+            elif use_ticker_stream and i == len(candles) - 1:
+                # Final ticker update at recovery target
+                await self.strategy.process_ticker("BTCUSDC", to_price)
+
         self.current_time += timedelta(minutes=15 * num_candles)
 
-        # Auto-fill sell orders if price reached their level
+        # Auto-fill sell orders if price reached their level (ticker-based placement should have occurred)
         for position in self.get_active_positions():
             logger.debug(
                 f"Checking position {position.position_id} for sell order: {position.sell_order}"
@@ -366,6 +428,7 @@ class BuyDipSimulator:
                 logger.debug(f"No sell order for position {position.position_id}")
 
         logger.info(f"Simulated recovery: {from_price} → {to_price}")
+
 
     # ========================================================================
     # ORDER SIMULATION (E2E through broker callbacks)
