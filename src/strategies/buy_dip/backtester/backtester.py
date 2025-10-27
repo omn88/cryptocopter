@@ -21,6 +21,8 @@ from dataclasses import dataclass, asdict
 
 import aiohttp
 
+from src.strategies.buy_dip.backtester.mock_broker import MockBrokerAdapter
+
 logger = logging.getLogger(__name__)
 
 
@@ -232,9 +234,6 @@ class BuyDipBacktester:
             raise ValueError("No historical data downloaded")
 
         logger.info(f"Processing {len(klines)} candles...")
-
-        # Create mock broker for backtesting
-        from src.strategies.buy_dip.mock_broker import MockBrokerAdapter
 
         broker = MockBrokerAdapter(symbol=symbol)
 
