@@ -18,10 +18,11 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, asdict
+from unittest.mock import AsyncMock
 
 import aiohttp
 
-from src.strategies.buy_dip.backtester.mock_broker import MockBrokerAdapter
+from src.strategies.buy_dip.broker_adapter import BuyDipBrokerAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -235,7 +236,41 @@ class BuyDipBacktester:
 
         logger.info(f"Processing {len(klines)} candles...")
 
-        broker = MockBrokerAdapter(symbol=symbol)
+        # Create mock client for backtesting (similar to conftest)
+        from unittest.mock import Mock
+        
+        mock_client = Mock()
+        mock_client.placed_orders = {}
+        
+        async def create_order_side_effect(symbol, side, order_type, time_in_force, 
+                                          quantity, price, new_client_order_id, **kwargs):
+            """Mock order creation that tracks orders."""
+            order_id = int(abs(hash((float(price) * float(quantity))))) % 1_000_000_000
+            
+            mock_client.placed_orders[order_id] = {
+                "symbol": symbol,
+                "side": side,
+                "price": float(price),
+                "quantity": float(quantity),
+                "status": "NEW",
+            }
+            
+            return {
+                "orderId": order_id,
+                "symbol": symbol,
+                "price": str(price),
+                "origQty": str(quantity),
+                "status": "NEW",
+                "side": side,
+                "type": "LIMIT",
+                "timeInForce": "GTC",
+            }
+        
+        mock_client.create_order = AsyncMock(side_effect=create_order_side_effect)
+        mock_client.cancel_order = AsyncMock(return_value={"orderId": 0, "status": "CANCELED"})
+
+        # Create BuyDipBrokerAdapter with mocked client
+        broker = BuyDipBrokerAdapter(client=mock_client, symbol=symbol)
 
         # Create strategy instance
         buy_dip_config = BuyDipConfig(**config)

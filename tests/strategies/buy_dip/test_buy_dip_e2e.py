@@ -14,10 +14,10 @@ import logging
 import pytest
 from datetime import datetime
 from src.strategies.buy_dip.position import PositionState
-from tests.strategies.buy_dip.buy_dip_simulator import create_candle
+from tests.strategies.buy_dip.buy_dip_simulator import BuyDipSimulator, create_candle
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("TEST")
 
 
 # ============================================================================
@@ -43,7 +43,7 @@ async def test_perfect_position_lifecycle(buy_dip_simulator):
     9. Sell fills at top → position CLOSED
     10. No pending orders remain
     """
-    sim = buy_dip_simulator
+    sim: BuyDipSimulator = buy_dip_simulator
 
     logger.info("Starting test_perfect_position_lifecycle")
     # Rising pattern to top

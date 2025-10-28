@@ -13,6 +13,7 @@ from collections import defaultdict
 from decimal import Decimal
 from typing import Dict, Optional, List
 
+from src.strategies.buy_dip.broker_adapter import BuyDipBrokerAdapter
 from src.strategies.buy_dip.budget_manager import BudgetManager
 from src.strategies.buy_dip.candle_buffer import CandleBuffer
 from src.strategies.buy_dip.config import BuyDipConfig
@@ -42,7 +43,7 @@ class BuyDipStrategy:
         total_budget: Decimal,
         order_budget_pct: Decimal,
         broker=None,
-        broker_adapter=None,
+        broker_adapter: Optional[BuyDipBrokerAdapter] = None,
         on_position_update=None,
     ):
         """
@@ -52,8 +53,8 @@ class BuyDipStrategy:
             config: Strategy configuration (DCA levels, detection params, etc.)
             total_budget: Total budget available for trading
             order_budget_pct: Percentage of total budget per order (e.g., 2.0 for 2%)
-            broker: Optional broker instance for order placement (for E2E testing)
-            broker_adapter: Optional broker adapter for production use
+            broker: DEPRECATED - kept for backward compatibility, not used
+            broker_adapter: Broker adapter for order placement (production and E2E tests)
             on_position_update: Optional callback for position updates (position_id, event_type)
         """
         self.config = config
@@ -494,20 +495,7 @@ class BuyDipStrategy:
         # Track order
         self._order_to_position[order_id] = position_id
 
-        # Place order through broker (E2E flow - for testing)
-        if self.broker:
-            try:
-                self.broker.place_order(
-                    order_id=order_id,
-                    symbol=position.symbol,
-                    side="BUY",
-                    price=float(price),
-                    quantity=float(quantity),
-                )
-            except Exception:
-                logger.exception("Broker order placement failed for %s", order_id)
-
-        # Place order through broker adapter (production flow)
+        # Place order through broker adapter (both production and E2E tests)
         if self.broker_adapter:
             try:
                 # Schedule async order placement
@@ -525,6 +513,11 @@ class BuyDipStrategy:
                 logger.exception(
                     "Broker adapter order placement failed for %s", order_id
                 )
+        else:
+            logger.warning(
+                "No broker_adapter configured - order %s not placed on exchange",
+                order_id,
+            )
 
         return True
 
@@ -916,15 +909,11 @@ class BuyDipStrategy:
             except Exception:
                 logger.exception("Failed to cancel sell order %s", order_id)
                 return
-
-        # Cancel through broker (E2E testing)
-        if self.broker:
-            try:
-                self.broker.cancel_order(order_id)
-                logger.info("Cancelled sell order %s via broker", order_id)
-            except Exception:
-                logger.exception("Failed to cancel sell order %s via broker", order_id)
-                return
+        else:
+            logger.warning(
+                "No broker_adapter configured - sell order %s not cancelled on exchange",
+                order_id,
+            )
 
         # Clear sell order from position
         position.sell_order = None

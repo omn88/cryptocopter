@@ -2,8 +2,7 @@
 
 This package contains all backtesting-related modules:
 - Historical data download from Binance
-- Mock broker for simulating order execution
-- Backtester for replaying strategy against historical data
+- Backtester for replaying strategy against historical data with mocked broker
 - Performance metrics and analysis
 """
 
@@ -12,11 +11,9 @@ from src.strategies.buy_dip.backtester.backtester import (
     HistoricalDataDownloader,
     BuyDipBacktester,
 )
-from src.strategies.buy_dip.backtester.mock_broker import MockBrokerAdapter
 
 __all__ = [
     "BacktestResult",
     "HistoricalDataDownloader",
     "BuyDipBacktester",
-    "MockBrokerAdapter",
 ]
