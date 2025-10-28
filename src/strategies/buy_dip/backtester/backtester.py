@@ -22,6 +22,7 @@ from unittest.mock import AsyncMock
 
 import aiohttp
 
+from src.common.symbol import Symbol
 from src.strategies.buy_dip.broker_adapter import BuyDipBrokerAdapter
 
 logger = logging.getLogger(__name__)
@@ -238,15 +239,23 @@ class BuyDipBacktester:
 
         # Create mock client for backtesting (similar to conftest)
         from unittest.mock import Mock
-        
+
         mock_client = Mock()
         mock_client.placed_orders = {}
-        
-        async def create_order_side_effect(symbol, side, order_type, time_in_force, 
-                                          quantity, price, new_client_order_id, **kwargs):
+
+        async def create_order_side_effect(
+            symbol,
+            side,
+            order_type,
+            time_in_force,
+            quantity,
+            price,
+            new_client_order_id,
+            **kwargs,
+        ):
             """Mock order creation that tracks orders."""
             order_id = int(abs(hash((float(price) * float(quantity))))) % 1_000_000_000
-            
+
             mock_client.placed_orders[order_id] = {
                 "symbol": symbol,
                 "side": side,
@@ -254,7 +263,7 @@ class BuyDipBacktester:
                 "quantity": float(quantity),
                 "status": "NEW",
             }
-            
+
             return {
                 "orderId": order_id,
                 "symbol": symbol,
@@ -265,12 +274,23 @@ class BuyDipBacktester:
                 "type": "LIMIT",
                 "timeInForce": "GTC",
             }
-        
-        mock_client.create_order = AsyncMock(side_effect=create_order_side_effect)
-        mock_client.cancel_order = AsyncMock(return_value={"orderId": 0, "status": "CANCELED"})
 
-        # Create BuyDipBrokerAdapter with mocked client
-        broker = BuyDipBrokerAdapter(client=mock_client, symbol=symbol)
+        mock_client.create_order = AsyncMock(side_effect=create_order_side_effect)
+        mock_client.cancel_order = AsyncMock(
+            return_value={"orderId": 0, "status": "CANCELED"}
+        )
+
+        symbol_obj = Symbol(
+            name=symbol,
+            precision=8,  # Quantity precision (8 decimals for BTC)
+            price_precision=2,  # Price precision (2 decimals for USDC)
+            min_notional=10.0,  # Minimum order value
+            lot_size=0.00000001,  # Step size for quantity
+            price_filter=0.01,  # Step size for price
+        )
+
+        # Create BuyDipBrokerAdapter with mocked client and Symbol
+        broker = BuyDipBrokerAdapter(client=mock_client, symbol=symbol_obj)
 
         # Create strategy instance
         buy_dip_config = BuyDipConfig(**config)

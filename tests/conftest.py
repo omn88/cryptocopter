@@ -3,6 +3,7 @@ import os
 # Import kivy configuration first (must be before any Kivy imports)
 import sys
 
+from src.strategies.buy_dip.broker_adapter import BuyDipBrokerAdapter
 from src.strategies.buy_dip.config import BuyDipConfig
 from tests.strategies.buy_dip.buy_dip_simulator import BuyDipSimulator
 
@@ -1321,11 +1322,20 @@ def mock_binance_client_buy_dip():
 @pytest.fixture
 def broker_adapter_buy_dip(mock_binance_client_buy_dip):
     """Create BuyDipBrokerAdapter with mocked BinanceClient for E2E testing."""
-    from src.strategies.buy_dip.broker_adapter import BuyDipBrokerAdapter
+
+    # Create Symbol with BTCUSDC precision rules
+    symbol = Symbol(
+        name="BTCUSDC",
+        precision=8,  # Quantity precision (8 decimals for BTC)
+        price_precision=2,  # Price precision (2 decimals for USDC)
+        min_notional=10.0,  # Minimum order value
+        lot_size=0.00000001,  # Step size for quantity
+        price_filter=0.01,  # Step size for price
+    )
 
     adapter = BuyDipBrokerAdapter(
         client=mock_binance_client_buy_dip,
-        symbol="BTCUSDC",
+        symbol=symbol,
     )
     return adapter
 

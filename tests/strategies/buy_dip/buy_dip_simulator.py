@@ -379,7 +379,7 @@ class BuyDipSimulator:
         start_price: float = 67000,
         end_price: float = 67890,
         num_candles: int = 3,
-    ) -> Optional[float]:
+    ) -> float:
         """
         Simulate rising pattern leading to potential top.
 

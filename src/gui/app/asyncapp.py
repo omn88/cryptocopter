@@ -143,6 +143,7 @@ class AsyncApp(App):
             order_budget_pct=Decimal("2.0"),  # 2% per order
             symbols=["BTCUSDC"],
             config_queue=config_queue,  # Pass config queue for runtime updates
+            symbols_dict=self.price_resolver.symbols,  # Pass symbol precision info
         )
 
         # Store in trading systems

@@ -9,6 +9,7 @@ import logging
 from decimal import Decimal
 from typing import Optional, Callable, Dict
 from src.common.client import BinanceClient
+from src.common.symbol import Symbol
 
 logger = logging.getLogger(__name__)
 
@@ -22,15 +23,16 @@ class BuyDipBrokerAdapter:
     - Cancel orders via BinanceClient REST API
     - Register callbacks for order fills (from WebSocket user stream)
     - Format order requests according to Binance API requirements
+    - Apply symbol-specific precision and validation rules
     """
 
-    def __init__(self, client: BinanceClient, symbol: str):
+    def __init__(self, client: BinanceClient, symbol: Symbol):
         """
         Initialize broker adapter.
 
         Args:
             client: BinanceClient instance for REST API calls
-            symbol: Trading symbol (e.g., "BTCUSDC")
+            symbol: Symbol object with precision and validation rules
         """
         self.client = client
         self.symbol = symbol
@@ -73,36 +75,47 @@ class BuyDipBrokerAdapter:
         Args:
             order_id: Client order ID (unique identifier)
             side: "BUY" or "SELL"
-            price: Limit price
-            quantity: Order quantity
+            price: Limit price (will be adjusted to symbol precision)
+            quantity: Order quantity (will be adjusted to symbol precision)
 
         Returns:
             Order response from Binance API
         """
         try:
+            # Apply symbol precision rules
+            adjusted_price = self.symbol.adjust_price(float(price))
+            adjusted_quantity = self.symbol.adjust_quantity(float(quantity))
+
+            # Validate order meets minimum notional requirements
+            self.symbol.validate_order(price=adjusted_price, quantity=adjusted_quantity)
+
+            # Format for display (logging)
+            price_str = self.symbol.format_price(adjusted_price)
+            quantity_str = self.symbol.format_quantity(adjusted_quantity)
+
             # Format for Binance API
             order_response = await self.client.create_order(
-                symbol=self.symbol,
+                symbol=self.symbol.name,
                 side=side,
                 order_type="LIMIT",
                 time_in_force="GTC",  # Good Till Cancel
-                quantity=float(quantity),
-                price=float(price),
+                quantity=adjusted_quantity,
+                price=adjusted_price,
                 new_client_order_id=order_id,
             )
 
             # Track the order
             self._pending_orders[order_id] = {
                 "side": side,
-                "price": price,
-                "quantity": quantity,
+                "price": Decimal(str(adjusted_price)),
+                "quantity": Decimal(str(adjusted_quantity)),
                 "binance_order_id": order_response.get("orderId"),
                 "status": order_response.get("status"),
             }
 
             logger.info(
-                f"Placed {side} order {order_id} @ {price} qty {quantity} "
-                f"(Binance ID: {order_response.get('orderId')})"
+                f"Placed {side} order {order_id} @ {price_str} "
+                f"qty {quantity_str} (Binance ID: {order_response.get('orderId')})"
             )
 
             return order_response
@@ -124,13 +137,13 @@ class BuyDipBrokerAdapter:
         try:
             # Cancel via REST API
             cancel_response = await self.client.cancel_order(
-                symbol=self.symbol,
+                symbol=self.symbol.name,
                 orig_client_order_id=order_id,
             )
 
             logger.info(
                 f"Cancelled order {order_id} "
-                f"(Binance ID: {cancel_response.get('orderId')})"
+                f"(Binance ID: {cancel_response.get('orderId', 0)})"
             )
 
             # Remove from tracking

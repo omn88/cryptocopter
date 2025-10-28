@@ -27,6 +27,7 @@ from src.common.identifiers import (
     Event,
     TickerUpdate,
 )
+from src.common.symbol import Symbol
 from src.database import Database
 from src.strategies.buy_dip.broker_adapter import BuyDipBrokerAdapter
 from src.strategies.buy_dip.budget_manager import BudgetManager
@@ -59,6 +60,7 @@ class BuyDipExecutor:
         total_budget: Decimal,
         order_budget_pct: Decimal,
         symbols: list[str],
+        symbols_dict: Dict[str, Any],  # Symbol name -> Symbol object mapping
         config_queue: Optional[queue.Queue] = None,
     ):
         """
@@ -73,6 +75,7 @@ class BuyDipExecutor:
             total_budget: Total budget in USDC
             order_budget_pct: Order size as % of total budget
             symbols: List of symbols to trade (e.g., ["BTCUSDC"])
+            symbols_dict: Symbol objects with precision rules (from fetch_symbols)
             config_queue: Optional queue for runtime configuration updates
         """
         self.db = db
@@ -81,6 +84,7 @@ class BuyDipExecutor:
         self.ui_queue = ui_queue
         self.config = config
         self.symbols = symbols
+        self.symbols_dict = symbols_dict
         self.config_queue = config_queue
 
         # Worker queue for async event processing
@@ -95,7 +99,23 @@ class BuyDipExecutor:
 
         # For now, use single adapter for primary symbol (future: multi-symbol support)
         primary_symbol = symbols[0] if symbols else "BTCUSDC"
-        primary_adapter = BuyDipBrokerAdapter(client=client, symbol=primary_symbol)
+
+        # Get Symbol object from symbols_dict
+        symbol_obj = symbols_dict.get(primary_symbol)
+        if not symbol_obj:
+            logger.warning(
+                f"Symbol {primary_symbol} not found in symbols_dict, using defaults"
+            )
+            symbol_obj = Symbol(
+                name=primary_symbol,
+                precision=8,
+                price_precision=2,
+                min_notional=10.0,
+                lot_size=0.00000001,
+                price_filter=0.01,
+            )
+
+        primary_adapter = BuyDipBrokerAdapter(client=client, symbol=symbol_obj)
 
         # Create strategy instance with broker adapter
         self.strategy = BuyDipStrategy(
