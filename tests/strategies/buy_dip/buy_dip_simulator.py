@@ -248,6 +248,31 @@ class BuyDipSimulator:
                             # Process through strategy
                             await self.strategy.process_candle(symbol, candle)
 
+                # Process executionReport events (order fills, cancellations)
+                elif (
+                    isinstance(event, dict)
+                    and event.get("e") == EventName.EXECUTION_REPORT.value
+                ):
+                    if self.strategy.broker_adapter:
+                        self.strategy.broker_adapter.handle_user_stream_update(event)
+                    else:
+                        # Fallback for old-style tests without broker_adapter
+                        order_id = event.get("c")
+                        status = event.get("X")
+                        side = event.get("S")
+
+                        if status == "FILLED":
+                            assert order_id is not None, "Order ID must be present in executionReport"
+                            fill_price = float(event.get("L", 0))
+                            fill_quantity = float(event.get("l", 0))
+
+                            if side == "SELL":
+                                self.strategy.handle_sell_fill(order_id, fill_price)
+                            else:
+                                self.strategy.handle_order_fill(
+                                    order_id, fill_price, fill_quantity
+                                )
+
             except Exception as e:
                 logger.error(f"Error in worker loop: {e}", exc_info=True)
                 await asyncio.sleep(0.1)
@@ -523,14 +548,16 @@ class BuyDipSimulator:
 
     async def fill_order(self, order_id: str, fill_price: float) -> None:
         """
-        Simulate order fill through broker adapter ExecutionReport path.
+        Simulate order fill by putting executionReport event into queue.
 
         This simulates the real flow:
         1. Order was placed through broker_adapter.place_order (already done by strategy)
         2. Exchange fills the order
         3. WebSocket user stream sends executionReport event
-        4. Broker adapter processes event via handle_user_stream_update()
-        5. Broker adapter triggers callback to strategy
+        4. Event is put into worker queue
+        5. Worker loop processes event
+        6. Broker adapter handles event via handle_user_stream_update()
+        7. Broker adapter triggers callback to strategy
 
         Args:
             order_id: Order ID to fill
@@ -554,41 +581,43 @@ class BuyDipSimulator:
             logger.warning(f"Order {order_id} not pending for position {position_id}")
             return
 
-        # Simulate executionReport event from WebSocket (if using broker_adapter)
-        if self.strategy.broker_adapter:
-            execution_report = {
-                "e": EventName.EXECUTION_REPORT.value,  # Event type
-                "s": "BTCUSDC",  # Symbol
-                "c": order_id,  # Client order ID
-                "S": "BUY",  # Side
-                "o": "LIMIT",  # Order type
-                "q": str(fill_quantity),  # Order quantity
-                "p": str(fill_price),  # Price
-                "X": "FILLED",  # Order status
-                "l": str(fill_quantity),  # Last executed quantity (full fill)
-                "L": str(fill_price),  # Last executed price
-                "z": str(fill_quantity),  # Cumulative filled quantity
-                "n": "0",  # Commission
-                "N": "USDC",  # Commission asset
-            }
-            # Process through broker adapter (simulates WebSocket event)
-            self.strategy.broker_adapter.handle_user_stream_update(execution_report)
-        else:
-            # Fallback: direct callback (for old-style tests)
-            self.strategy.handle_order_fill(order_id, fill_price, fill_quantity)
+        # Create executionReport event matching Binance WebSocket format
+        execution_report = {
+            "e": EventName.EXECUTION_REPORT.value,  # Event type
+            "E": int(time.time() * 1000),  # Event time
+            "s": "BTCUSDC",  # Symbol
+            "c": order_id,  # Client order ID
+            "S": "BUY",  # Side
+            "o": "LIMIT",  # Order type
+            "q": str(fill_quantity),  # Order quantity
+            "p": str(fill_price),  # Price
+            "X": "FILLED",  # Order status
+            "l": str(fill_quantity),  # Last executed quantity (full fill)
+            "L": str(fill_price),  # Last executed price
+            "z": str(fill_quantity),  # Cumulative filled quantity
+            "n": "0",  # Commission
+            "N": "USDC",  # Commission asset
+        }
 
-        logger.info(f"Filled order {order_id} at {fill_price} qty {fill_quantity}")
+        # Put executionReport into worker queue (like production)
+        assert self.strategy.worker_queue is not None, "Strategy must have worker_queue"
+        self.strategy.worker_queue.put_nowait(execution_report)
+
+        # Allow worker to process the event
+        await asyncio.sleep(0.01)
 
     async def fill_sell_order(self, order_id: str, fill_price: float) -> None:
         """
-        Simulate sell order fill through broker adapter ExecutionReport path.
+        Simulate sell order fill by putting executionReport event into queue.
 
         This simulates the real flow:
         1. Sell order was placed through broker_adapter.place_order
         2. Exchange fills the sell order
         3. WebSocket user stream sends executionReport event
-        4. Broker adapter processes event
-        5. Broker adapter triggers callback to strategy
+        4. Event is put into worker queue
+        5. Worker loop processes event
+        6. Broker adapter handles event
+        7. Broker adapter triggers callback to strategy
 
         Args:
             order_id: Sell order ID to fill
@@ -613,41 +642,42 @@ class BuyDipSimulator:
         # Get sell quantity
         fill_quantity = float(position.sell_order.quantity)
 
-        # Simulate executionReport event from WebSocket (if using broker_adapter)
-        if self.strategy.broker_adapter:
-            execution_report = {
-                "e": EventName.EXECUTION_REPORT.value,  # Event type
-                "s": "BTCUSDC",  # Symbol
-                "c": order_id,  # Client order ID
-                "S": "SELL",  # Side
-                "o": "LIMIT",  # Order type
-                "q": str(fill_quantity),  # Order quantity
-                "p": str(fill_price),  # Price
-                "X": "FILLED",  # Order status
-                "l": str(fill_quantity),  # Last executed quantity (full fill)
-                "L": str(fill_price),  # Last executed price
-                "z": str(fill_quantity),  # Cumulative filled quantity
-                "n": "0",  # Commission
-                "N": "USDC",  # Commission asset
-            }
-            # Process through broker adapter (simulates WebSocket event)
-            self.strategy.broker_adapter.handle_user_stream_update(execution_report)
-        else:
-            # Fallback: direct callback (for old-style tests)
-            self.strategy.handle_sell_fill(order_id, fill_price)
+        # Create executionReport event matching Binance WebSocket format
+        execution_report = {
+            "e": EventName.EXECUTION_REPORT.value,  # Event type
+            "E": int(time.time() * 1000),  # Event time
+            "s": "BTCUSDC",  # Symbol
+            "c": order_id,  # Client order ID
+            "S": "SELL",  # Side
+            "o": "LIMIT",  # Order type
+            "q": str(fill_quantity),  # Order quantity
+            "p": str(fill_price),  # Price
+            "X": "FILLED",  # Order status
+            "l": str(fill_quantity),  # Last executed quantity (full fill)
+            "L": str(fill_price),  # Last executed price
+            "z": str(fill_quantity),  # Cumulative filled quantity
+            "n": "0",  # Commission
+            "N": "USDC",  # Commission asset
+        }
 
-        logger.info(f"Filled sell order {order_id} at {fill_price} qty {fill_quantity}")
+        # Put executionReport into worker queue (like production)
+        assert self.strategy.worker_queue is not None, "Strategy must have worker_queue"
+        self.strategy.worker_queue.put_nowait(execution_report)
+
+        # Small delay to allow background worker to process
+        await asyncio.sleep(0.01)
 
     async def cancel_order(self, order_id: str) -> None:
         """
-        Simulate order cancellation.
+        Simulate order cancellation by putting executionReport event into queue.
 
         Args:
             order_id: Order ID to cancel
         """
-        # Create executionReport for cancellation
+        # Create executionReport for cancellation matching Binance WebSocket format
         execution_report = {
             "e": EventName.EXECUTION_REPORT.value,
+            "E": int(time.time() * 1000),  # Event time
             "s": (
                 self.strategy.broker_adapter.symbol
                 if self.strategy.broker_adapter
@@ -666,10 +696,13 @@ class BuyDipSimulator:
             "N": "USDC",  # Commission asset
         }
 
-        if self.strategy.broker_adapter:
-            self.strategy.broker_adapter.handle_user_stream_update(execution_report)
-
+        # Put executionReport into worker queue (like production)
+        assert self.strategy.worker_queue is not None, "Strategy must have worker_queue"
+        self.strategy.worker_queue.put_nowait(execution_report)
         logger.info(f"Cancelled order {order_id}")
+
+        # Small delay to allow background worker to process
+        await asyncio.sleep(0.01)
 
     # ========================================================================
     # POSITION QUERIES

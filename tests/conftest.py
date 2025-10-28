@@ -1,3 +1,4 @@
+from decimal import Decimal
 import os
 
 # Import kivy configuration first (must be before any Kivy imports)
@@ -5,6 +6,7 @@ import sys
 
 from src.strategies.buy_dip.broker_adapter import BuyDipBrokerAdapter
 from src.strategies.buy_dip.config import BuyDipConfig
+from src.strategies.buy_dip.strategy import BuyDipStrategy
 from tests.strategies.buy_dip.buy_dip_simulator import BuyDipSimulator
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1275,7 +1277,6 @@ def sample_buy_dip_config():
 @pytest.fixture
 def mock_binance_client_buy_dip():
     """Create a mock BinanceClient for Buy Dip E2E testing (simulates real integration)."""
-    from unittest.mock import AsyncMock
 
     client = AsyncMock()
 
@@ -1343,9 +1344,6 @@ def broker_adapter_buy_dip(mock_binance_client_buy_dip):
 @pytest.fixture
 def buy_dip_strategy(sample_buy_dip_config, broker_adapter_buy_dip):
     """Create a BuyDipStrategy instance for E2E testing with broker adapter integration."""
-    from decimal import Decimal
-    import queue
-    from src.strategies.buy_dip.strategy import BuyDipStrategy
 
     strategy = BuyDipStrategy(
         config=sample_buy_dip_config,

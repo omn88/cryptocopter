@@ -539,6 +539,9 @@ class BuyDipStrategy:
 
         position = self._positions[position_id]
 
+        # Capture state before fill to detect transitions
+        was_potential_top = position.state == PositionState.POTENTIAL_TOP
+
         # Update position with fill
         position.handle_order_fill(
             order_id, Decimal(str(filled_price)), Decimal(str(filled_quantity))
@@ -551,9 +554,9 @@ class BuyDipStrategy:
         if self.on_position_update:
             self.on_position_update(position_id, "position_updated")
 
-        # If position just became ACTIVE (first fill), create new WATCHING placeholder
+        # If position just became ACTIVE (first fill confirms top), create new WATCHING placeholder
         # Note: Sell order will be placed dynamically via process_ticker() when price approaches top
-        if position.state == PositionState.ACTIVE and position.sell_order is None:
+        if was_potential_top and position.state == PositionState.ACTIVE:
             # Create new WATCHING placeholder for next opportunity
             # This allows tracking multiple positions simultaneously
             symbol = position.symbol
