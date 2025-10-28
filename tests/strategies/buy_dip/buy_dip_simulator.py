@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 
 from src.strategies.buy_dip.position import PositionState, BuyDipPosition
 from src.strategies.buy_dip.strategy import BuyDipStrategy
+from src.common.identifiers import EventName
 
 logger = logging.getLogger("buy_dip_simulator")
 
@@ -223,7 +224,7 @@ class BuyDipSimulator:
                     continue
 
                 # Process kline events (matching executor logic)
-                if isinstance(event, dict) and event.get("e") == "kline":
+                if isinstance(event, dict) and event.get("e") == EventName.KLINE.value:
                     kline_data = event.get("k", {})
                     is_closed = kline_data.get("x", False)
 
@@ -285,7 +286,7 @@ class BuyDipSimulator:
         """
         # Create kline event matching Binance WebSocket format
         kline_event = {
-            "e": "kline",  # Event type
+            "e": EventName.KLINE.value,  # Event type
             "E": int(time.time() * 1000),  # Event time
             "s": symbol,  # Symbol
             "k": {
@@ -556,7 +557,7 @@ class BuyDipSimulator:
         # Simulate executionReport event from WebSocket (if using broker_adapter)
         if self.strategy.broker_adapter:
             execution_report = {
-                "e": "executionReport",  # Event type
+                "e": EventName.EXECUTION_REPORT.value,  # Event type
                 "s": "BTCUSDC",  # Symbol
                 "c": order_id,  # Client order ID
                 "S": "BUY",  # Side
@@ -615,7 +616,7 @@ class BuyDipSimulator:
         # Simulate executionReport event from WebSocket (if using broker_adapter)
         if self.strategy.broker_adapter:
             execution_report = {
-                "e": "executionReport",  # Event type
+                "e": EventName.EXECUTION_REPORT.value,  # Event type
                 "s": "BTCUSDC",  # Symbol
                 "c": order_id,  # Client order ID
                 "S": "SELL",  # Side
@@ -646,7 +647,7 @@ class BuyDipSimulator:
         """
         # Create executionReport for cancellation
         execution_report = {
-            "e": "executionReport",
+            "e": EventName.EXECUTION_REPORT.value,
             "s": (
                 self.strategy.broker_adapter.symbol
                 if self.strategy.broker_adapter

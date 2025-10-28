@@ -23,6 +23,9 @@ from src.common.identifiers import (
     SubscriptionInfo,
     SubscriptionType,
     SubscriptionTarget,
+    EventName,
+    Event,
+    TickerUpdate,
 )
 from src.database import Database
 from src.strategies.buy_dip.broker_adapter import BuyDipBrokerAdapter
@@ -246,32 +249,76 @@ class BuyDipExecutor:
         """
         Process an event from the worker queue.
 
+        Handles both Event objects (from broker message handlers) and raw dict events.
+
         Args:
-            event: Event from queue (dict for websocket events, or other types)
+            event: Event from queue (Event object or raw dict for WebSocket events)
         """
-        # Skip non-dict events (e.g., threading.Event, ticker updates we don't need)
+        # Handle Event objects (from broker SubscriptionType.PRICE, etc.)
+        if isinstance(event, Event):
+            # Handle ticker updates for dynamic sell order management
+            if event.name == EventName.TICKER:
+                # Type narrow the content to TickerUpdate
+                if not isinstance(event.content, TickerUpdate):
+                    logger.warning(f"Expected TickerUpdate, got {type(event.content)}")
+                    return
+
+                ticker_update = event.content
+                symbol = ticker_update.symbol
+                current_price = ticker_update.last_price
+
+                # Update current price cache
+                self._current_prices[symbol] = current_price
+
+                # Process ticker for sell order management (active positions)
+                await self.strategy.process_ticker(symbol, current_price)
+
+                # Also check for invalidation (throttled)
+                current_time = time.time()
+                last_check = self._last_price_check.get(symbol, 0)
+                if current_time - last_check >= 5.0:  # 5 seconds
+                    self._last_price_check[symbol] = current_time
+                    self.strategy.check_for_invalidation(symbol, current_price)
+
+                return
+
+            # Handle account position updates (balance changes, etc.)
+            elif event.name == EventName.ACCOUNT_POSITION:
+                # Account position updates - currently not used by Buy Dip
+                # but available for future use (e.g., tracking available balance)
+                logger.debug("Received account position update")
+                return
+
+            # Handle other Event types
+            else:
+                logger.debug(f"Unhandled Event type: {event.name}")
+                return
+
+        # Handle raw dict events (from WebSocket)
         if not isinstance(event, dict):
             return
 
         event_type = event.get("e")
 
         # Handle kline (candlestick) events
-        if event_type == "kline":
+        if event_type == EventName.KLINE.value:
             kline_data = event.get("k", {})
             is_closed = kline_data.get("x", False)  # x = is closed candle
 
             # Only process closed candles
             if is_closed:
-                symbol = event.get("s")
-                if not symbol:
-                    logger.warning("Kline event without symbol")
+                symbol_value = event.get("s")
+                if not symbol_value or not isinstance(symbol_value, str):
+                    logger.warning("Kline event without valid symbol")
                     return
+
+                # symbol_value is now narrowed to str by the isinstance check
 
                 # Create candle dict for strategy
                 candle = {
                     "open_time": kline_data.get("t"),
                     "close_time": kline_data.get("T"),
-                    "symbol": symbol,
+                    "symbol": symbol_value,
                     "open": float(kline_data.get("o", 0)),
                     "high": float(kline_data.get("h", 0)),
                     "low": float(kline_data.get("l", 0)),
@@ -280,37 +327,34 @@ class BuyDipExecutor:
                 }
 
                 # Send to strategy (async)
-                await self.strategy.process_candle(symbol, candle)
-                logger.debug(f"Processed closed {symbol} candle: {candle['close']}")
+                await self.strategy.process_candle(symbol_value, candle)
+                logger.debug(
+                    f"Processed closed {symbol_value} candle: {candle['close']}"
+                )
 
-        # Handle real-time price updates for invalidation checks
-        elif event_type == "24hrTicker":
-            symbol = event.get("s")
-            if not symbol:
+        # Handle execution reports (order fills, cancellations)
+        elif event_type == EventName.EXECUTION_REPORT.value:
+            # Order update from user stream
+            exec_symbol = event.get("s")
+            if not isinstance(exec_symbol, str):
+                logger.warning("Execution report without valid symbol")
                 return
 
-            current_price = float(event.get("c", 0))  # 'c' = current price
-            self._current_prices[symbol] = current_price
+            # exec_symbol is now narrowed to str by the isinstance check
 
-            # Throttle checks to every 5 seconds
-            current_time = time.time()
-            last_check = self._last_price_check.get(symbol, 0)
-
-            if current_time - last_check >= 5.0:  # 5 seconds
-                self._last_price_check[symbol] = current_time
-                self.strategy.check_for_invalidation(symbol, current_price)
-
-        elif event_type == "executionReport":
-            # Order update from user stream
-            symbol = event.get("s")
-            if symbol in self.broker_adapters:
-                self.broker_adapters[symbol].handle_user_stream_update(event)
-            elif symbol:  # Try to find adapter for this symbol
+            if exec_symbol in self.broker_adapters:
+                self.broker_adapters[exec_symbol].handle_user_stream_update(event)
+            elif exec_symbol:  # Try to find adapter for this symbol
                 # Get adapter for primary symbol as fallback
                 for adapter_symbol, adapter in self.broker_adapters.items():
-                    if adapter_symbol in symbol:
+                    if adapter_symbol in exec_symbol:
                         adapter.handle_user_stream_update(event)
                         break
+
+        # Handle account position updates (raw WebSocket format)
+        elif event_type == EventName.ACCOUNT_POSITION.value:
+            # Account position updates - currently not used by Buy Dip
+            logger.debug("Received account position update (raw)")
 
     def _on_order_filled(self, order_id: str, fill_price: float) -> None:
         """

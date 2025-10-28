@@ -4,6 +4,7 @@ import os
 import sys
 
 from src.strategies.buy_dip.config import BuyDipConfig
+from tests.strategies.buy_dip.buy_dip_simulator import BuyDipSimulator
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import kivy_config
@@ -1392,3 +1393,12 @@ def sample_config():
         min_consecutive_rising=3,
         min_total_gain_pct=0.25,
     )
+
+
+@pytest.fixture
+async def buy_dip_simulator(buy_dip_strategy):
+    """Create simulator with automatic cleanup of background worker task."""
+    sim = BuyDipSimulator(buy_dip_strategy)
+    yield sim
+    # Cleanup: stop background worker task
+    await sim.stop()

@@ -142,8 +142,12 @@ class SignalUpdate(NamedTuple):
 
 
 class EventName(Enum):
+    # Binance WebSocket event types
+    KLINE = "kline"
+    TICKER_24HR = "24hrTicker"
     ACCOUNT_POSITION = "outboundAccountPosition"
     EXECUTION_REPORT = "executionReport"
+    # Internal event types
     ERROR = "error"
     SIGNAL = "Signal"
     SENTINEL = "Sentinel"
