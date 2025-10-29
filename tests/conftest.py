@@ -1,7 +1,13 @@
+from decimal import Decimal
 import os
 
 # Import kivy configuration first (must be before any Kivy imports)
 import sys
+
+from src.strategies.buy_dip.broker_adapter import BuyDipBrokerAdapter
+from src.strategies.buy_dip.config import BuyDipConfig
+from src.strategies.buy_dip.strategy import BuyDipStrategy
+from tests.strategies.buy_dip.buy_dip_simulator import BuyDipSimulator
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import kivy_config
@@ -18,7 +24,7 @@ from src.strategies.hp_manager.position_buy import HPPositionBuy
 from src.strategies.hp_manager.position_sell import HPPositionSell
 from src.strategy_executor import StrategyExecutor
 from src.recovery import RecoveryService
-from tests.strategies.hp_simulator import wait_for_condition
+from tests.strategies.hp.hp_simulator import wait_for_condition
 
 import asyncio
 import logging
@@ -1201,3 +1207,206 @@ async def portfolio_crash_recovery_factory(
         f"Cleanup completed for {len(portfolios)} portfolios, "
         f"{len(hp_frontends)} frontends, {len(strategy_executors)} executors"
     )
+
+
+# ============================================================================
+# BUY DIP STRATEGY FIXTURES
+# ============================================================================
+
+
+@pytest.fixture
+def sample_candle():
+    """Create a sample candle for testing Buy Dip strategy components.
+
+    Returns a factory function that creates candle dictionaries with
+    customizable OHLCV data for unit tests.
+    """
+
+    def _create(
+        open_price: float = 100.0,
+        high: float = 105.0,
+        low: float = 95.0,
+        close: float = 102.0,
+        timestamp: int = 1609459200000,
+    ) -> Dict:
+        return {
+            "open": open_price,
+            "high": high,
+            "low": low,
+            "close": close,
+            "timestamp": timestamp,
+            "volume": 1000.0,
+        }
+
+    return _create
+
+
+@pytest.fixture
+def sample_position():
+    """Create a sample BuyDipPosition for testing.
+
+    Returns a BuyDipPosition configured with:
+    - Symbol: BTCUSDC
+    - DCA distances: [φ=1.618%, e=2.718%, π=3.142%]
+    - Order size: $200
+    """
+    from decimal import Decimal
+    from src.strategies.buy_dip.position import BuyDipPosition
+
+    return BuyDipPosition(
+        position_id="test_pos_1",
+        symbol="BTCUSDC",
+        dca_distances_pct=[1.618, 2.718, 3.142],  # φ, e, π
+        order_size=Decimal("200"),
+    )
+
+
+@pytest.fixture
+def sample_buy_dip_config():
+    """Create a sample BuyDipConfig for E2E testing."""
+    from src.strategies.buy_dip.config import BuyDipConfig
+
+    return BuyDipConfig(
+        order_size_percentage=2.0,
+        dca_distances_pct=[1.618, 2.718, 3.142],  # φ, e, π
+        min_consecutive_rising=3,
+        min_total_gain_pct=0.25,
+    )
+
+
+@pytest.fixture
+def mock_binance_client_buy_dip():
+    """Create a mock BinanceClient for Buy Dip E2E testing (simulates real integration)."""
+
+    client = AsyncMock()
+
+    # Track placed orders for E2E testing
+    client.placed_orders = {}  # order_id -> {price, quantity, symbol, side}
+
+    async def create_order_side_effect(*args, **kwargs):
+        """Simulate BinanceClient.create_order() - returns order dict like Binance API"""
+        symbol = kwargs.get("symbol", "BTCUSDC")
+        side = kwargs.get("side", "BUY")
+        price = kwargs.get("price", 0.0)
+        quantity = kwargs.get("quantity", 0.0)
+
+        # Generate unique order ID like get_new_order() pattern
+        order_id = int(abs(hash((float(price) * float(quantity))))) % 1_000_000_000
+
+        # Track order
+        client.placed_orders[order_id] = {
+            "symbol": symbol,
+            "side": side,
+            "price": float(price),
+            "quantity": float(quantity),
+            "status": "NEW",
+        }
+
+        # Return dict matching Binance API response
+        return {
+            "orderId": order_id,
+            "symbol": symbol,
+            "price": str(price),
+            "origQty": str(quantity),
+            "status": "NEW",
+            "side": side,
+            "type": "LIMIT",
+            "timeInForce": "GTC",
+        }
+
+    client.create_order = AsyncMock(side_effect=create_order_side_effect)
+    client.cancel_order = AsyncMock(return_value={"orderId": 0, "status": "CANCELED"})
+
+    return client
+
+
+@pytest.fixture
+def broker_adapter_buy_dip(mock_binance_client_buy_dip):
+    """Create BuyDipBrokerAdapter with mocked BinanceClient for E2E testing."""
+
+    # Create Symbol with BTCUSDC precision rules
+    symbol = Symbol(
+        name="BTCUSDC",
+        precision=8,  # Quantity precision (8 decimals for BTC)
+        price_precision=2,  # Price precision (2 decimals for USDC)
+        min_notional=10.0,  # Minimum order value
+        lot_size=0.00000001,  # Step size for quantity
+        price_filter=0.01,  # Step size for price
+    )
+
+    adapter = BuyDipBrokerAdapter(
+        client=mock_binance_client_buy_dip,
+        symbol=symbol,
+    )
+    return adapter
+
+
+@pytest.fixture
+def buy_dip_strategy(sample_buy_dip_config, broker_adapter_buy_dip):
+    """Create a BuyDipStrategy instance for E2E testing with broker adapter integration."""
+
+    strategy = BuyDipStrategy(
+        config=sample_buy_dip_config,
+        total_budget=Decimal("10000"),
+        order_budget_pct=Decimal("2.0"),
+        broker_adapter=broker_adapter_buy_dip,  # Real integration path!
+    )
+
+    # Add worker queue for execution reports (like HP Manager)
+    strategy.worker_queue = queue.Queue()
+
+    # Set the callback on broker adapter to route fills to strategy
+    # Note: broker_adapter calls callback with (order_id, fill_price)
+    # We need to determine if it's a buy order or sell order
+    def on_order_filled(order_id: str, filled_price: float):
+        """Callback invoked by broker adapter when order fills"""
+        # Find the position for this order
+        position_id = strategy._order_to_position.get(order_id)
+        if not position_id:
+            return  # Unknown order
+
+        position = strategy._positions.get(position_id)
+        if not position:
+            return  # Position not found
+
+        # Check if this is a sell order
+        if position.sell_order and position.sell_order.order_id == order_id:
+            # SELL order filled
+            strategy.handle_sell_fill(order_id, filled_price)
+        elif position.pending_order and position.pending_order.order_id == order_id:
+            # BUY order filled
+            fill_quantity = float(position.pending_order.quantity)
+            strategy.handle_order_fill(order_id, filled_price, fill_quantity)
+
+    def on_order_cancelled(order_id: str):
+        """Callback invoked by broker adapter when order is cancelled"""
+        # Invalidation handler already handles cancellation internally
+        # No action needed here - just log it
+        pass
+
+    broker_adapter_buy_dip.set_order_filled_callback(on_order_filled)
+    broker_adapter_buy_dip.set_order_cancelled_callback(on_order_cancelled)
+
+    # Add BTCUSDC symbol for testing
+    strategy.add_symbol("BTCUSDC")
+    return strategy
+
+
+@pytest.fixture
+def sample_config():
+    """Sample configuration for testing."""
+    return BuyDipConfig(
+        order_size_percentage=2.0,
+        dca_distances_pct=[1.0, 2.0, 3.0],
+        min_consecutive_rising=3,
+        min_total_gain_pct=0.25,
+    )
+
+
+@pytest.fixture
+async def buy_dip_simulator(buy_dip_strategy):
+    """Create simulator with automatic cleanup of background worker task."""
+    sim = BuyDipSimulator(buy_dip_strategy)
+    yield sim
+    # Cleanup: stop background worker task
+    await sim.stop()

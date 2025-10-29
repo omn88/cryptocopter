@@ -1,53 +1,223 @@
-# Rsi Based Futures
-Issues!
-1. last row from historical data from binance shows not complete data!!!!. So last row must be skipped!!!
+# RSI Based Trading System
 
-2. Update DF position after each new kline (it does not work for short signal)
-3. If you open a position and a some orders are realized instantly, futures user socket does not show it, 
-so function checking and updating current position is necessary. Maybe some temporary checks should be implemented 
-as well as in the first run ORDER TRADE UPDATE and it is seen in logs, but order handle module has not handled it 
-at allproperly. WTF!!! 
+Advanced cryptocurrency spot trading system with multiple strategies, portfolio management, and real-time execution on Binance Spot.
 
+## 🌟 Features
 
-## Getting started
+### Trading Strategies
+- **Buy Dip Strategy**: DCA-based strategy that buys dips below detected market tops
+  - Dynamic DCA configuration (any number of order levels)
+  - Mathematical constant presets (φ, e, π)
+  - Historical backtesting and parameter optimization
+  - Comprehensive learning guide with exercises
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+### Core Capabilities
+- **Live Trading**: Real-time execution via Binance Spot websocket
+- **Portfolio Management**: Multi-symbol portfolio tracking and optimization
+- **Position Recovery**: Automatic position reconciliation and error recovery
+- **GUI Interface**: Kivy-based UI with configuration management
+- **Database Persistence**: SQLite storage for positions, orders, and history
+- **Comprehensive Testing**: 90+ test cases with extensive edge case coverage
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## 🚀 Quick Start
 
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
+### Prerequisites
+```bash
+Python 3.12+
+Windows or Linux
+Binance Spot API credentials
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/omn88/rsi_based_futures.git
-git branch -M main
-git push -uf origin main
+
+### Installation
+```bash
+# Clone repository
+git clone https://gitlab.com/omn88/rsi_based_futures.git
+cd rsi_based_futures
+
+# Create virtual environment
+python -m venv windows_venv  # Windows
+python3 -m venv linux_venv   # Linux
+
+# Activate environment
+windows_venv\Scripts\activate  # Windows
+source linux_venv/bin/activate # Linux
+
+# Install dependencies
+pip install -r requirements/production.txt
+pip install -r requirements/develop.txt  # For development
 ```
 
-## Integrate with your tools
+### Configuration
+Create `config/api_keys.json`:
+```json
+{
+  "binance_testnet": {
+    "api_key": "your_testnet_key",
+    "api_secret": "your_testnet_secret"
+  }
+}
+```
 
-- [ ] [Set up project integrations](https://gitlab.com/omn88/rsi_based_futures/-/settings/integrations)
+### Run Application
+```bash
+python main.py
+```
 
-## Collaborate with your team
+## 📊 Buy Dip Strategy
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Automatically merge when pipeline succeeds](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+### Overview
+The Buy Dip strategy identifies market tops and places multiple DCA (Dollar Cost Averaging) orders below the detected top. Each position uses independent budget allocation.
 
-## Test and Deploy
+### Key Features
+- **Dynamic DCA Levels**: Configure any number of order levels (not limited to 6)
+- **Mathematical Constants**: Elegant presets using φ (phi), e, π
+- **Historical Backtesting**: Test strategies on real Binance data
+- **Parameter Optimization**: Grid search to find optimal DCA distances
+- **Interactive GUI**: Configure DCA levels visually with live preview
 
-Use the built-in continuous integration in GitLab.
+### Quick Example
+```python
+from src.strategies.buy_dip import BuyDipStrategy, BuyDipConfig
+from decimal import Decimal
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+# Configure strategy with 3 levels using mathematical constants
+config = BuyDipConfig(
+    dca_distances_pct=[1.618, 2.718, 3.142],  # φ, e, π
+    budget_per_position=Decimal("300"),
+    budget_per_dca_order=Decimal("100")
+)
+
+strategy = BuyDipStrategy(config=config)
+```
+
+### Backtesting
+```python
+from examples.backtest_buy_dip import run_single_backtest
+import asyncio
+
+# Run backtest on 3 months of data
+asyncio.run(run_single_backtest())
+
+# Or optimize parameters
+from examples.backtest_buy_dip import run_parameter_optimization
+asyncio.run(run_parameter_optimization())
+```
+
+See `examples/backtest_buy_dip.py` for comprehensive examples.
+
+### Learning Resources
+- **[Strategy Guide](docs/buy_dip/STRATEGY_GUIDE.md)**: Complete technical reference (895 lines)
+- **[Learning Guide](docs/buy_dip/LEARNING_GUIDE.md)**: 4-level interactive tutorial with exercises
+- **[Refactoring Summary](docs/buy_dip/REFACTORING_SUMMARY.md)**: Development journey
+
+## 🛠️ Development
+
+### Project Structure
+```
+src/
+├── strategies/
+│   └── buy_dip/           # Buy Dip strategy implementation
+│       ├── strategy.py    # Main strategy logic
+│       ├── config.py      # Configuration with dynamic DCA
+│       ├── backtester.py  # Historical backtesting (550+ lines)
+│       └── config_gui.py  # Dynamic configuration GUI
+├── broker/                # Exchange integration
+├── database/              # Position/order persistence
+├── portfolio/             # Portfolio management
+├── recovery/              # Position recovery system
+└── websocket/             # Real-time data streams
+
+tests/                     # 90+ test cases
+docs/                      # Comprehensive documentation
+examples/                  # Usage examples and backtests
+```
+
+### Running Tests
+```bash
+# All tests
+pytest
+
+# Specific test file
+pytest tests/strategies/buy_dip/test_strategy.py
+
+# With coverage
+pytest --cov=src --cov-report=html
+```
+
+### Key Technologies
+- **Binance Spot API**: Live trading and historical data
+- **Kivy**: Cross-platform GUI framework
+- **SQLite**: Database persistence
+- **asyncio**: Async/await for concurrent operations
+- **pytest**: Testing framework
+
+## 📈 Backtesting System
+
+The backtesting infrastructure allows you to:
+1. **Download historical data** from Binance (15m candles)
+2. **Simulate strategy execution** with realistic order fills
+3. **Optimize parameters** across multiple configurations
+4. **Compare strategies** with comprehensive metrics
+
+### Metrics Tracked
+- Total profit (absolute & percentage)
+- Win rate
+- Max drawdown
+- Average holding time
+- Order fill rates
+- Top detection accuracy
+- Risk metrics
+
+### Example Results
+```
+📊 Performance Metrics:
+  Total Profit:        $127.34 (+12.73%)
+  Win Rate:            68.2%
+  Max Drawdown:        -3.45%
+  
+🎯 Position Statistics:
+  Positions Completed: 22
+  Winning Positions:   15
+  Avg Profit/Position: $5.79
+```
+
+## 🎨 GUI Configuration
+
+Dynamic DCA configuration popup allows you to:
+- Add/remove order levels on the fly
+- Use mathematical constant presets
+- Preview order prices for any top value
+- Validate configuration before saving
+
+```python
+from src.strategies.buy_dip.config_gui import show_config_popup
+
+def on_save(levels):
+    print(f"New DCA levels: {levels}")
+
+show_config_popup(
+    initial_levels=[1.618, 2.718, 3.142],
+    on_save=on_save
+)
+```
+
+## 📝 Known Issues
+
+1. **Historical Data**: Last row from Binance may be incomplete - always skip last candle
+2. **Position Updates**: Position state updates after new klines need enhancement for short signals
+3. **Order Fills**: Instant fills may not appear in user socket - requires additional verification
+
+## 🤝 Contributing
+
+This is a personal trading system. Feel free to fork and adapt for your own use.
+
+## ⚠️ Disclaimer
+
+This software is for educational purposes only. Trading cryptocurrencies carries significant risk. Always test on testnet before live trading. The authors are not responsible for any financial losses.
+
+## 📄 License
+
+Private project - All rights reserved
 
 ***
 

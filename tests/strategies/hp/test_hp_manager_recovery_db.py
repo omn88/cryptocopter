@@ -14,7 +14,7 @@ from src.common.identifiers import Event, EventName, ExecutionReport, Order, Sta
 from src.strategy_executor import StrategyExecutor
 from src.gui.hp_manager.hpfront import HpFront
 from tests.helpers import get_new_order
-from tests.strategies.hp_simulator import HPSimulator, wait_for_condition
+from tests.strategies.hp.hp_simulator import HPSimulator, wait_for_condition
 
 
 logger = logging.getLogger("hp_e2e_test")

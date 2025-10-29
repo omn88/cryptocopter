@@ -34,8 +34,8 @@ from src.common.identifiers import (
     EventName,
     ExecutionReport,
 )
-from tests.strategies.hp_simulator import HPSimulator, wait_for_condition
-from tests.strategies.inventory_simulator import InventorySellSimulator
+from tests.strategies.hp.hp_simulator import HPSimulator, wait_for_condition
+from tests.portfolio.inventory_simulator import InventorySellSimulator
 
 import logging
 

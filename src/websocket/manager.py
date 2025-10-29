@@ -46,6 +46,7 @@ class WebSocketManager:
         # WebSocket tasks
         self._ticker_socket_task: Optional[asyncio.Task] = None
         self._user_socket_task: Optional[asyncio.Task] = None
+        self._kline_socket_tasks: Dict[str, asyncio.Task] = {}  # symbol -> task
 
         # Monitoring tasks
         self._connection_health_task: Optional[asyncio.Task] = None
@@ -74,6 +75,7 @@ class WebSocketManager:
         # Message handler callbacks
         self._user_message_handler: Optional[Callable] = None
         self._ticker_message_handler: Optional[Callable] = None
+        self._kline_message_handler: Optional[Callable] = None
 
         logger.info("WebSocketManager initialized with ultra-robust configuration")
         self._ws_config.log_config()
@@ -82,15 +84,18 @@ class WebSocketManager:
         self,
         user_handler: Callable,
         ticker_handler: Callable,
+        kline_handler: Optional[Callable] = None,
     ) -> None:
         """Set message handler callbacks.
 
         Args:
             user_handler: Function to handle user data stream messages
             ticker_handler: Function to handle ticker stream messages
+            kline_handler: Optional function to handle kline stream messages
         """
         self._user_message_handler = user_handler
         self._ticker_message_handler = ticker_handler
+        self._kline_message_handler = kline_handler
 
     async def start(self) -> List[asyncio.Task]:
         """Start WebSocket streams and monitoring tasks.
@@ -174,6 +179,29 @@ class WebSocketManager:
                 reconnect_attempts=self._ws_config.max_reconnect_attempts,
             )
         )
+
+        # Create kline socket tasks for each subscribed symbol
+        if self._kline_message_handler:
+            from src.common.identifiers import SubscriptionType
+
+            # Collect unique symbols that need kline streams
+            kline_symbols = set()
+            for _, subscription_list in self.subscriptions.items():
+                for sub_info in subscription_list:
+                    if sub_info.data_type == SubscriptionType.KLINE:
+                        kline_symbols.add(sub_info.symbol)
+
+            # Create a kline socket task for each symbol
+            for symbol in kline_symbols:
+                task_key = f"kline_{symbol}"
+                self._kline_socket_tasks[task_key] = self.loop.create_task(
+                    self._handle_socket(
+                        socket_manager.kline_socket(symbol=symbol, interval="15m"),
+                        self._kline_message_handler,
+                        reconnect_attempts=self._ws_config.max_reconnect_attempts,
+                    )
+                )
+                logger.info(f"Created kline socket task for {symbol} (15m)")
 
         logger.info("Websocket tasks started successfully")
 

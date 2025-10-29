@@ -1,0 +1,393 @@
+#:kivy 2.0.0
+
+<BuyDipFront>:
+    orientation: 'vertical'
+    padding: 10
+    spacing: 5
+    
+    # Header with Status and Controls
+    BoxLayout:
+        size_hint_y: None
+        height: 70
+        spacing: 10
+        orientation: 'vertical'
+        
+        # Title row
+        BoxLayout:
+            size_hint_y: 0.5
+            spacing: 10
+            
+            Label:
+                text: 'Buy Dip Strategy'
+                font_size: '18sp'
+                bold: True
+                size_hint_x: 0.4
+                halign: 'left'
+                valign: 'middle'
+                text_size: self.size
+                
+            Label:
+                text: root.status_text
+                font_size: '14sp'
+                size_hint_x: 0.3
+                halign: 'center'
+                valign: 'middle'
+                text_size: self.size
+                color: (0, 1, 0, 1) if root.status_text == 'Running' else (1, 0, 0, 1)
+            
+            # Control buttons
+            BoxLayout:
+                size_hint_x: 0.3
+                spacing: 5
+                
+                Button:
+                    id: config_btn
+                    text: 'Configure'
+                    size_hint_x: 0.5
+                    on_release: root.show_config_dialog()
+                    
+                Button:
+                    id: start_stop_btn
+                    text: 'Stop' if root.status_text == 'Running' else 'Start'
+                    size_hint_x: 0.5
+                    on_release: root.toggle_strategy()
+                    background_color: (1, 0.3, 0.3, 1) if root.status_text == 'Running' else (0.3, 1, 0.3, 1)
+        
+        # Info row (symbol, timeframe)
+        BoxLayout:
+            size_hint_y: 0.5
+            spacing: 10
+            padding: [0, 5, 0, 0]
+            
+            Label:
+                text: f'Symbol: {root.symbol_text}'
+                font_size: '12sp'
+                size_hint_x: 0.25
+                halign: 'left'
+                valign: 'middle'
+                text_size: self.size
+                color: 0.8, 0.8, 0.8, 1
+                
+            Label:
+                text: 'Timeframe: 15m'
+                font_size: '12sp'
+                size_hint_x: 0.25
+                halign: 'left'
+                valign: 'middle'
+                text_size: self.size
+                color: 0.8, 0.8, 0.8, 1
+                
+            Label:
+                text: f'Watching for rising patterns...' if root.status_text == 'Running' else 'Stopped'
+                font_size: '12sp'
+                size_hint_x: 0.5
+                halign: 'right'
+                valign: 'middle'
+                text_size: self.size
+                color: 0.6, 0.6, 0.6, 1
+                italic: True
+            
+    # Budget Summary (Compact)
+    BoxLayout:
+        size_hint_y: None
+        height: 60
+        orientation: 'vertical'
+        padding: 5
+        spacing: 2
+        canvas.before:
+            Color:
+                rgba: 0.2, 0.2, 0.2, 0.5
+            Rectangle:
+                pos: self.pos
+                size: self.size
+        
+        Label:
+            text: 'Budget'
+            font_size: '14sp'
+            bold: True
+            size_hint_y: 0.35
+            halign: 'left'
+            valign: 'middle'
+            text_size: self.size
+            padding: [5, 0]
+            
+        GridLayout:
+            cols: 3
+            spacing: 5
+            size_hint_y: 0.65
+            
+            # Total Budget
+            BoxLayout:
+                orientation: 'vertical'
+                spacing: 0
+                Label:
+                    text: 'Total'
+                    font_size: '11sp'
+                    size_hint_y: 0.4
+                    color: 0.7, 0.7, 0.7, 1
+                Label:
+                    text: f'${root.total_budget:.2f}'
+                    font_size: '13sp'
+                    bold: True
+                    size_hint_y: 0.6
+                    
+            # Available Budget
+            BoxLayout:
+                orientation: 'vertical'
+                spacing: 0
+                Label:
+                    text: 'Available'
+                    font_size: '11sp'
+                    size_hint_y: 0.4
+                    color: 0.7, 0.7, 0.7, 1
+                Label:
+                    text: f'${root.available_budget:.2f}'
+                    font_size: '13sp'
+                    bold: True
+                    size_hint_y: 0.6
+                    color: 0, 1, 0, 1
+                    
+            # Locked Budget
+            BoxLayout:
+                orientation: 'vertical'
+                spacing: 0
+                Label:
+                    text: 'Locked'
+                    font_size: '11sp'
+                    size_hint_y: 0.4
+                    color: 0.7, 0.7, 0.7, 1
+                Label:
+                    text: f'${root.locked_budget:.2f}'
+                    font_size: '13sp'
+                    bold: True
+                    size_hint_y: 0.6
+                    color: 1, 1, 0, 1
+    
+    # Position List Header
+    BoxLayout:
+        size_hint_y: None
+        height: 35
+        spacing: 2
+        padding: [5, 5, 5, 5]
+        canvas.before:
+            Color:
+                rgba: 0.3, 0.3, 0.3, 0.8
+            Rectangle:
+                pos: self.pos
+                size: self.size
+        
+        Label:
+            text: 'Symbol'
+            size_hint_x: 0.08
+            bold: True
+            font_size: '11sp'
+            color: 1, 1, 1, 1
+            
+        Label:
+            text: 'State'
+            size_hint_x: 0.12
+            bold: True
+            font_size: '11sp'
+            color: 1, 1, 1, 1
+            
+        Label:
+            text: 'Top'
+            size_hint_x: 0.10
+            bold: True
+            font_size: '11sp'
+            color: 1, 1, 1, 1
+            
+        Label:
+            text: 'DCA'
+            size_hint_x: 0.06
+            bold: True
+            font_size: '11sp'
+            color: 1, 1, 1, 1
+            
+        Label:
+            text: 'Avg Entry'
+            size_hint_x: 0.10
+            bold: True
+            font_size: '11sp'
+            color: 1, 1, 1, 1
+            
+        Label:
+            text: 'Invested'
+            size_hint_x: 0.10
+            bold: True
+            font_size: '11sp'
+            color: 1, 1, 1, 1
+            
+        Label:
+            text: 'Pending'
+            size_hint_x: 0.12
+            bold: True
+            font_size: '11sp'
+            color: 1, 1, 1, 1
+            
+        Label:
+            text: 'Sell Order'
+            size_hint_x: 0.12
+            bold: True
+            font_size: '11sp'
+            color: 1, 1, 1, 1
+            
+        Label:
+            text: 'PnL'
+            size_hint_x: 0.10
+            bold: True
+            font_size: '11sp'
+            color: 1, 1, 1, 1
+            
+        Label:
+            text: 'ID'
+            size_hint_x: 0.10
+            bold: True
+            font_size: '11sp'
+            color: 1, 1, 1, 1
+    
+    # Position List (Scrollable)
+    ScrollView:
+        id: position_list_scroll
+        do_scroll_x: False
+        bar_width: 8
+        
+        BoxLayout:
+            id: position_list_container
+            orientation: 'vertical'
+            size_hint_y: None
+            height: self.minimum_height
+            spacing: 1
+            
+            # Empty state
+            Label:
+                id: empty_state_label
+                text: 'No positions yet. Waiting for rising pattern detection...'
+                size_hint_y: None
+                height: '80dp'
+                halign: 'center'
+                valign: 'middle'
+                text_size: self.size
+                color: 0.6, 0.6, 0.6, 1
+
+
+# Position Row Widget
+<PositionRowWidget@BoxLayout>:
+    orientation: 'horizontal'
+    size_hint_y: None
+    height: '35dp'
+    spacing: 2
+    padding: [5, 2, 5, 2]
+    
+    # Properties that will be set from Python
+    position_id: ''
+    symbol: ''
+    state: ''
+    top_price: ''
+    dca_level: ''
+    avg_entry: ''
+    invested: ''
+    pending_order: ''
+    sell_order: ''
+    pnl: ''
+    pnl_color: [1, 1, 1, 1]
+    state_color: [0.7, 0.7, 0.7, 1]
+    
+    canvas.before:
+        Color:
+            rgba: 0.18, 0.18, 0.18, 0.6
+        Rectangle:
+            pos: self.pos
+            size: self.size
+        Color:
+            rgba: 1, 1, 1, 0.05
+        Line:
+            points: [self.x, self.y, self.x + self.width, self.y]
+            width: 1
+    
+    Label:
+        text: root.symbol
+        size_hint_x: 0.08
+        font_size: '10sp'
+        halign: 'center'
+        valign: 'middle'
+        text_size: self.size
+        
+    Label:
+        text: root.state
+        size_hint_x: 0.12
+        font_size: '10sp'
+        halign: 'center'
+        valign: 'middle'
+        text_size: self.size
+        color: root.state_color
+        bold: True
+        
+    Label:
+        text: root.top_price
+        size_hint_x: 0.10
+        font_size: '10sp'
+        halign: 'right'
+        valign: 'middle'
+        text_size: self.size
+        
+    Label:
+        text: root.dca_level
+        size_hint_x: 0.06
+        font_size: '10sp'
+        halign: 'center'
+        valign: 'middle'
+        text_size: self.size
+        
+    Label:
+        text: root.avg_entry
+        size_hint_x: 0.10
+        font_size: '10sp'
+        halign: 'right'
+        valign: 'middle'
+        text_size: self.size
+        
+    Label:
+        text: root.invested
+        size_hint_x: 0.10
+        font_size: '10sp'
+        halign: 'right'
+        valign: 'middle'
+        text_size: self.size
+        
+    Label:
+        text: root.pending_order
+        size_hint_x: 0.12
+        font_size: '9sp'
+        halign: 'center'
+        valign: 'middle'
+        text_size: self.size
+        color: 1, 1, 0, 1
+        
+    Label:
+        text: root.sell_order
+        size_hint_x: 0.12
+        font_size: '9sp'
+        halign: 'center'
+        valign: 'middle'
+        text_size: self.size
+        color: 0, 1, 0, 1
+        
+    Label:
+        text: root.pnl
+        size_hint_x: 0.10
+        font_size: '10sp'
+        halign: 'right'
+        valign: 'middle'
+        text_size: self.size
+        color: root.pnl_color
+        bold: True
+        
+    Label:
+        text: root.position_id[-8:] if root.position_id else ''
+        size_hint_x: 0.10
+        font_size: '9sp'
+        halign: 'center'
+        valign: 'middle'
+        text_size: self.size
+        color: 0.5, 0.5, 0.5, 1

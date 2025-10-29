@@ -5,7 +5,7 @@ import pytest
 import logging
 
 from src.common.identifiers import HPSellPositionCreated
-from tests.strategies.hp_simulator import HPSimulator, wait_for_condition
+from tests.strategies.hp.hp_simulator import HPSimulator, wait_for_condition
 
 
 logger = logging.getLogger(__name__)

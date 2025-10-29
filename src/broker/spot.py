@@ -21,6 +21,7 @@ from src.common.identifiers import (
 )
 from src.websocket import WebSocketManager
 from src.broker.message_handlers import (
+    handle_kline_message,
     handle_user_message,
     handle_ticker_message,
 )
@@ -151,6 +152,7 @@ class BrokerSpot:
         self._ws_manager.set_message_handlers(
             user_handler=self._create_user_message_handler(),
             ticker_handler=self._create_ticker_message_handler(),
+            kline_handler=self._create_kline_message_handler(),
         )
 
         # Start WebSocket streams and monitoring
@@ -181,6 +183,14 @@ class BrokerSpot:
                 last_ticker_time_callback=self._update_last_ticker_time_callback,
                 websocket_error_callback=self._handle_websocket_error_callback,
             )
+
+        return handler
+
+    def _create_kline_message_handler(self):
+        """Create kline message handler."""
+
+        def handler(msg):
+            handle_kline_message(msg, self.subscriptions)
 
         return handler
 

@@ -10,6 +10,7 @@ for each strategy.
 """
 
 import asyncio
+from decimal import Decimal
 import logging
 import queue
 import time
@@ -32,6 +33,9 @@ from src.portfolio.portfolio_gui import PortfolioUI
 from src.database import Database
 from src.broker import BrokerSpot
 from src.portfolio.usd_price_resolver import UsdPriceResolver
+from src.strategies.buy_dip.config import BuyDipConfig
+from src.strategies.buy_dip.executor import BuyDipExecutor
+from src.strategies.buy_dip.ui.buy_dip_front import BuyDipFront
 from src.strategy_executor import StrategyExecutor
 
 logger = logging.getLogger("async_app")
@@ -100,6 +104,104 @@ class AsyncApp(App):
         self.setup_portfolio_manager()
         # Always setup HP Manager as default strategy
         self.setup_hp_manager()
+        # Optionally setup Buy Dip strategy (uncomment to enable)
+        self.setup_buy_dip()
+
+    def setup_buy_dip(self, strategy_id: Optional[str] = None) -> None:
+        """Setup Buy Dip strategy."""
+
+        strategy_name = "BuyDip"
+        if strategy_id is None:
+            strategy_id = "buy_dip_default"
+
+        logger.info("Setting up Buy Dip strategy with ID: %s", strategy_id)
+
+        # Load UI (after imports so BuyDipFront class is registered)
+        Builder.load_file("src/strategies/buy_dip/ui/buy_dip_front.kv")
+
+        # Create UI queue and config queue
+        ui_queue: queue.Queue = queue.Queue()
+        config_queue: queue.Queue = queue.Queue()
+
+        # Create strategy configuration
+        config = BuyDipConfig(
+            # Detection parameters
+            min_consecutive_rising=3,
+            min_total_gain_pct=0.3,
+            # DCA levels (φ, e, π, 5%, 10%, 15%)
+            dca_distances_pct=[1.618, 2.718, 3.142, 5.0, 10.0, 15.0],
+        )
+
+        # Create executor (but don't start yet - UI will control it)
+        executor = BuyDipExecutor(
+            db=self.db,
+            broker=self.broker,
+            client=self.client,
+            ui_queue=ui_queue,
+            config=config,
+            total_budget=Decimal("10000"),  # $10k budget
+            order_budget_pct=Decimal("2.0"),  # 2% per order
+            symbols=["BTCUSDC"],
+            config_queue=config_queue,  # Pass config queue for runtime updates
+            symbols_dict=self.price_resolver.symbols,  # Pass symbol precision info
+        )
+
+        # Store in trading systems
+        self.trading_systems.append(executor)
+
+        # Create executor control callbacks
+        executor_control = {
+            "start": lambda: executor.start(),
+            "stop": lambda: executor.stop(),
+            "is_running": lambda: hasattr(executor, "thread")
+            and executor.thread.is_alive(),
+        }
+
+        # Create frontend with executor control and portfolio reference
+        frontend = BuyDipFront(
+            client=self.client,
+            config_queue=config_queue,  # Share config queue with executor
+            db=self.db,
+            ui_queue=ui_queue,
+            price_resolver=self.price_resolver,
+            executor_control=executor_control,
+        )
+
+        # Pass portfolio reference for getting USDC balance
+        frontend.portfolio = self.portfolio
+
+        # Set initial budget display from portfolio
+        usdc_available = self._get_portfolio_usdc_balance()
+        frontend.total_budget = usdc_available
+        frontend.available_budget = usdc_available
+        frontend.locked_budget = 0
+        frontend.symbol_text = "BTCUSDC"
+        frontend.status_text = "Stopped"
+
+        frontend.initialize()
+
+        # Create tab
+        tab = TabbedPanelItem(
+            text=strategy_name,
+            content=frontend,
+        )
+
+        # Store strategy info
+        strategy_info = {
+            "name": strategy_name,
+            "tab": tab,
+            "backend": executor,
+            "frontend": frontend,
+        }
+        self.active_strategies.append(strategy_info)
+
+        # Add tab
+        self.root.add_widget(tab)
+
+        # Don't auto-start - let user start via UI button
+        # executor.start()
+
+        logger.info("Buy Dip strategy setup complete (not started).")
 
     def setup_portfolio_manager(self) -> None:
         # Load the portfolio UI from portfolio.kv
@@ -257,6 +359,25 @@ class AsyncApp(App):
                     return
             self.root.ids.strategy_spinner.text = "Choose Strategy"
 
+    def _get_portfolio_usdc_balance(self) -> float:
+        """
+        Get available USDC balance from Portfolio inventory.
+
+        Returns:
+            Total available USDC quantity
+        """
+        if not self.portfolio or not hasattr(self.portfolio, "inventory"):
+            logger.warning("Portfolio not initialized, returning 0 USDC")
+            return 0.0
+
+        total_usdc = 0.0
+        for item in self.portfolio.inventory:
+            if item.coin == "USDC":
+                total_usdc += item.available_quantity
+
+        logger.info(f"Portfolio USDC available: ${total_usdc:.2f}")
+        return total_usdc
+
     def cancel_all_strategies(self) -> None:
         asyncio.create_task(self.shutdown())
 
@@ -272,8 +393,9 @@ class AsyncApp(App):
             logger.info("Stopping all active strategies...")
             for system in self.trading_systems:
                 logger.info("System: %s", system)
-                assert isinstance(system, StrategyExecutor)
-                system.stop()
+                # Handle both StrategyExecutor and BuyDipExecutor
+                if hasattr(system, "stop"):
+                    system.stop()
 
         logger.info("Stop portfolio")
         if self.portfolio:

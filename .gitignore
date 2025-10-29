@@ -1,16 +1,12 @@
-.idea/
 __pycache__/
 artifacts
+docs
 data
 sample_data.txt
 .pytest_cache/
-.buildozer/
 .env
-.claude
-.coverage
 *.txt
 *.csv
-venv
 linux_venv
 windows_venv
 .vscode/
