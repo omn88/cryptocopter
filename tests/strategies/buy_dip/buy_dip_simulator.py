@@ -262,7 +262,9 @@ class BuyDipSimulator:
                         side = event.get("S")
 
                         if status == "FILLED":
-                            assert order_id is not None, "Order ID must be present in executionReport"
+                            assert (
+                                order_id is not None
+                            ), "Order ID must be present in executionReport"
                             fill_price = float(event.get("L", 0))
                             fill_quantity = float(event.get("l", 0))
 
