@@ -5,8 +5,9 @@ These tests verify the full workflow from UI interactions to state machine trans
 """
 
 import logging
+from unittest.mock import AsyncMock
 
-from binance.enums import ORDER_STATUS_NEW
+from binance.enums import ORDER_STATUS_CANCELED, ORDER_STATUS_NEW
 
 from src.common.identifiers import PositionLifecycleState
 from src.gui.hp_manager.hpfront import HpFront
@@ -122,6 +123,73 @@ async def test_default_buy_position_send_order_v2(frontend_backend_v2_setup):
     logger.info(f"  Order Price:      {strategy.buy.buy_order.price:,.2f} USDC")
     logger.info(f"  Order Quantity:   {strategy.buy.buy_order.quantity:.5f} BTC")
     logger.info("=" * 60)
+
+
+async def test_cancel_default_position_v2(frontend_backend_v2_setup):
+    """Test V2: Cancel buy order when price rises above cancel threshold.
+
+    V2 State Flow: IDLE → BUYING → IDLE (order cancelled)
+
+    This test verifies:
+    1. Position created in IDLE state
+    2. Price drops to trigger → order sent → BUYING state
+    3. Price rises above cancel_price → order cancelled → back to IDLE
+    4. Position ready to send order again if price drops
+    """
+    front, back = frontend_backend_v2_setup
+
+    sim = HPSimulatorV2(front=front, back=back)
+    assert isinstance(front, HpFront)
+    assert isinstance(back, HpExecutorV2)
+
+    # Create position and send order
+    sim.simulate_buy_position()
+    await sim.assert_default_buy_position()
+
+    strategy = back.strategy
+
+    # Mock order creation for initial buy and cancellation
+    strategy.client.create_order.side_effect = [
+        get_new_order(order=strategy.buy.buy_order)
+    ]
+    strategy.client.cancel_order = AsyncMock(return_value=None)  # Just needs to succeed
+
+    # Send price at trigger to initiate buy
+    trigger_price = strategy.buy.trigger_price
+    cancel_price = strategy.buy.cancel_price
+    
+    logger.info("=" * 60)
+    logger.info("Cancel Order Test Configuration:")
+    logger.info(f"  Trigger Price:    {trigger_price:,.2f} USDC (send order)")
+    logger.info(f"  Cancel Price:     {cancel_price:,.2f} USDC (cancel if above)")
+    logger.info("=" * 60)
+
+    # Price drops to trigger → send order
+    logger.info(f"Price drops to trigger: {trigger_price:,.2f} USDC")
+    sim.new_price(price=trigger_price)
+    await sim.wait_for_state(PositionLifecycleState.BUYING, timeout=2.0)
+    
+    logger.info(f"✓ Order sent, state: {strategy.lifecycle_state}")
+    assert strategy.lifecycle_state == PositionLifecycleState.BUYING
+    assert strategy.buy.buy_order.status == ORDER_STATUS_NEW
+
+    # Price rises above cancel_price → should trigger cancel naturally
+    logger.info(f"Price rises to cancel level: {cancel_price:,.2f} USDC")
+    sim.new_price(price=cancel_price)
+    
+    # Wait for state to return to IDLE
+    await sim.wait_for_state(PositionLifecycleState.IDLE, timeout=2.0)
+
+    logger.info("=" * 60)
+    logger.info("✓ Order Cancelled Successfully:")
+    logger.info(f"  Lifecycle State:  {strategy.lifecycle_state}")
+    logger.info(f"  Order Status:     {strategy.buy.buy_order.status}")
+    logger.info(f"  Ready for retry:  Yes (back to IDLE)")
+    logger.info("=" * 60)
+
+    # Verify final state
+    assert strategy.lifecycle_state == PositionLifecycleState.IDLE
+    assert strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
 
 
 # ============================================================================

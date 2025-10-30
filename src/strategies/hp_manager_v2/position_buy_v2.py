@@ -261,7 +261,7 @@ class HPPositionBuyV2:
 
     async def cancel_buy(self) -> None:
         """Cancel active buy order."""
-        if not self.buy_order or not self.buy_order.order_id:
+        if not self.buy_order or self.buy_order.order_id is None:
             logger.warning(f"[{self.config.hp_id}] No order to cancel")
             return
 
