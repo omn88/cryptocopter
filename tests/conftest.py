@@ -6,16 +6,17 @@ import sys
 
 from src.strategies.buy_dip.broker_adapter import BuyDipBrokerAdapter
 from src.strategies.buy_dip.config import BuyDipConfig
+from src.strategies.buy_dip.position import BuyDipPosition
 from src.strategies.buy_dip.strategy import BuyDipStrategy
+from src.strategies.hp_manager_v2.executor_v2 import HpExecutorV2
 from tests.strategies.buy_dip.buy_dip_simulator import BuyDipSimulator
+from tests.strategies.hp_v2.hp_simulator_v2 import HPSimulatorV2
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import kivy_config
 
 # Suppress aiosqlite debug logging in tests
 import logging
 
-logging.getLogger("aiosqlite").setLevel(logging.WARNING)
 
 from src.gui.hp_manager.hpfront import HpFront
 from src.broker import BrokerSpot
@@ -50,12 +51,15 @@ from src.common.identifiers import (
     State,
     StateInfo,
     InventoryItem,
+    PositionLifecycleState,
 )
 from src.strategies.hp_manager.hp_manager import HpStrategy
 from src.portfolio.portfolio_gui import PortfolioUI
 from src.portfolio.portfolio_event_helper import PortfolioEventHelper
 
+logging.getLogger("aiosqlite").setLevel(logging.WARNING)
 logger = logging.getLogger("conftest")
+
 
 DB_CONFIG_FILE = "config/.db_config"
 config = Config(RepositoryEnv(DB_CONFIG_FILE))
@@ -583,7 +587,6 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
             worker_queue=worker_queue,
         )
 
-        # Create temporary portfolio event helper (will be updated after strategy creation)
         portfolio_ui_queue: queue.Queue = queue.Queue()
         portfolio_event_helper = PortfolioEventHelper(None)
 
@@ -1250,8 +1253,6 @@ def sample_position():
     - DCA distances: [φ=1.618%, e=2.718%, π=3.142%]
     - Order size: $200
     """
-    from decimal import Decimal
-    from src.strategies.buy_dip.position import BuyDipPosition
 
     return BuyDipPosition(
         position_id="test_pos_1",
@@ -1264,7 +1265,6 @@ def sample_position():
 @pytest.fixture
 def sample_buy_dip_config():
     """Create a sample BuyDipConfig for E2E testing."""
-    from src.strategies.buy_dip.config import BuyDipConfig
 
     return BuyDipConfig(
         order_size_percentage=2.0,
@@ -1410,3 +1410,243 @@ async def buy_dip_simulator(buy_dip_strategy):
     yield sim
     # Cleanup: stop background worker task
     await sim.stop()
+
+
+# ============================================================================
+# HP MANAGER V2 FIXTURES
+# ============================================================================
+
+
+@pytest.fixture
+def hp_v2_symbols() -> Dict[str, Symbol]:
+    """Create symbol dictionary for V2 testing."""
+    return {
+        "BTCUSDC": Symbol(name="BTCUSDC", min_notional=10.0),
+        "ETHUSDC": Symbol(name="ETHUSDC", min_notional=5.0),
+        "BTCUSDT": Symbol(name="BTCUSDT", min_notional=10.0),
+        "USDTUSDC": Symbol(name="USDTUSDC", min_notional=5.0),
+    }
+
+
+# ========================================
+# HP Manager V2 Executor Fixtures
+# ========================================
+
+
+@pytest.fixture
+def hp_v2_executor(
+    mock_async_client,
+    test_db,
+    hp_v2_symbols,
+):
+    """Create HP Executor V2 for integration testing.
+
+    This fixture provides a complete executor instance that:
+    - Can be initialized without configs (configs set via simulator)
+    - Wraps HpStrategyV2 with event loop management
+    - Subscribes to market data streams (ticker, user stream)
+    - Routes events to state machine
+    - Sends UI updates
+    - Can be started/stopped for testing
+
+    Note: Configs are NOT set here - use HPSimulatorV2.simulate_buy_position() to set them.
+    """
+
+    # Create queues
+    ui_queue = queue.Queue()
+    portfolio_ui_queue = queue.Queue()
+    config_queue = queue.Queue()
+
+    # Mock broker
+    broker = MagicMock(spec=BrokerSpot)
+
+    # Create price resolver (same as V1, not V2-specific)
+    price_resolver = UsdPriceResolver(client=mock_async_client, symbols=hp_v2_symbols)
+
+    # Create executor WITHOUT configs (NOT started yet - tests control when to start)
+    executor = HpExecutorV2(
+        db=test_db,
+        broker=broker,
+        client=mock_async_client,
+        ui_queue=ui_queue,
+        portfolio_ui_queue=portfolio_ui_queue,
+        buy_config=None,  # No config yet - set via simulator
+        sell_config=None,  # No config yet - set via simulator
+        symbols=hp_v2_symbols,
+        price_resolver=price_resolver,
+        balance=10000.0,
+        config_queue=config_queue,
+        initial_state=PositionLifecycleState.IDLE,
+    )
+
+    yield executor
+
+    # Cleanup: Stop executor if it was started
+    if executor.thread.is_alive():
+        executor.stop()
+        executor.thread.join(timeout=2.0)
+
+
+@pytest.fixture
+async def hp_v2_executor_running(hp_v2_executor):
+    """Create and START HP Executor V2 for async integration tests.
+
+    This fixture starts the executor's event loop and ensures proper cleanup.
+    Use this when testing the full async lifecycle (subscriptions, event processing).
+
+    For tests that just need the strategy logic without async complexity,
+    use hp_v2_strategy fixture instead.
+    """
+    # Start the executor (launches thread + event loop)
+    hp_v2_executor.start()
+
+    # Give it time to initialize
+    await asyncio.sleep(0.2)
+
+    yield hp_v2_executor
+
+    # Cleanup: Stop executor and wait for thread
+    hp_v2_executor.stop()
+    if hp_v2_executor.thread.is_alive():
+        hp_v2_executor.thread.join(timeout=2.0)
+
+
+@pytest.fixture
+def hp_v2_executor_factory(
+    mock_async_client,
+    test_db,
+    hp_v2_symbols,
+    hp_v2_price_resolver,
+):
+    """Factory fixture for creating multiple HP V2 executors with different configs.
+
+    Useful for testing:
+    - Multiple concurrent positions
+    - Different lifecycle states (recovery testing)
+    - Various sell strategies (direct, convert, multihop)
+
+    Usage:
+        def test_multiple_positions(hp_v2_executor_factory):
+            exec1 = hp_v2_executor_factory(hp_id="1000", symbol_name="BTCUSDC")
+            exec2 = hp_v2_executor_factory(hp_id="1001", symbol_name="ETHUSDT")
+            exec1.start()
+            exec2.start()
+            # ... test logic ...
+    """
+
+    created_executors = []
+
+    def _create_executor(
+        hp_id: str = "1000",
+        symbol_name: str = "BTCUSDC",
+        buy_price: float = 50000.0,
+        sell_price: float = 55000.0,
+        budget: float = 1000.0,
+        balance: float = 10000.0,
+        initial_state: PositionLifecycleState = PositionLifecycleState.IDLE,
+    ) -> HpExecutorV2:
+        """Create executor with custom configuration.
+
+        Args:
+            hp_id: HP position ID
+            symbol_name: Trading symbol (e.g., "BTCUSDC")
+            buy_price: Buy trigger price
+            sell_price: Sell target price
+            budget: Budget for buy order
+            balance: Available balance
+            initial_state: Initial lifecycle state (for recovery)
+
+        Returns:
+            HpExecutorV2 instance (not started)
+        """
+
+        # Create queues
+        ui_queue: queue.Queue = queue.Queue()
+        portfolio_ui_queue: queue.Queue = queue.Queue()
+        config_queue: queue.Queue = queue.Queue()
+
+        # Mock broker
+        broker = MagicMock(spec=BrokerSpot)
+
+        # Create executor
+        executor = HpExecutorV2(
+            db=test_db,
+            broker=broker,
+            client=mock_async_client,
+            ui_queue=ui_queue,
+            portfolio_ui_queue=portfolio_ui_queue,
+            symbols=hp_v2_symbols,
+            price_resolver=hp_v2_price_resolver,
+            balance=balance,
+            config_queue=config_queue,
+            initial_state=initial_state,
+        )
+
+        created_executors.append(executor)
+        return executor
+
+    yield _create_executor
+
+    # Cleanup: Stop all created executors
+    for executor in created_executors:
+        if executor.thread.is_alive():
+            executor.stop()
+            executor.thread.join(timeout=2.0)
+
+
+# ========================================
+# HP Manager V2 Frontend-Backend Integration Fixture
+# ========================================
+
+
+@pytest.fixture
+async def frontend_backend_v2_setup(hp_gui: HpFront, hp_v2_executor: HpExecutorV2):
+    """Fixture to set up integrated V2 frontend-backend system.
+
+    Similar to frontend_backend_setup but uses HpExecutorV2 instead of StrategyExecutor.
+    This provides a ready-to-use environment just like V1.
+
+    V1 vs V2 Startup Pattern:
+    - V1: StrategyExecutor auto-starts thread in __init__ (always running)
+    - V2: HpExecutorV2 requires explicit start() call (after configs are set)
+
+    This fixture mimics V1 behavior by starting the executor if configs exist.
+
+    Yields:
+        Tuple[HpFront, HpExecutorV2]: Frontend GUI and V2 executor backend (started if configured)
+    """
+
+    # Connect frontend to V2 executor
+    # NOTE: V2 architecture difference from V1:
+    # - V1 StrategyExecutor listens to config_queue to create new strategy instances
+    # - V2 HpExecutorV2 manages a SINGLE pre-created position
+    # - Frontend's config_queue is NOT connected to executor (executor doesn't create positions)
+    # - Executor's config_queue is for runtime updates only (sell price changes, etc.)
+
+    hp_v2_executor.ui_queue = hp_gui.ui_queue
+    hp_gui.db = hp_v2_executor.db
+    hp_gui.price_resolver.symbols = hp_v2_executor.symbols
+
+    # Debug: Verify queue objects are the same
+    logger.info(
+        f"[FIXTURE V2 DEBUG] Backend UI queue id: {id(hp_v2_executor.ui_queue)}"
+    )
+    logger.info(f"[FIXTURE V2 DEBUG] Frontend UI queue id: {id(hp_gui.ui_queue)}")
+    logger.info(
+        f"[FIXTURE V2 DEBUG] Queue objects same: {hp_v2_executor.ui_queue is hp_gui.ui_queue}"
+    )
+
+    # Start executor if configs are already set (mimic V1 auto-start behavior)
+    # V1's StrategyExecutor auto-starts in __init__, but V2 requires manual start()
+    if hp_v2_executor.strategy is not None:
+        hp_v2_executor.start()
+        logger.info("[FIXTURE V2] Executor started (configs already set)")
+
+    yield hp_gui, hp_v2_executor
+
+    # Cleanup: Stop V2 executor if it was started
+    if hp_v2_executor.thread.is_alive():
+        if hp_v2_executor.strategy:
+            hp_v2_executor.strategy.stop_event.set()
+        hp_v2_executor.stop()
+        hp_v2_executor.thread.join(timeout=2.0)

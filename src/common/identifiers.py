@@ -457,3 +457,50 @@ class SubscriptionInfo(NamedTuple):
     symbol: str
     target: SubscriptionTarget
     queue: queue.Queue
+
+
+# HP Manager V2 States
+class PositionLifecycleState(Enum):
+    """V2 position lifecycle: IDLE → BUYING → BOUGHT → SELLING → CLOSED"""
+
+    IDLE = "IDLE"
+    BUYING = "BUYING"
+    BOUGHT = "BOUGHT"
+    SELLING = "SELLING"
+    CLOSED = "CLOSED"
+
+
+class OrderExecutionState(Enum):
+    """V2 order execution tracking"""
+
+    PENDING = "PENDING"
+    OPEN = "OPEN"
+    PARTIALLY_FILLED = "PARTIALLY_FILLED"
+    FILLED = "FILLED"
+    CANCELLED = "CANCELLED"
+    EXPIRED = "EXPIRED"
+
+
+# V1/V2 state mapping for database compatibility
+LIFECYCLE_TO_V1_STATE = {
+    PositionLifecycleState.IDLE: "NEW",
+    PositionLifecycleState.BUYING: "BUYING",
+    PositionLifecycleState.BOUGHT: "BOUGHT",
+    PositionLifecycleState.SELLING: "SELLING",
+    PositionLifecycleState.CLOSED: "CLOSED",
+}
+
+V1_STATE_TO_LIFECYCLE = {
+    "NEW": PositionLifecycleState.IDLE,
+    "BUYING": PositionLifecycleState.BUYING,
+    "PARTIALLY_BOUGHT": PositionLifecycleState.BUYING,
+    "BOUGHT": PositionLifecycleState.BOUGHT,
+    "READY_TO_SELL": PositionLifecycleState.BOUGHT,
+    "SELLING": PositionLifecycleState.SELLING,
+    "PARTIALLY_SOLD": PositionLifecycleState.SELLING,
+    "SOLD": PositionLifecycleState.CLOSED,
+    "PART_SOLD_PART_BOUGHT": PositionLifecycleState.SELLING,
+    "SOLD_PART_BOUGHT": PositionLifecycleState.CLOSED,
+    "CLOSED": PositionLifecycleState.CLOSED,
+    "WAITING_CHILD": PositionLifecycleState.SELLING,
+}
