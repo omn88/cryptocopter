@@ -5,6 +5,7 @@ data
 sample_data.txt
 .pytest_cache/
 .env
+.copilot-instructions.md
 *.txt
 *.csv
 linux_venv

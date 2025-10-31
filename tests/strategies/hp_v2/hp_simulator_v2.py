@@ -59,7 +59,7 @@ class HPSimulatorV2:
         hp_id: str,
         symbol: Symbol,
         budget: float = 1000.0,
-        buy_price: float = 50000.0,
+        buy_price: float = 1400.0,
         order_trigger: float | None = None,
     ) -> HPBuyConfig:
         """Create HP V2 buy configuration.
@@ -90,9 +90,9 @@ class HPSimulatorV2:
     def create_sell_config(
         hp_id: str,
         symbol: Symbol,
-        sell_price: float = 51000.0,
+        sell_price: float = 4200.0,
         quantity: float = 0.0,
-        buy_price: float = 50000.0,
+        buy_price: float = 1400.0,
         end_currency: str = "USDC",
     ) -> HPSellConfig:
         """Create HP V2 sell configuration.
@@ -171,11 +171,36 @@ class HPSimulatorV2:
             symbol,
         )
 
+    def setup_order_mocking(self):
+        """Setup mock for unlimited order creation with unique IDs.
+
+        This is useful for tests that need to create multiple orders (e.g., cancel/resend scenarios).
+        Each call to create_order will return a new order with a unique ID.
+
+        The mock tracks used IDs internally and calls get_new_order to generate unique orders.
+
+        Example usage:
+            sim.setup_order_mocking()
+            # Now create_order will return unique orders each time
+            order1 = await strategy.client.create_order(...)
+            order2 = await strategy.client.create_order(...)
+            # order1.orderId != order2.orderId
+        """
+        used_ids = set()
+
+        def mock_create_order(*args, **kwargs):
+            return get_new_order(
+                order=self.back.strategy.buy.buy_order, used_ids=used_ids
+            )
+
+        self.back.strategy.client.create_order.side_effect = mock_create_order
+        logger.info("Setup order mocking with unique ID tracking")
+
     def simulate_buy_position(
         self,
         symbol: str = "BTCUSDC",
         budget: float = 1000.0,
-        buy_price: float = 50000.0,
+        buy_price: float = 1400.0,
         order_trigger: float = 0.01,
         hp_id: str = "1000",
         coin: str | None = None,

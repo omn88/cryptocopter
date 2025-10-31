@@ -195,7 +195,21 @@ class HpExecutorV2:
         """Start asyncio loop in worker thread."""
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-        self.loop.run_until_complete(self._run())
+        try:
+            self.loop.run_until_complete(self._run())
+        finally:
+            # Clean up any pending tasks
+            pending = asyncio.all_tasks(self.loop)
+            for task in pending:
+                task.cancel()
+            # Wait for all tasks to finish cancellation
+            if pending:
+                self.loop.run_until_complete(
+                    asyncio.gather(*pending, return_exceptions=True)
+                )
+            # Close the loop
+            self.loop.close()
+            logger.info(f"HpExecutorV2 event loop closed for HP {self.hp_id}")
 
     async def _run(self) -> None:
         """Main async entry point."""
@@ -244,6 +258,9 @@ class HpExecutorV2:
             logger.info(f"HpExecutorV2 worker task cancelled (HP {self.hp_id})")
         except Exception as e:
             logger.error(f"HpExecutorV2 worker task error (HP {self.hp_id}): {e}")
+        finally:
+            # Close database connection before event loop closes
+            await self.db.close()
 
     async def _worker_loop(self) -> None:
         """Process events from worker queue."""
@@ -312,7 +329,12 @@ class HpExecutorV2:
                 if self.strategy:
                     self.strategy.execution_report = execution_report
 
-                    # Trigger state machine transitions via execution report
+                    # Handle the execution report first (updates execution_state)
+                    # This must happen BEFORE triggering state machine, because
+                    # transition conditions check execution_state
+                    await self.strategy.buy.handle_execution_report(execution_report)
+
+                    # Now trigger state machine transitions via execution report
                     await self.strategy.process_execution_report(
                         report=execution_report
                     )

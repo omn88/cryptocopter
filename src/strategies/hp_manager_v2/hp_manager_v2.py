@@ -410,13 +410,18 @@ class HpStrategyV2:
 
         This is a 'before' callback, not a trigger!
         AsyncMachine creates process_execution_report() automatically.
+
+        NOTE: The executor already calls buy.handle_execution_report() before
+        triggering the state machine, so execution_state is already updated.
+        This callback can be used for additional transition-specific logic.
         """
         report = event.kwargs.get("report")
         if not report:
             return
 
-        # Route to handlers
-        await self.buy.handle_execution_report(report)
+        # Execution report already handled by executor
+        # Additional transition logic can go here if needed
+        pass
 
         if self.sell_strategy:
             await self.sell_strategy.handle_execution_report(report)
