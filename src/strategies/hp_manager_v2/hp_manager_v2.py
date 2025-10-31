@@ -332,10 +332,34 @@ class HpStrategyV2:
         )
 
     async def on_buy_cancelled(self, event) -> None:
-        """Handle buy cancellation."""
+        """Handle buy cancellation.
+        
+        If order has partial inventory, transition to BOUGHT (not IDLE)
+        so we can sell the acquired inventory.
+        """
         logger.info(f"[{self.buy_config.hp_id}] Cancelling buy")
         await self.buy.cancel_buy()
-        self.lifecycle_state = PositionLifecycleState.IDLE
+        
+        # Check if we have partial inventory
+        has_inventory = (
+            self.buy.buy_order is not None 
+            and self.buy.buy_order.realized_quantity > 0
+        )
+        
+        if has_inventory:
+            # Transition to BOUGHT with partial inventory
+            self.lifecycle_state = PositionLifecycleState.BOUGHT
+            
+            # Initialize sell strategy for the partial inventory
+            self._initialize_sell_strategy()
+            
+            logger.info(
+                f"[{self.buy_config.hp_id}] Buy cancelled with partial inventory: "
+                f"{self.buy.buy_order.realized_quantity}, transitioning to BOUGHT"
+            )
+        else:
+            # No inventory, back to IDLE
+            self.lifecycle_state = PositionLifecycleState.IDLE
 
         # Update database
         await self.db.upsert_buy_price_level(
@@ -418,10 +442,6 @@ class HpStrategyV2:
         report = event.kwargs.get("report")
         if not report:
             return
-
-        # Execution report already handled by executor
-        # Additional transition logic can go here if needed
-        pass
 
         if self.sell_strategy:
             await self.sell_strategy.handle_execution_report(report)

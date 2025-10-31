@@ -325,6 +325,8 @@ class HpExecutorV2:
                     )
                     return
 
+                from binance.enums import ORDER_STATUS_CANCELED
+                
                 execution_report = event.content
                 if self.strategy:
                     self.strategy.execution_report = execution_report
@@ -340,10 +342,36 @@ class HpExecutorV2:
                             execution_report
                         )
 
+                    # Special case: Cancel report with partial inventory
+                    # If we're in IDLE after cancelling a partially filled order,
+                    # we should transition to BOUGHT so we can sell the inventory
+                    # Handle this manually here to avoid state machine conflicts
+                    if (
+                        execution_report.current_order_status == ORDER_STATUS_CANCELED
+                        and self.strategy.lifecycle_state == PositionLifecycleState.IDLE
+                        and self.strategy.buy.buy_order is not None
+                        and self.strategy.buy.buy_order.realized_quantity > 0
+                    ):
+                        logger.info(
+                            f"[{self.strategy.buy_config.hp_id}] Cancel report with partial inventory, "
+                            f"transitioning to BOUGHT: {self.strategy.buy.buy_order.realized_quantity}"
+                        )
+                        self.strategy.lifecycle_state = PositionLifecycleState.BOUGHT
+                        self.strategy._initialize_sell_strategy()
+                        
+                        await self.strategy.db.upsert_buy_price_level(
+                            data=self.strategy.buy.data,
+                            strategy_state=self.strategy.lifecycle_state,
+                        )
+                        # Don't trigger state machine - we've handled it manually
+                        return
+
                     # Now trigger state machine transitions via execution report
-                    await self.strategy.process_execution_report(
-                        report=execution_report
-                    )
+                    # Skip if we're in BOUGHT state (no execution report transitions from BOUGHT)
+                    if self.strategy.lifecycle_state != PositionLifecycleState.BOUGHT:
+                        await self.strategy.process_execution_report(
+                            report=execution_report
+                        )
 
             elif event.name == EventName.ACCOUNT_POSITION:
                 # Account position updates - currently not used

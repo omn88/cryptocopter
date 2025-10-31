@@ -297,8 +297,27 @@ class HPPositionBuyV2:
             raise
 
     def is_filled(self) -> bool:
-        """Check if buy order is fully filled."""
-        return self.execution_state == OrderExecutionState.FILLED
+        """Check if buy order is filled OR cancelled with partial inventory.
+        
+        In V2, we consider a buy "complete" (ready for selling) if:
+        1. Order is fully filled, OR
+        2. Order is cancelled but has partial inventory (realized_quantity > 0)
+        
+        This allows transitioning to BOUGHT state even with partial fills,
+        enabling the sell strategy to work with the acquired inventory.
+        """
+        if self.execution_state == OrderExecutionState.FILLED:
+            return True
+        
+        # If cancelled with partial inventory, consider it "complete" for selling
+        if (
+            self.execution_state == OrderExecutionState.CANCELLED
+            and self.buy_order
+            and self.buy_order.realized_quantity > 0
+        ):
+            return True
+        
+        return False
 
     def is_partially_filled(self) -> bool:
         """Check if buy order is partially filled."""
