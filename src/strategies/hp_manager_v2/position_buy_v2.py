@@ -145,23 +145,30 @@ class HPPositionBuyV2:
         if not self.buy_order:
             raise ValueError("Buy order not prepared. Call prepare_buy_order() first.")
 
+        # Calculate remaining quantity (account for partial fills from previous orders)
+        remaining_quantity = self.buy_order.quantity - self.buy_order.realized_quantity
+
         logger.info(
-            f"[{self.config.hp_id}] Executing buy: {self.buy_order.quantity} "
+            f"[{self.config.hp_id}] Executing buy: {remaining_quantity} "
             f"{self.config.coin} @ {self.buy_order.price}"
         )
 
         try:
-            # Send order
+            # Send order with remaining quantity
             order_response = await self.client.create_order(
                 symbol=self.config.symbol.name,
                 side="BUY",
                 order_type=ORDER_TYPE_LIMIT,
                 time_in_force=TIME_IN_FORCE_GTC,
-                quantity=self.buy_order.quantity,
+                quantity=remaining_quantity,
                 price=self.buy_order.price,
             )
 
+            # Update order with new order ID and adjust quantity to remaining
             self.buy_order.order_id = order_response.get("orderId")
+            self.buy_order.quantity = (
+                remaining_quantity  # Update to actual sent quantity
+            )
             self.buy_order.status = ORDER_STATUS_NEW
             self.execution_state = OrderExecutionState.OPEN
 

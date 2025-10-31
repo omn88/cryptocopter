@@ -177,7 +177,7 @@ class HPSimulatorV2:
         This is useful for tests that need to create multiple orders (e.g., cancel/resend scenarios).
         Each call to create_order will return a new order with a unique ID.
 
-        The mock tracks used IDs internally and calls get_new_order to generate unique orders.
+        The mock tracks used IDs internally and generates unique order responses.
 
         Example usage:
             sim.setup_order_mocking()
@@ -188,10 +188,25 @@ class HPSimulatorV2:
         """
         used_ids = set()
 
-        def mock_create_order(*args, **kwargs):
-            return get_new_order(
-                order=self.back.strategy.buy.buy_order, used_ids=used_ids
-            )
+        async def mock_create_order(*args, **kwargs):
+            # Generate unique order ID
+            # Use price and quantity from kwargs to create deterministic ID
+            price = kwargs.get("price", 1000.0)
+            quantity = kwargs.get("quantity", 1.0)
+            base_id = int(abs(hash((price, quantity)))) % 1_000_000_000
+            candidate_id = base_id
+            while candidate_id in used_ids:
+                candidate_id += 1
+            used_ids.add(candidate_id)
+
+            # Return order response dict
+            return {
+                "orderId": candidate_id,
+                "price": price,
+                "quantity": quantity,
+                "status": "NEW",
+                "updateTime": 1566818724722,
+            }
 
         self.back.strategy.client.create_order.side_effect = mock_create_order
         logger.info("Setup order mocking with unique ID tracking")
@@ -234,8 +249,23 @@ class HPSimulatorV2:
             order_trigger=order_trigger,
         )
 
+        # Create sell config if sell_price provided
+        sell_config = None
+        if sell_price is not None:
+            # Extract base coin from symbol name if not provided
+            # For "BTCUSDC", base_coin is "BTC"
+            if not coin:
+                coin = symbol_obj.name.replace("USDC", "").replace("USDT", "")
+
+            sell_config = HPSellConfig(
+                hp_id=hp_id,
+                symbol=symbol_obj,
+                sell_price=sell_price,
+                coin=coin,
+            )
+
         # Initialize executor with configs
-        self.back.set_configs(buy_config)
+        self.back.set_configs(buy_config, sell_config)
 
         # Start executor if not already running (mimic V1 behavior)
         # V1's StrategyExecutor auto-starts in __init__, V2 requires explicit start()
@@ -247,6 +277,109 @@ class HPSimulatorV2:
             f"Simulated buy position: HP {hp_id}, symbol: {symbol}, "
             f"buy_price: {buy_price}, budget: {budget}"
         )
+
+    async def simulate_bought_position(
+        self,
+        symbol: str = "BTCUSDC",
+        budget: float = 1000.0,
+        buy_price: float = 1400.0,
+        sell_price: float = 4200.0,
+        hp_id: str = "1000",
+    ):
+        """Simulate a fully bought position (BOUGHT state).
+
+        This creates a position, sends buy order, and fills it completely.
+        The position will be in BOUGHT state with sell config ready.
+
+        Steps:
+        1. Create buy position with buy/sell configs
+        2. Send buy order (IDLE → BUYING)
+        3. Fill buy order completely (BUYING → BOUGHT)
+
+        Args:
+            symbol: Trading symbol
+            budget: Budget in USDC
+            buy_price: Target buy price
+            sell_price: Target sell price
+            hp_id: HP position ID
+
+        Returns:
+            The strategy instance in BOUGHT state
+        """
+        from binance.enums import ORDER_STATUS_FILLED
+        from src.common.identifiers import ExecutionReport
+
+        # Step 1: Create position with both buy and sell configs
+        self.simulate_buy_position(
+            symbol=symbol,
+            budget=budget,
+            buy_price=buy_price,
+            sell_price=sell_price,
+            hp_id=hp_id,
+        )
+        await self.assert_default_buy_position()
+
+        strategy = self.back.strategy
+        assert strategy is not None, "Strategy should be initialized"
+
+        # Step 2: Setup order mocking and send buy order
+        self.setup_order_mocking()
+
+        trigger_price = strategy.buy.trigger_price
+        self.new_price(price=trigger_price)
+        await self.wait_for_state(PositionLifecycleState.BUYING, timeout=2.0)
+
+        assert strategy.lifecycle_state == PositionLifecycleState.BUYING
+
+        # Give time for order to be fully created
+        await asyncio.sleep(0.1)
+
+        assert strategy.buy.buy_order is not None, "Buy order should exist"
+        order_id = strategy.buy.buy_order.order_id
+        quantity = strategy.buy.buy_order.quantity
+
+        logger.info(f"Buy order sent: order_id={order_id}, quantity={quantity}")
+
+        # Step 3: Fill buy order completely
+        # CRITICAL: order_id must match the buy_order.order_id exactly
+        exec_report = ExecutionReport(
+            order_type="LIMIT",
+            current_order_status=ORDER_STATUS_FILLED,
+            order_id=order_id,  # Must be int, not string
+            last_executed_quantity=quantity,
+            last_executed_price=buy_price,
+            cumulative_filled_quantity=quantity,
+            price=buy_price,
+        )
+
+        self.back.worker_queue.put_nowait(
+            Event(name=EventName.EXECUTION_REPORT, content=exec_report)
+        )
+
+        logger.info(f"Sent execution report for buy order fill")
+
+        # Wait for order status to update and state transition
+        await self.wait_for_condition(
+            lambda: (
+                strategy.buy.buy_order is not None
+                and strategy.buy.buy_order.status == ORDER_STATUS_FILLED
+            ),
+            timeout=2.0,
+        )
+
+        # Wait for state transition to BOUGHT
+        await self.wait_for_state(PositionLifecycleState.BOUGHT, timeout=2.0)
+
+        assert strategy.lifecycle_state == PositionLifecycleState.BOUGHT
+        assert strategy.buy.buy_order is not None, "Buy order should exist"
+        assert strategy.buy.buy_order.status == ORDER_STATUS_FILLED
+        assert strategy.buy.buy_order.realized_quantity == quantity
+
+        logger.info(
+            f"✓ Position fully bought: {quantity} {strategy.buy_config.coin} @ {buy_price}"
+        )
+
+        return strategy
 
     async def assert_default_buy_position(self):
         """Assert that default buy position was created with correct initial state.

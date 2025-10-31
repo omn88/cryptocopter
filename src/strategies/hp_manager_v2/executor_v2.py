@@ -334,6 +334,12 @@ class HpExecutorV2:
                     # transition conditions check execution_state
                     await self.strategy.buy.handle_execution_report(execution_report)
 
+                    # Also handle sell execution reports BEFORE state machine check
+                    if self.strategy.sell_strategy:
+                        await self.strategy.sell_strategy.handle_execution_report(
+                            execution_report
+                        )
+
                     # Now trigger state machine transitions via execution report
                     await self.strategy.process_execution_report(
                         report=execution_report

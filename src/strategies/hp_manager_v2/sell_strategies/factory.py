@@ -79,6 +79,15 @@ class SellStrategyFactory:
             f"{' → '.join(s.name for s in sell_path)}"
         )
 
+        # Determine quantity to sell
+        # If config.quantity is 0 or not set, use the bought quantity from buy_position
+        quantity = config.quantity
+        if quantity == 0.0 and buy_position and buy_position.buy_order:
+            quantity = buy_position.buy_order.realized_quantity
+            logger.info(
+                f"[{config.hp_id}] Using bought quantity from position: {quantity}"
+            )
+
         # Determine strategy type based on path length and characteristics
         if len(sell_path) == 1:
             # Single symbol: either direct sell or convert
@@ -99,7 +108,7 @@ class SellStrategyFactory:
                     sell_symbol=symbol,
                     convert_symbol=symbols[convert_symbol_name],
                     coin=config.coin,
-                    quantity=config.quantity,
+                    quantity=quantity,
                     target_price=config.sell_price,
                     buy_price=config.buy_price,
                     db=db,
@@ -115,7 +124,7 @@ class SellStrategyFactory:
                     client=client,
                     symbol=symbol,
                     coin=config.coin,
-                    quantity=config.quantity,
+                    quantity=quantity,
                     target_price=config.sell_price,
                     buy_price=config.buy_price,
                     db=db,
@@ -136,7 +145,7 @@ class SellStrategyFactory:
                 leg1_symbol=leg1_symbol,
                 leg2_symbol=leg2_symbol,
                 coin=config.coin,
-                quantity=config.quantity,
+                quantity=quantity,
                 target_price=config.sell_price,
                 buy_price=config.buy_price,
                 db=db,
@@ -184,6 +193,11 @@ class SellStrategyFactory:
         if not sell_path:
             raise ValueError("Empty sell path")
 
+        # Determine quantity to sell
+        quantity = config.quantity
+        if quantity == 0.0 and buy_position and buy_position.buy_order:
+            quantity = buy_position.buy_order.realized_quantity
+
         if len(sell_path) == 1:
             symbol = sell_path[0]
 
@@ -199,7 +213,7 @@ class SellStrategyFactory:
                 client=client,
                 symbol=symbol,
                 coin=config.coin,
-                quantity=config.quantity,
+                quantity=quantity,
                 target_price=config.sell_price,
                 buy_price=config.buy_price,
                 db=db,
@@ -220,7 +234,7 @@ class SellStrategyFactory:
                     sell_symbol=sell_path[0],
                     convert_symbol=sell_path[1],
                     coin=config.coin,
-                    quantity=config.quantity,
+                    quantity=quantity,
                     target_price=config.sell_price,
                     buy_price=config.buy_price,
                     db=db,
@@ -235,7 +249,7 @@ class SellStrategyFactory:
                     leg1_symbol=sell_path[0],
                     leg2_symbol=sell_path[1],
                     coin=config.coin,
-                    quantity=config.quantity,
+                    quantity=quantity,
                     target_price=config.sell_price,
                     buy_price=config.buy_price,
                     db=db,
