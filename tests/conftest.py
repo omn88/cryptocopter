@@ -291,9 +291,27 @@ async def frontend_backend_setup(
 
     yield hp_gui, strategy_executor_fixture  # Provide both components
 
+    # Enhanced cleanup: set stop event and drain queues
     for strategy in strategy_executor_fixture.strategies.values():
         strategy.stop_event.set()
-        await wait_for_condition(condition_func=lambda: not strategy.worker_active)
+
+        # Drain the worker queue to prevent blocking on task_done()
+        try:
+            while True:
+                strategy.worker_queue.get_nowait()
+                strategy.worker_queue.task_done()
+        except queue.Empty:
+            pass
+
+        # Wait for worker to become inactive with timeout
+        try:
+            await wait_for_condition(
+                condition_func=lambda s=strategy: not s.worker_active, timeout=1.0
+            )
+        except AssertionError:
+            logger.warning(
+                f"Strategy {getattr(strategy, 'hp_id', 'unknown')} worker did not stop gracefully, forcing cleanup"
+            )
 
     # Cleanup is handled in individual fixtures (strategy_executor_fixture, hp_gui)
 

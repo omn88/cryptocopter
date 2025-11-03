@@ -326,7 +326,7 @@ class HpExecutorV2:
                     return
 
                 from binance.enums import ORDER_STATUS_CANCELED
-                
+
                 execution_report = event.content
                 if self.strategy:
                     self.strategy.execution_report = execution_report
@@ -358,7 +358,7 @@ class HpExecutorV2:
                         )
                         self.strategy.lifecycle_state = PositionLifecycleState.BOUGHT
                         self.strategy._initialize_sell_strategy()
-                        
+
                         await self.strategy.db.upsert_buy_price_level(
                             data=self.strategy.buy.data,
                             strategy_state=self.strategy.lifecycle_state,

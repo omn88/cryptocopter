@@ -333,26 +333,27 @@ class HpStrategyV2:
 
     async def on_buy_cancelled(self, event) -> None:
         """Handle buy cancellation.
-        
+
         If order has partial inventory, transition to BOUGHT (not IDLE)
         so we can sell the acquired inventory.
         """
         logger.info(f"[{self.buy_config.hp_id}] Cancelling buy")
         await self.buy.cancel_buy()
-        
+
         # Check if we have partial inventory
         has_inventory = (
-            self.buy.buy_order is not None 
-            and self.buy.buy_order.realized_quantity > 0
+            self.buy.buy_order is not None and self.buy.buy_order.realized_quantity > 0
         )
-        
+
         if has_inventory:
             # Transition to BOUGHT with partial inventory
             self.lifecycle_state = PositionLifecycleState.BOUGHT
-            
+
             # Initialize sell strategy for the partial inventory
             self._initialize_sell_strategy()
-            
+
+            # Type safety: buy_order is guaranteed non-None from has_inventory check
+            assert self.buy.buy_order is not None
             logger.info(
                 f"[{self.buy_config.hp_id}] Buy cancelled with partial inventory: "
                 f"{self.buy.buy_order.realized_quantity}, transitioning to BOUGHT"
