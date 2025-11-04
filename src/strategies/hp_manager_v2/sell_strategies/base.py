@@ -158,6 +158,15 @@ class SellExecutionStrategy(ABC):
         pass
 
     @abstractmethod
+    def is_partially_filled(self) -> bool:
+        """Check if sell has partial fills.
+
+        Returns:
+            True if some quantity sold but not complete
+        """
+        pass
+
+    @abstractmethod
     def get_required_symbols(self) -> list[Symbol]:
         """Get list of symbols this strategy needs to trade.
 

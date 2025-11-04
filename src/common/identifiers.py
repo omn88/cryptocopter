@@ -461,11 +461,19 @@ class SubscriptionInfo(NamedTuple):
 
 # HP Manager V2 States
 class PositionLifecycleState(Enum):
-    """V2 position lifecycle: IDLE → BUYING → BOUGHT → SELLING → CLOSED"""
+    """V2 position lifecycle: IDLE ⟷ BUYING ⟷ IDLE ⟷ SELLING → CLOSED
+
+    Clean 4-state model where:
+    - IDLE = No active orders (may have inventory, waiting for trigger)
+    - BUYING = Active buy order (may be partially filled)
+    - SELLING = Active sell order (may be partially filled)
+    - CLOSED = Position complete
+
+    All order completions and cancellations return to IDLE.
+    """
 
     IDLE = "IDLE"
     BUYING = "BUYING"
-    BOUGHT = "BOUGHT"
     SELLING = "SELLING"
     CLOSED = "CLOSED"
 
@@ -485,7 +493,6 @@ class OrderExecutionState(Enum):
 LIFECYCLE_TO_V1_STATE = {
     PositionLifecycleState.IDLE: "NEW",
     PositionLifecycleState.BUYING: "BUYING",
-    PositionLifecycleState.BOUGHT: "BOUGHT",
     PositionLifecycleState.SELLING: "SELLING",
     PositionLifecycleState.CLOSED: "CLOSED",
 }
@@ -493,13 +500,13 @@ LIFECYCLE_TO_V1_STATE = {
 V1_STATE_TO_LIFECYCLE = {
     "NEW": PositionLifecycleState.IDLE,
     "BUYING": PositionLifecycleState.BUYING,
-    "PARTIALLY_BOUGHT": PositionLifecycleState.BUYING,
-    "BOUGHT": PositionLifecycleState.BOUGHT,
-    "READY_TO_SELL": PositionLifecycleState.BOUGHT,
+    "PARTIALLY_BOUGHT": PositionLifecycleState.BUYING,  # V1 partial buy → V2 BUYING
+    "BOUGHT": PositionLifecycleState.IDLE,  # V1 bought (waiting) → V2 IDLE
+    "READY_TO_SELL": PositionLifecycleState.IDLE,  # V1 ready to sell → V2 IDLE
     "SELLING": PositionLifecycleState.SELLING,
     "PARTIALLY_SOLD": PositionLifecycleState.SELLING,
     "SOLD": PositionLifecycleState.CLOSED,
-    "PART_SOLD_PART_BOUGHT": PositionLifecycleState.SELLING,
+    "PART_SOLD_PART_BOUGHT": PositionLifecycleState.IDLE,  # V1 complex state → V2 IDLE
     "SOLD_PART_BOUGHT": PositionLifecycleState.CLOSED,
     "CLOSED": PositionLifecycleState.CLOSED,
     "WAITING_CHILD": PositionLifecycleState.SELLING,

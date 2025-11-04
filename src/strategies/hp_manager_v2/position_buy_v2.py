@@ -117,22 +117,45 @@ class HPPositionBuyV2:
         )
 
     def prepare_buy_order(self) -> None:
-        """Prepare buy order with calculated quantity and price."""
+        """Prepare buy order with calculated quantity and price.
+
+        Handles partial fill continuation: if we have a previous partial buy,
+        only order the remaining quantity based on remaining budget.
+        """
         symbol = self.config.symbol
 
-        # Calculate quantity from budget
+        # Check if we have a previous partial buy that we need to complete
+        # This happens when: IDLE → BUYING (1st) → partial fill → IDLE → BUYING (2nd)
+        remaining_budget = self.config.budget
+        if self.buy_order and self.buy_order.realized_quantity > 0:
+            # We have a previous partial buy - calculate remaining budget
+            # Use the order price (limit price) as approximation for spent budget
+            spent_budget = self.buy_order.realized_quantity * self.buy_order.price
+            remaining_budget = self.config.budget - spent_budget
+            logger.info(
+                f"[{self.config.hp_id}] Continuing partial buy: "
+                f"Previous realized: {self.buy_order.realized_quantity:.8f}, "
+                f"Spent: {spent_budget:.2f}, Remaining budget: {remaining_budget:.2f}"
+            )
+
+        # Calculate quantity from remaining budget
         cost_per_coin = self.config.buy_price
-        quantity = self.config.budget / cost_per_coin
+        quantity = remaining_budget / cost_per_coin
 
         # Adjust for symbol precision
         adjusted_quantity = symbol.adjust_quantity(quantity)
         adjusted_price = symbol.adjust_price(self.config.buy_price)
 
+        # Preserve previous realized quantity if this is a continuation order
+        # (When re-buying after partial fill + cancel, we need to track total realized)
+        previous_realized = self.buy_order.realized_quantity if self.buy_order else 0.0
+
         self.buy_order = Order(
             quantity=adjusted_quantity,
             price=adjusted_price,
-            quantity_stable=self.config.budget,
+            quantity_stable=remaining_budget,
             status=ORDER_STATUS_NEW,
+            realized_quantity=previous_realized,
         )
 
         logger.info(

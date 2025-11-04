@@ -123,10 +123,9 @@ class HpStrategyV2:
         # Sell strategy (determined by routing logic)
         self.sell_strategy: Optional[SellExecutionStrategy] = None
         if initial_state in [
-            PositionLifecycleState.BOUGHT,
             PositionLifecycleState.SELLING,
         ]:
-            # Recovery: position already bought, prepare sell strategy
+            # Recovery: position already selling, prepare sell strategy
             self._initialize_sell_strategy()
 
         # Event tracking
@@ -136,13 +135,12 @@ class HpStrategyV2:
         self.ticker_update: TickerUpdate = TickerUpdate()
         self.account_position: AccountPosition = AccountPosition()
 
-        # Initialize clean 5-state machine
+        # Initialize clean 4-state machine
         self.state_machine = AsyncMachine(
             model=self,
             states=[
                 PositionLifecycleState.IDLE,
                 PositionLifecycleState.BUYING,
-                PositionLifecycleState.BOUGHT,
                 PositionLifecycleState.SELLING,
                 PositionLifecycleState.CLOSED,
             ],
@@ -159,9 +157,22 @@ class HpStrategyV2:
         async def process_execution_report(self, **kwargs) -> None: ...
 
     def _get_clean_transitions(self) -> list[dict]:
-        """Define clean 5-state transitions.
+        """Define clean 4-state transitions with explicit partial fill handling.
 
         Much simpler than V1's 30+ transitions!
+
+        Key architectural changes from 5-state to 4-state:
+        - Removed BOUGHT state - use IDLE when no active orders
+        - Partial fills stay in same state (BUYING or SELLING)
+        - All completions/cancellations return to IDLE
+        - IDLE = waiting (may have inventory from partial buy/sell)
+
+        Transition flow:
+        IDLE ⟷ BUYING ⟷ IDLE ⟷ SELLING → CLOSED
+                ↓              ↓
+            (partial)      (partial)
+                ↓              ↓
+            BUYING        SELLING
 
         Key insight: All transitions use just 2 triggers (process_ticker, process_execution_report).
         When a trigger is called, AsyncMachine automatically checks ALL transitions with that
@@ -169,7 +180,17 @@ class HpStrategyV2:
         This is the V1 pattern - automatic evaluation without manual state checking!
         """
         return [
-            # IDLE → BUYING: Start buying when price trigger hit
+            # 1. IDLE → SELLING: Start selling when price trigger hit (and have inventory)
+            # NOTE: This MUST come before IDLE → BUYING to prioritize selling inventory
+            {
+                "trigger": "process_ticker",
+                "source": PositionLifecycleState.IDLE,
+                "dest": PositionLifecycleState.SELLING,
+                "before": "_update_ticker_price",
+                "conditions": "can_start_selling",
+                "after": "on_selling_started",
+            },
+            # 2. IDLE → BUYING: Start buying when price trigger hit
             {
                 "trigger": "process_ticker",
                 "source": PositionLifecycleState.IDLE,
@@ -178,7 +199,7 @@ class HpStrategyV2:
                 "conditions": "can_start_buying",
                 "after": "on_buying_started",
             },
-            # BUYING → IDLE: Cancel buy when price moves against us
+            # 3. BUYING → IDLE: Cancel buy when price moves against us
             {
                 "trigger": "process_ticker",
                 "source": PositionLifecycleState.BUYING,
@@ -187,34 +208,34 @@ class HpStrategyV2:
                 "conditions": "should_cancel_buy",
                 "after": "on_buy_cancelled",
             },
-            # BUYING → BOUGHT: Buy complete (triggered by execution report)
+            # 4. BUYING → IDLE: Buy fully filled
             {
                 "trigger": "process_execution_report",
                 "source": PositionLifecycleState.BUYING,
-                "dest": PositionLifecycleState.BOUGHT,
+                "dest": PositionLifecycleState.IDLE,
                 "before": "_handle_execution_report",
                 "conditions": "buy_is_filled",
                 "after": "on_buy_completed",
             },
-            # BOUGHT → SELLING: Start selling when price trigger hit
+            # 5. BUYING → BUYING: Partial fill (stay in BUYING, wait for more fills)
             {
-                "trigger": "process_ticker",
-                "source": PositionLifecycleState.BOUGHT,
-                "dest": PositionLifecycleState.SELLING,
-                "before": "_update_ticker_price",
-                "conditions": "can_start_selling",
-                "after": "on_selling_started",
+                "trigger": "process_execution_report",
+                "source": PositionLifecycleState.BUYING,
+                "dest": PositionLifecycleState.BUYING,
+                "before": "_handle_execution_report",
+                "conditions": "buy_is_partially_filled",
+                "after": "on_buy_partially_filled",
             },
-            # SELLING → BOUGHT: Cancel sell when price moves against us
+            # 6. SELLING → IDLE: Cancel sell when price moves against us
             {
                 "trigger": "process_ticker",
                 "source": PositionLifecycleState.SELLING,
-                "dest": PositionLifecycleState.BOUGHT,
+                "dest": PositionLifecycleState.IDLE,
                 "before": "_update_ticker_price",
                 "conditions": "should_cancel_sell",
                 "after": "on_sell_cancelled",
             },
-            # SELLING → CLOSED: Sell complete (triggered by execution report)
+            # 7. SELLING → CLOSED: Sell fully filled
             {
                 "trigger": "process_execution_report",
                 "source": PositionLifecycleState.SELLING,
@@ -222,6 +243,15 @@ class HpStrategyV2:
                 "before": "_handle_execution_report",
                 "conditions": "sell_is_filled",
                 "after": "on_sell_completed",
+            },
+            # 8. SELLING → SELLING: Partial fill (stay in SELLING, wait for more fills)
+            {
+                "trigger": "process_execution_report",
+                "source": PositionLifecycleState.SELLING,
+                "dest": PositionLifecycleState.SELLING,
+                "before": "_handle_execution_report",
+                "conditions": "sell_is_partially_filled",
+                "after": "on_sell_partially_filled",
             },
         ]
 
@@ -252,11 +282,17 @@ class HpStrategyV2:
         HP Manager Strategy: Buy when price DROPS to trigger level.
         Example: buy_price=50000, trigger_price=50500 (1% above buy_price)
         When market price drops from 54000 → 50500, send limit buy at 50000.
+
+        Don't buy if already complete (execution_state == FILLED).
         """
+        # Don't start new buy if buy is already complete
+        buy_already_complete = self.buy.execution_state == OrderExecutionState.FILLED
+
         result = (
             self.lifecycle_state == PositionLifecycleState.IDLE
+            and not buy_already_complete
             and self.ticker_price is not None
-            and self.ticker_price <= self.buy.trigger_price
+            and self.ticker_price >= self.buy.trigger_price
             and self.balance >= self.buy_config.budget
         )
 
@@ -264,7 +300,7 @@ class HpStrategyV2:
             f"[{self.buy_config.hp_id}] can_start_buying check: "
             f"state={self.lifecycle_state}, ticker={self.ticker_price}, "
             f"trigger={self.buy.trigger_price}, balance={self.balance}, "
-            f"budget={self.buy_config.budget} → result={result}"
+            f"budget={self.buy_config.budget}, buy_complete={buy_already_complete} → result={result}"
         )
 
         return result
@@ -273,6 +309,13 @@ class HpStrategyV2:
         """Check if buy is fully filled."""
         return self.buy.is_filled()
 
+    def buy_is_partially_filled(self, event) -> bool:
+        """Check if buy is partially filled (but not complete).
+
+        This keeps the position in BUYING state while waiting for remaining fills.
+        """
+        return self.buy.is_partially_filled() and not self.buy.is_filled()
+
     def should_cancel_buy(self, event) -> bool:
         """Check if buy should be cancelled."""
         return (
@@ -280,11 +323,21 @@ class HpStrategyV2:
         )
 
     def can_start_selling(self, event) -> bool:
-        """Check if we can start selling."""
+        """Check if we can start selling.
+
+        Must be in IDLE (no active order) and have inventory from buy.
+        """
         if not self.sell_strategy:
             return False
+
+        # Must have inventory from completed or partial buy
+        has_inventory = (
+            self.buy.buy_order is not None and self.buy.buy_order.realized_quantity > 0
+        )
+
         return (
-            self.lifecycle_state == PositionLifecycleState.BOUGHT
+            self.lifecycle_state == PositionLifecycleState.IDLE
+            and has_inventory
             and self.ticker_price is not None
             and self.sell_strategy.should_send_sell(self.ticker_price)
         )
@@ -294,6 +347,18 @@ class HpStrategyV2:
         if not self.sell_strategy:
             return False
         return self.sell_strategy.is_complete()
+
+    def sell_is_partially_filled(self, event) -> bool:
+        """Check if sell is partially filled (but not complete).
+
+        This keeps the position in SELLING state while waiting for remaining fills.
+        """
+        if not self.sell_strategy:
+            return False
+        return (
+            self.sell_strategy.is_partially_filled()
+            and not self.sell_strategy.is_complete()
+        )
 
     def should_cancel_sell(self, event) -> bool:
         """Check if sell should be cancelled."""
@@ -318,9 +383,9 @@ class HpStrategyV2:
         )
 
     async def on_buy_completed(self, event) -> None:
-        """Handle buy completion."""
+        """Handle buy completion - transition to IDLE and wait for sell config."""
         logger.info(f"[{self.buy_config.hp_id}] Buy complete")
-        self.lifecycle_state = PositionLifecycleState.BOUGHT
+        self.lifecycle_state = PositionLifecycleState.IDLE
 
         # Initialize sell strategy now that we have inventory
         self._initialize_sell_strategy()
@@ -331,36 +396,58 @@ class HpStrategyV2:
             strategy_state=self.lifecycle_state,
         )
 
+    async def on_buy_partially_filled(self, event) -> None:
+        """Handle buy partial fill - stay in BUYING state, waiting for more fills.
+
+        This is triggered when order gets a partial fill but isn't complete yet.
+        We stay in BUYING state to allow more fills or eventual cancel.
+        """
+        assert self.buy.buy_order is not None
+        logger.info(
+            f"[{self.buy_config.hp_id}] Buy partially filled: "
+            f"{self.buy.buy_order.realized_quantity:.8f} realized, "
+            f"staying in BUYING state"
+        )
+
+        # Update database with partial fill info
+        await self.db.upsert_buy_price_level(
+            data=self.buy.data,
+            strategy_state=self.lifecycle_state,
+        )
+
     async def on_buy_cancelled(self, event) -> None:
         """Handle buy cancellation.
 
-        If order has partial inventory, transition to BOUGHT (not IDLE)
-        so we can sell the acquired inventory.
+        Always return to IDLE state after cancellation, regardless of partial fills.
+        The buy order state is preserved so we can continue buying the remaining
+        quantity on the next attempt (IDLE → BUYING transition).
+
+        If we have partial inventory and a sell config, initialize sell strategy.
         """
         logger.info(f"[{self.buy_config.hp_id}] Cancelling buy")
         await self.buy.cancel_buy()
 
         # Check if we have partial inventory
-        has_inventory = (
+        has_partial_fill = (
             self.buy.buy_order is not None and self.buy.buy_order.realized_quantity > 0
         )
 
-        if has_inventory:
-            # Transition to BOUGHT with partial inventory
-            self.lifecycle_state = PositionLifecycleState.BOUGHT
-
-            # Initialize sell strategy for the partial inventory
-            self._initialize_sell_strategy()
-
-            # Type safety: buy_order is guaranteed non-None from has_inventory check
+        if has_partial_fill:
             assert self.buy.buy_order is not None
             logger.info(
-                f"[{self.buy_config.hp_id}] Buy cancelled with partial inventory: "
-                f"{self.buy.buy_order.realized_quantity}, transitioning to BOUGHT"
+                f"[{self.buy_config.hp_id}] Buy cancelled with partial fill: "
+                f"{self.buy.buy_order.realized_quantity} realized. "
+                f"Transitioning to IDLE to allow re-buying OR selling if price triggers."
             )
-        else:
-            # No inventory, back to IDLE
-            self.lifecycle_state = PositionLifecycleState.IDLE
+
+            # Initialize sell strategy for partial inventory so we can sell if price reaches trigger.
+            # This doesn't prevent re-buying - transitions are prioritized: SELLING checked before BUYING.
+            if self.sell_config and not self.sell_strategy:
+                self._initialize_sell_strategy()
+
+        # Always return to IDLE - partial fill info is preserved in buy_order
+        # and will be used to calculate remaining quantity on next buy attempt
+        self.lifecycle_state = PositionLifecycleState.IDLE
 
         # Update database
         await self.db.upsert_buy_price_level(
@@ -398,14 +485,36 @@ class HpStrategyV2:
         self.stop_event.set()
 
     async def on_sell_cancelled(self, event) -> None:
-        """Handle sell cancellation."""
+        """Handle sell cancellation - return to IDLE, preserve partial fill info."""
         hp_id = self.sell_config.hp_id if self.sell_config else self.buy_config.hp_id
         logger.info(f"[{hp_id}] Cancelling sell")
         if self.sell_strategy:
             await self.sell_strategy.cancel_sell()
-        self.lifecycle_state = PositionLifecycleState.BOUGHT
+
+        # Return to IDLE - partial sell info preserved in sell_order
+        self.lifecycle_state = PositionLifecycleState.IDLE
 
         # Update database
+        await self.db.upsert_buy_price_level(
+            data=self.buy.data,
+            strategy_state=self.lifecycle_state,
+        )
+
+    async def on_sell_partially_filled(self, event) -> None:
+        """Handle sell partial fill - stay in SELLING state, waiting for more fills.
+
+        This is triggered when sell order gets a partial fill but isn't complete yet.
+        We stay in SELLING state to allow more fills or eventual cancel.
+        """
+        hp_id = self.sell_config.hp_id if self.sell_config else self.buy_config.hp_id
+        if self.sell_strategy:
+            logger.info(
+                f"[{hp_id}] Sell partially filled: "
+                f"{self.sell_strategy.filled_quantity:.8f} realized, "
+                f"staying in SELLING state"
+            )
+
+        # Update database with partial fill info
         await self.db.upsert_buy_price_level(
             data=self.buy.data,
             strategy_state=self.lifecycle_state,

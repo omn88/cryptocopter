@@ -368,9 +368,9 @@ class HPSimulatorV2:
         )
 
         # Wait for state transition to BOUGHT
-        await self.wait_for_state(PositionLifecycleState.BOUGHT, timeout=2.0)
+        await self.wait_for_state(PositionLifecycleState.IDLE, timeout=2.0)
 
-        assert strategy.lifecycle_state == PositionLifecycleState.BOUGHT
+        assert strategy.lifecycle_state == PositionLifecycleState.IDLE
         assert strategy.buy.buy_order is not None, "Buy order should exist"
         assert strategy.buy.buy_order.status == ORDER_STATUS_FILLED
         assert strategy.buy.buy_order.realized_quantity == quantity

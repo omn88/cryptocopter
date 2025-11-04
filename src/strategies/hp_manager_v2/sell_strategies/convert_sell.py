@@ -115,11 +115,11 @@ class ConvertSellStrategy(SellExecutionStrategy):
         self.convert_ticker_price: float | None = None
 
     def should_send_sell(self, ticker_price: float) -> bool:
-        """Send sell when sell phase price drops to 96% of target."""
-        return ticker_price <= self.target_price * SELL_TRIGGER_PERCENTAGE
+        """Send sell when sell phase price RISES to 96% of target (profit trigger)."""
+        return ticker_price >= self.target_price * SELL_TRIGGER_PERCENTAGE
 
     def should_cancel_sell(self, ticker_price: float) -> bool:
-        """Cancel sell when price drops below 92% of target."""
+        """Cancel sell when price drops below 92% of target (stop loss)."""
         return ticker_price <= self.target_price * SELL_CANCEL_PERCENTAGE
 
     async def execute_sell(self) -> None:
@@ -172,7 +172,10 @@ class ConvertSellStrategy(SellExecutionStrategy):
 
         # Use market price with small spread for convert
         if not self.convert_ticker_price:
-            logger.error(f"[{self.hp_id}] No ticker price for convert phase")
+            logger.warning(
+                f"[{self.hp_id}] No ticker price for convert phase yet, "
+                f"will retry when ticker arrives"
+            )
             return
 
         # Convert orders use tight spread (stable→stable should be 1:1 ish)
@@ -289,8 +292,21 @@ class ConvertSellStrategy(SellExecutionStrategy):
         """Update tracked ticker prices for both symbols."""
         if ticker.symbol == self.sell_symbol.name:
             self.sell_ticker_price = ticker.last_price
+            logger.debug(f"[{self.hp_id}] Sell ticker updated: {self.sell_ticker_price}")
         elif ticker.symbol == self.convert_symbol.name:
             self.convert_ticker_price = ticker.last_price
+            logger.info(f"[{self.hp_id}] Convert ticker updated: {self.convert_ticker_price}")
+            
+            # If we're waiting to execute convert phase and just got the ticker, execute now
+            if (
+                self.sell_filled_quantity >= self.quantity  # Phase 1 complete
+                and self.convert_order_id is None  # Phase 2 not started yet
+                and self.intermediate_currency_received > 0  # We have funds to convert
+            ):
+                logger.info(
+                    f"[{self.hp_id}] Convert ticker received, executing phase 2 now"
+                )
+                await self._execute_convert_phase()
 
     async def cancel_sell(self) -> None:
         """Cancel active orders (both phases if needed)."""
@@ -325,10 +341,10 @@ class ConvertSellStrategy(SellExecutionStrategy):
                 logger.error(f"[{self.hp_id}] Failed to cancel convert phase: {e}")
 
         if cancelled_any:
-            # Update database back to BOUGHT
+            # Update database back to IDLE (4-state model: cancelled sell returns to IDLE)
             await self.db.upsert_buy_price_level(
                 data=self.buy_position.data,
-                strategy_state=PositionLifecycleState.BOUGHT,
+                strategy_state=PositionLifecycleState.IDLE,
             )
 
     def is_complete(self) -> bool:
@@ -340,6 +356,12 @@ class ConvertSellStrategy(SellExecutionStrategy):
             else False
         )
         return sell_complete and convert_complete
+
+    def is_partially_filled(self) -> bool:
+        """Check if either phase has partial fills."""
+        sell_partial = self.sell_filled_quantity > 0
+        convert_partial = self.convert_filled_quantity > 0
+        return (sell_partial or convert_partial) and not self.is_complete()
 
     def get_required_symbols(self) -> list[Symbol]:
         """Convert sell needs both symbols."""

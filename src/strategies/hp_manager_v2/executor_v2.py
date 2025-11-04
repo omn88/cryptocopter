@@ -344,8 +344,8 @@ class HpExecutorV2:
 
                     # Special case: Cancel report with partial inventory
                     # If we're in IDLE after cancelling a partially filled order,
-                    # we should transition to BOUGHT so we can sell the inventory
-                    # Handle this manually here to avoid state machine conflicts
+                    # we should stay in IDLE so we can continue buying or sell the inventory
+                    # V2 4-state model: IDLE = no active orders (may have inventory)
                     if (
                         execution_report.current_order_status == ORDER_STATUS_CANCELED
                         and self.strategy.lifecycle_state == PositionLifecycleState.IDLE
@@ -354,9 +354,9 @@ class HpExecutorV2:
                     ):
                         logger.info(
                             f"[{self.strategy.buy_config.hp_id}] Cancel report with partial inventory, "
-                            f"transitioning to BOUGHT: {self.strategy.buy.buy_order.realized_quantity}"
+                            f"staying in IDLE with inventory: {self.strategy.buy.buy_order.realized_quantity}"
                         )
-                        self.strategy.lifecycle_state = PositionLifecycleState.BOUGHT
+                        # Initialize sell strategy if we have sell config
                         self.strategy._initialize_sell_strategy()
 
                         await self.strategy.db.upsert_buy_price_level(
@@ -367,11 +367,10 @@ class HpExecutorV2:
                         return
 
                     # Now trigger state machine transitions via execution report
-                    # Skip if we're in BOUGHT state (no execution report transitions from BOUGHT)
-                    if self.strategy.lifecycle_state != PositionLifecycleState.BOUGHT:
-                        await self.strategy.process_execution_report(
-                            report=execution_report
-                        )
+                    # All states can receive execution reports in 4-state model
+                    await self.strategy.process_execution_report(
+                        report=execution_report
+                    )
 
             elif event.name == EventName.ACCOUNT_POSITION:
                 # Account position updates - currently not used

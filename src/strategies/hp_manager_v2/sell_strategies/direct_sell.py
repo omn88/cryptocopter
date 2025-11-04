@@ -94,11 +94,11 @@ class DirectSellStrategy(SellExecutionStrategy):
         self.broker = broker
 
     def should_send_sell(self, ticker_price: float) -> bool:
-        """Send sell when price drops to 96% of target."""
-        return ticker_price <= self.target_price * SELL_TRIGGER_PERCENTAGE
+        """Send sell when price RISES to 96% of target (profit trigger)."""
+        return ticker_price >= self.target_price * SELL_TRIGGER_PERCENTAGE
 
     def should_cancel_sell(self, ticker_price: float) -> bool:
-        """Cancel sell when price drops below 92% of target."""
+        """Cancel sell when price drops below 92% of target (stop loss)."""
         return ticker_price <= self.target_price * SELL_CANCEL_PERCENTAGE
 
     async def execute_sell(self) -> None:
@@ -206,10 +206,10 @@ class DirectSellStrategy(SellExecutionStrategy):
                 symbol=self.symbol.name, order_id=self.order_id
             )
 
-            # Update database back to BOUGHT
+            # Update database back to IDLE (4-state model: cancelled sell returns to IDLE)
             await self.db.upsert_buy_price_level(
                 data=self.buy_position.data,
-                strategy_state=PositionLifecycleState.BOUGHT,
+                strategy_state=PositionLifecycleState.IDLE,
             )
 
             self.order_id = None
@@ -221,6 +221,10 @@ class DirectSellStrategy(SellExecutionStrategy):
     def is_complete(self) -> bool:
         """Check if sell is fully complete."""
         return self.filled_quantity >= self.quantity
+
+    def is_partially_filled(self) -> bool:
+        """Check if sell has partial fills."""
+        return self.filled_quantity > 0 and not self.is_complete()
 
     def get_required_symbols(self) -> list[Symbol]:
         """Direct sell only needs one symbol."""

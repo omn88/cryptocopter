@@ -150,11 +150,11 @@ class MultihopSellStrategy(SellExecutionStrategy):
         )
 
     def should_send_sell(self, ticker_price: float) -> bool:
-        """Send sell when leg1 price drops to 96% of target."""
-        return ticker_price <= self.leg1_target_price * SELL_TRIGGER_PERCENTAGE
+        """Send sell when leg1 price RISES to 96% of target (profit trigger)."""
+        return ticker_price >= self.leg1_target_price * SELL_TRIGGER_PERCENTAGE
 
     def should_cancel_sell(self, ticker_price: float) -> bool:
-        """Cancel sell when price drops below 92% of target."""
+        """Cancel sell when price drops below 92% of target (stop loss)."""
         return ticker_price <= self.leg1_target_price * SELL_CANCEL_PERCENTAGE
 
     async def execute_sell(self) -> None:
@@ -355,10 +355,10 @@ class MultihopSellStrategy(SellExecutionStrategy):
                 logger.error(f"[{self.hp_id}] Failed to cancel leg2: {e}")
 
         if cancelled_any:
-            # Update position back to BOUGHT
+            # Update position back to IDLE (4-state model: cancelled sell returns to IDLE)
             await self.db.upsert_buy_price_level(
                 data=self.buy_position.data,
-                strategy_state=PositionLifecycleState.BOUGHT,
+                strategy_state=PositionLifecycleState.IDLE,
             )
 
     def is_complete(self) -> bool:
@@ -370,6 +370,12 @@ class MultihopSellStrategy(SellExecutionStrategy):
             else False
         )
         return leg1_complete and leg2_complete
+
+    def is_partially_filled(self) -> bool:
+        """Check if either leg has partial fills."""
+        leg1_partial = self.leg1_filled_quantity > 0
+        leg2_partial = self.leg2_filled_quantity > 0
+        return (leg1_partial or leg2_partial) and not self.is_complete()
 
     def get_required_symbols(self) -> list[Symbol]:
         """Multihop needs both leg symbols."""

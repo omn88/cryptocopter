@@ -343,7 +343,7 @@ async def test_buy_order_filled_v2(frontend_backend_v2_setup):
     strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exec_report))
 
     # Wait for state transition to BOUGHT
-    await sim.wait_for_state(PositionLifecycleState.BOUGHT, timeout=2.0)
+    await sim.wait_for_state(PositionLifecycleState.IDLE, timeout=2.0)
 
     logger.info("=" * 60)
     logger.info("✓ Buy Order Filled Successfully:")
@@ -356,7 +356,7 @@ async def test_buy_order_filled_v2(frontend_backend_v2_setup):
     logger.info("=" * 60)
 
     # Verify final state
-    assert strategy.lifecycle_state == PositionLifecycleState.BOUGHT
+    assert strategy.lifecycle_state == PositionLifecycleState.IDLE
     assert strategy.buy.buy_order.status == ORDER_STATUS_FILLED
     assert strategy.buy.buy_order.realized_quantity == filled_quantity
 
@@ -458,17 +458,20 @@ async def test_buy_order_partially_filled_v2(frontend_backend_v2_setup):
 
 
 async def test_buy_order_partially_filled_then_cancel_v2(frontend_backend_v2_setup):
-    """Test V2: Partially filled order is cancelled → transitions to BOUGHT.
+    """Test V2: Partially filled order is cancelled → stays in IDLE with inventory.
 
-    V2 State Flow: IDLE → BUYING → BUYING (partial fill) → BOUGHT (cancel with inventory)
+    V2 State Flow: IDLE → BUYING → BUYING (partial fill) → IDLE (cancel with inventory)
+
+    V2 4-state model: IDLE = no active orders (may have inventory from partial fill)
 
     This test verifies:
     1. Position created and order sent when price drops to trigger
     2. Order partially fills (30%)
     3. Price moves above cancel threshold
     4. Partially filled order is cancelled
-    5. State transitions to BOUGHT (partial inventory can be sold)
+    5. State returns to IDLE (partial inventory can be sold when trigger hit)
     6. Realized quantity preserved from partial fill
+    7. Sell strategy initialized for partial inventory
     """
     front, back = frontend_backend_v2_setup
 
@@ -544,7 +547,7 @@ async def test_buy_order_partially_filled_then_cancel_v2(frontend_backend_v2_set
     sim.new_price(price=cancel_price)
 
     # Wait for state transition to BOUGHT (V2 behavior: partial inventory = bought)
-    await sim.wait_for_state(PositionLifecycleState.BOUGHT, timeout=2.0)
+    await sim.wait_for_state(PositionLifecycleState.IDLE, timeout=2.0)
 
     logger.info("=" * 60)
     logger.info("✓ Partial Fill Then Cancel Complete:")
@@ -556,9 +559,13 @@ async def test_buy_order_partially_filled_then_cancel_v2(frontend_backend_v2_set
     logger.info(f"  Execution State:  {strategy.buy.execution_state}")
     logger.info("=" * 60)
 
-    # Verify final state - V2 transitions to BOUGHT with partial inventory (not IDLE)
-    # This allows selling the partial quantity immediately
-    assert strategy.lifecycle_state == PositionLifecycleState.BOUGHT
+    # Verify final state - V2 transitions to IDLE with partial inventory
+    # Wait for sell strategy initialization (happens async in callback)
+    await sim.wait_for_condition(
+        lambda: strategy.sell_strategy is not None, timeout=2.0
+    )
+
+    assert strategy.lifecycle_state == PositionLifecycleState.IDLE
     assert strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
     assert (
         strategy.buy.buy_order.realized_quantity == partial_quantity
@@ -572,31 +579,33 @@ async def test_buy_order_partially_filled_then_cancel_v2(frontend_backend_v2_set
 async def test_buy_order_partially_filled_then_cancel_then_resend_v2(
     frontend_backend_v2_setup,
 ):
-    """Test V2: Order is partially filled, cancelled, transitions to BOUGHT and then sells.
+    """Test V2: Order is partially filled, cancelled, returns to IDLE, then re-buys remaining.
 
-    V2 Behavior Note: Unlike V1 which had PARTIALLY_BOUGHT state and could re-send buy orders,
-    V2 treats any inventory as BOUGHT. After partial fill + cancel, the position is BOUGHT
-    and can only proceed to SELLING (cannot re-buy).
+    V2 Behavior (CORRECTED): After partial fill + cancel, position returns to IDLE and
+    preserves partial fill information. On next buy attempt, only the remaining quantity
+    is purchased (not the full budget again).
 
     Scenario:
-    1. Price drops to trigger → send buy order
-    2. Order partially fills (e.g., 30%)
+    1. Price drops to trigger → send buy order (budget: 1000 USDC)
+    2. Order partially fills (30% → 0.3 BTC)
     3. Price rises above cancel threshold → cancel order
-    4. V2: Transitions to BOUGHT with partial inventory (0.3 BTC)
-    5. Price rises to sell trigger → send sell order for partial inventory
-    6. Verify sell order sent with correct quantity (0.3 BTC)
+    4. V2: Returns to IDLE (preserves partial fill: 0.3 BTC realized)
+    5. Price drops to trigger again → re-buy ONLY remaining quantity (70%)
+    6. Verify second order uses remaining budget (700 USDC, not full 1000)
+    7. Second order fills → transitions to BOUGHT with full quantity (1.0 BTC)
 
     Expected State Transitions (V2):
-    - IDLE → BUYING (on order sent)
+    - IDLE → BUYING (on first order)
     - BUYING → BUYING (stays in BUYING after partial fill)
-    - BUYING → BOUGHT (on cancel with partial inventory)
-    - BOUGHT → SELLING (on sell trigger)
+    - BUYING → IDLE (on cancel with partial fill - preserves info)
+    - IDLE → BUYING (on second order - buys remaining only)
+    - BUYING → BOUGHT (on full fill)
 
     This tests:
-    - Partial fill tracking through cancel cycle
-    - V2 BOUGHT state with partial inventory
-    - Sell order creation for partial inventory
-    - Correct quantity propagation from partial buy to sell
+    - Partial fill preservation across cancel
+    - Remaining quantity calculation
+    - Budget tracking (spent vs remaining)
+    - No double-buying (critical!)
     """
     front, back = frontend_backend_v2_setup
     assert isinstance(front, HpFront)
@@ -691,54 +700,87 @@ async def test_buy_order_partially_filled_then_cancel_then_resend_v2(
     logger.info(f"[Step 3] Price rises to cancel threshold: {cancel_price:,.2f} USDC")
     sim.new_price(price=cancel_price)
 
-    # Wait for cancel and transition to BOUGHT (V2 behavior with partial inventory)
-    await sim.wait_for_state(PositionLifecycleState.BOUGHT, timeout=2.0)
+    # Wait for cancel and transition back to IDLE (NEW V2 behavior)
+    await sim.wait_for_state(PositionLifecycleState.IDLE, timeout=2.0)
 
-    # Wait for sell strategy initialization (async operation)
+    assert strategy.lifecycle_state == PositionLifecycleState.IDLE
+    assert strategy.buy.buy_order.realized_quantity == partial_quantity
+    assert strategy.buy.execution_state == OrderExecutionState.CANCELLED
+    strategy.client.cancel_order.assert_called_once()
+    logger.info(f"✓ Order cancelled, returned to IDLE with partial fill preserved")
+    logger.info(f"  - Realized Quantity: {partial_quantity:.5f} BTC")
+    logger.info(
+        f"  - Remaining to Buy:  {original_quantity - partial_quantity:.5f} BTC"
+    )
+
+    # Step 4: Price drops to trigger again → re-buy ONLY remaining quantity
+    logger.info(f"[Step 4] Price drops to trigger again: {trigger_price:,.2f} USDC")
+    sim.new_price(price=trigger_price)
+    await sim.wait_for_state(PositionLifecycleState.BUYING, timeout=2.0)
+
+    # Wait for second order to be sent
     await sim.wait_for_condition(
-        lambda: strategy.sell_strategy is not None,
+        lambda: strategy.buy.buy_order is not None
+        and strategy.buy.buy_order.order_id is not None
+        and strategy.buy.buy_order.order_id != original_order_id,
         timeout=2.0,
     )
 
-    assert strategy.lifecycle_state == PositionLifecycleState.BOUGHT
-    assert strategy.buy.buy_order.realized_quantity == partial_quantity
-    assert strategy.buy.execution_state == OrderExecutionState.CANCELLED
-    assert strategy.sell_strategy is not None, "Sell strategy should be initialized"
-    strategy.client.cancel_order.assert_called_once()
-    logger.info(f"✓ Order cancelled, transitioned to BOUGHT with partial inventory")
+    second_order_id = strategy.buy.buy_order.order_id
+    second_order_quantity = strategy.buy.buy_order.quantity
+    expected_remaining_quantity = original_quantity - partial_quantity
 
-    # Step 4: In V2, after partial buy cancel, we're BOUGHT and can sell
-    # Price rises to sell trigger → should send sell order for partial inventory
-    sell_trigger = strategy.sell_config.sell_price * 0.96
-    logger.info(f"[Step 4] Price rises to sell trigger: {sell_trigger:,.2f} USDC")
-    sim.new_price(price=sell_trigger)
-    await sim.wait_for_state(PositionLifecycleState.SELLING, timeout=2.0)
+    logger.info(f"✓ Second order sent:")
+    logger.info(f"  - Order ID:         {second_order_id}")
+    logger.info(f"  - Order Quantity:   {second_order_quantity:.5f} BTC")
+    logger.info(f"  - Expected (70%):   {expected_remaining_quantity:.5f} BTC")
 
-    assert strategy.lifecycle_state == PositionLifecycleState.SELLING
-    assert strategy.sell_strategy is not None
-    assert strategy.sell_strategy.order_id is not None
+    # CRITICAL: Verify we're buying remaining quantity, NOT full budget again
+    assert abs(second_order_quantity - expected_remaining_quantity) < 0.0001, (
+        f"Second order should buy remaining {expected_remaining_quantity:.5f} BTC, "
+        f"not full {original_quantity:.5f} BTC! Got {second_order_quantity:.5f}"
+    )
 
-    # Verify sell quantity matches partial buy quantity (not original full quantity)
-    assert strategy.sell_strategy.quantity == partial_quantity
+    # Step 5: Second order fills completely
+    logger.info(
+        f"[Step 5] Second order fills completely ({second_order_quantity:.5f} BTC)"
+    )
+    from binance.enums import ORDER_STATUS_FILLED
 
-    sell_order_id = strategy.sell_strategy.order_id
-    logger.info(f"✓ Sell order sent for partial inventory:")
-    logger.info(f"  - Sell Order ID:  {sell_order_id}")
-    logger.info(f"  - Sell Quantity:  {strategy.sell_strategy.quantity:.5f} BTC")
-    logger.info(f"  - Expected:       {partial_quantity:.5f} BTC (from partial buy)")
+    full_fill_report = ExecutionReport(
+        order_type="LIMIT",
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=second_order_id,
+        last_executed_quantity=second_order_quantity,
+        last_executed_price=fill_price,
+        cumulative_filled_quantity=partial_quantity + second_order_quantity,
+        price=fill_price,
+    )
+    back.worker_queue.put_nowait(
+        Event(name=EventName.EXECUTION_REPORT, content=full_fill_report)
+    )
+
+    await sim.wait_for_state(PositionLifecycleState.IDLE, timeout=2.0)
+
+    assert strategy.lifecycle_state == PositionLifecycleState.IDLE
+    total_realized = strategy.buy.buy_order.realized_quantity
+    assert (
+        abs(total_realized - original_quantity) < 0.0001
+    ), f"Total realized should be {original_quantity:.5f} BTC, got {total_realized:.5f}"
 
     logger.info("=" * 60)
-    logger.info("✓ Partial Fill → Cancel → Sell Test Complete (V2):")
-    logger.info(f"  Buy Order:        {original_order_id} (30% filled, then cancelled)")
-    logger.info(f"  Partial Quantity: {partial_quantity:.5f} BTC")
-    logger.info(f"  Sell Order:       {sell_order_id} (selling partial inventory)")
+    logger.info("✓ Partial Fill → Cancel → Re-buy Remaining Test Complete (V2):")
+    logger.info(f"  First Order:      {original_order_id} (30% filled, cancelled)")
+    logger.info(f"  Partial Fill:     {partial_quantity:.5f} BTC")
+    logger.info(f"  Second Order:     {second_order_id} (70% remaining)")
+    logger.info(f"  Second Fill:      {second_order_quantity:.5f} BTC")
+    logger.info(f"  Total Realized:   {total_realized:.5f} BTC")
     logger.info(f"  Final State:      {strategy.lifecycle_state}")
     logger.info("=" * 60)
 
-    # Final state validation - V2 behavior: partial buy → BOUGHT → SELLING
-    assert strategy.lifecycle_state == PositionLifecycleState.SELLING
-    assert strategy.buy.buy_order.realized_quantity == partial_quantity
-    assert strategy.sell_strategy.quantity == partial_quantity
+    # Final state validation - NEW V2 behavior: partial buy → IDLE → complete buy → BOUGHT
+    assert strategy.lifecycle_state == PositionLifecycleState.IDLE
+    assert abs(strategy.buy.buy_order.realized_quantity - original_quantity) < 0.0001
 
 
 async def test_send_sell_order_for_bought_position_v2(frontend_backend_v2_setup):
@@ -879,7 +921,7 @@ async def test_cancel_unfilled_sell_order_v2(frontend_backend_v2_setup):
     # In V2, sell cancellation should transition SELLING → BOUGHT
     await asyncio.sleep(0.2)
 
-    assert strategy.lifecycle_state == PositionLifecycleState.BOUGHT
+    assert strategy.lifecycle_state == PositionLifecycleState.IDLE
     logger.info(f"✓ State transitioned back to BOUGHT after cancel")
     logger.info("✅ Test PASSED: Unfilled sell order cancelled")
 
@@ -937,7 +979,7 @@ async def test_resend_unfilled_sell_order_v2(frontend_backend_v2_setup):
     await asyncio.sleep(0.2)
 
     # Verify cancelled and back to BOUGHT
-    assert strategy.lifecycle_state == PositionLifecycleState.BOUGHT
+    assert strategy.lifecycle_state == PositionLifecycleState.IDLE
     logger.info("✓ Order cancelled, state = BOUGHT")
 
     # Step 4: Trigger sell order again (BOUGHT → SELLING)
@@ -1191,10 +1233,10 @@ async def test_cancel_partially_sold_position_v2(frontend_backend_v2_setup):
     sim.new_price(price=cancel_trigger)
 
     # Wait for state transition to BOUGHT
-    await sim.wait_for_state(PositionLifecycleState.BOUGHT, timeout=2.0)
+    await sim.wait_for_state(PositionLifecycleState.IDLE, timeout=2.0)
 
     # Step 4: Verify position is BOUGHT and partial quantity is tracked
-    assert strategy.lifecycle_state == PositionLifecycleState.BOUGHT
+    assert strategy.lifecycle_state == PositionLifecycleState.IDLE
     logger.info("✓ State transitioned back to BOUGHT")
 
     # Sell strategy should still have the filled quantity tracked
@@ -1289,7 +1331,7 @@ async def test_resend_sell_order_for_partially_sold_position_v2(
     cancel_trigger = strategy.sell_config.sell_price * 0.92
     logger.info(f"[Step 3] Cancel at {cancel_trigger:,.2f} USDC")
     sim.new_price(price=cancel_trigger)
-    await sim.wait_for_state(PositionLifecycleState.BOUGHT, timeout=2.0)
+    await sim.wait_for_state(PositionLifecycleState.IDLE, timeout=2.0)
 
     logger.info(f"✓ Cancelled, filled: {partial_quantity}/{total_quantity} BTC")
 
@@ -1405,10 +1447,15 @@ async def test_send_sell_order_for_partially_bought_position_v2(
     logger.info(f"[Step 2] Cancel remaining at {cancel_trigger:,.2f} USDC")
     sim.new_price(price=cancel_trigger)
 
-    # Wait for BOUGHT state (partial fill completes the buy)
-    await sim.wait_for_state(PositionLifecycleState.BOUGHT, timeout=2.0)
+    # Wait for IDLE state after cancel
+    await sim.wait_for_state(PositionLifecycleState.IDLE, timeout=2.0)
 
-    assert strategy.lifecycle_state == PositionLifecycleState.BOUGHT
+    # Wait for sell strategy to be initialized (happens asynchronously in cancel callback)
+    await sim.wait_for_condition(
+        lambda: strategy.sell_strategy is not None, timeout=2.0
+    )
+
+    assert strategy.lifecycle_state == PositionLifecycleState.IDLE
     assert strategy.sell_strategy is not None, "Sell strategy should be initialized"
     logger.info(f"✓ Position BOUGHT with partial quantity: {partial_quantity} BTC")
 
@@ -1541,7 +1588,7 @@ async def test_cancel_unfilled_sell_order_for_partially_bought_position_v2(
     # Step 3: Cancel buy order → BOUGHT
     logger.info(f"[Step 3] Price rises to buy cancel: {cancel_price:,.2f} USDC")
     sim.new_price(price=cancel_price)
-    await sim.wait_for_state(PositionLifecycleState.BOUGHT, timeout=2.0)
+    await sim.wait_for_state(PositionLifecycleState.IDLE, timeout=2.0)
 
     # Wait for sell strategy initialization
     await sim.wait_for_condition(
@@ -1574,7 +1621,7 @@ async def test_cancel_unfilled_sell_order_for_partially_bought_position_v2(
     sim.new_price(price=sell_cancel_threshold)
 
     # Wait for state to return to BOUGHT
-    await sim.wait_for_state(PositionLifecycleState.BOUGHT, timeout=2.0)
+    await sim.wait_for_state(PositionLifecycleState.IDLE, timeout=2.0)
 
     logger.info("=" * 60)
     logger.info("✓ Cancel Sell for Partial Buy Complete:")
@@ -1586,7 +1633,7 @@ async def test_cancel_unfilled_sell_order_for_partially_bought_position_v2(
     logger.info("=" * 60)
 
     # Final assertions
-    assert strategy.lifecycle_state == PositionLifecycleState.BOUGHT
+    assert strategy.lifecycle_state == PositionLifecycleState.IDLE
     assert strategy.buy.buy_order.realized_quantity == partial_quantity
     assert strategy.sell_strategy is not None  # Sell strategy remains available
     strategy.client.cancel_order.assert_called()  # Both buy and sell were cancelled
@@ -1678,7 +1725,7 @@ async def test_complete_lifecycle_v2(frontend_backend_v2_setup):
         Event(name=EventName.EXECUTION_REPORT, content=buy_fill_report)
     )
 
-    await sim.wait_for_state(PositionLifecycleState.BOUGHT, timeout=2.0)
+    await sim.wait_for_state(PositionLifecycleState.IDLE, timeout=2.0)
 
     # Wait for sell strategy initialization
     await sim.wait_for_condition(
@@ -1686,7 +1733,7 @@ async def test_complete_lifecycle_v2(frontend_backend_v2_setup):
         timeout=2.0,
     )
 
-    assert strategy.lifecycle_state == PositionLifecycleState.BOUGHT
+    assert strategy.lifecycle_state == PositionLifecycleState.IDLE
     assert strategy.buy.buy_order.realized_quantity == buy_quantity
     logger.info(
         f"✓ State 3: {strategy.lifecycle_state} (inventory: {buy_quantity:.5f} BTC)"
@@ -1876,8 +1923,8 @@ async def test_convert_sell_btc_usdt_to_usdc_v2(frontend_backend_v2_setup):
         Event(name=EventName.EXECUTION_REPORT, content=exec_report_buy)
     )
 
-    await sim.wait_for_state(PositionLifecycleState.BOUGHT, timeout=2.0)
-    assert strategy.lifecycle_state == PositionLifecycleState.BOUGHT
+    await sim.wait_for_state(PositionLifecycleState.IDLE, timeout=2.0)
+    assert strategy.lifecycle_state == PositionLifecycleState.IDLE
     assert strategy.buy.buy_order.realized_quantity > 0
 
     quantity_bought = strategy.buy.buy_order.realized_quantity
@@ -1938,6 +1985,11 @@ async def test_convert_sell_btc_usdt_to_usdc_v2(frontend_backend_v2_setup):
     logger.info(
         f"✓ Phase 1 filled: {quantity_bought:.5f} BTC → {usdt_received:.2f} USDT"
     )
+
+    # Send ticker update for USDTUSDC again (after phase 1 completes)
+    # This ensures convert_sell has the ticker price for phase 2
+    sim.new_price(price=1.0, symbol="USDTUSDC")
+    await asyncio.sleep(0.05)
 
     # Wait for Phase 2 to start (convert USDT → USDC)
     await sim.wait_for_condition(
@@ -2092,8 +2144,8 @@ async def test_multihop_sell_altcoin_btc_usdc_v2(frontend_backend_v2_setup):
         Event(name=EventName.EXECUTION_REPORT, content=exec_report_buy)
     )
 
-    await sim.wait_for_state(PositionLifecycleState.BOUGHT, timeout=2.0)
-    assert strategy.lifecycle_state == PositionLifecycleState.BOUGHT
+    await sim.wait_for_state(PositionLifecycleState.IDLE, timeout=2.0)
+    assert strategy.lifecycle_state == PositionLifecycleState.IDLE
 
     logger.info("=" * 60)
     logger.info("Multihop Sell Test Setup:")
@@ -2172,7 +2224,8 @@ async def test_multihop_sell_altcoin_btc_usdc_v2(frontend_backend_v2_setup):
         f"✓ Leg 2 started: BTC/USDC sell order {strategy.sell_strategy.leg2_order_id}"
     )
 
-    # Step 6: Fill Leg 2 (BTC → USDC)ategy.leg2_order_id
+    # Step 6: Fill Leg 2 (BTC → USDC)
+    leg2_order_id = strategy.sell_strategy.leg2_order_id
     leg2_price = 50000.0 * 0.96  # Leg2 trigger at 96% of BTC price
     usdc_received = btc_received * leg2_price  # BTC * price = USDC
 
@@ -2291,8 +2344,8 @@ async def test_multihop_sell_leg1_cancel_v2(frontend_backend_v2_setup):
         Event(name=EventName.EXECUTION_REPORT, content=exec_report_buy)
     )
 
-    await sim.wait_for_state(PositionLifecycleState.BOUGHT, timeout=2.0)
-    assert strategy.lifecycle_state == PositionLifecycleState.BOUGHT
+    await sim.wait_for_state(PositionLifecycleState.IDLE, timeout=2.0)
+    assert strategy.lifecycle_state == PositionLifecycleState.IDLE
 
     # Setup cancel mocking
     strategy.client.cancel_order = AsyncMock(return_value=None)
@@ -2322,9 +2375,9 @@ async def test_multihop_sell_leg1_cancel_v2(frontend_backend_v2_setup):
     sim.new_price(price=cancel_price, symbol="AXLBTC")
 
     # Wait for state to return to BOUGHT
-    await sim.wait_for_state(PositionLifecycleState.BOUGHT, timeout=2.0)
+    await sim.wait_for_state(PositionLifecycleState.IDLE, timeout=2.0)
 
-    assert strategy.lifecycle_state == PositionLifecycleState.BOUGHT
+    assert strategy.lifecycle_state == PositionLifecycleState.IDLE
     assert strategy.sell_strategy.leg1_order_id is None  # Cleared after cancel
 
     logger.info("=" * 60)
