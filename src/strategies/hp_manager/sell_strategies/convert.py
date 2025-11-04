@@ -8,9 +8,9 @@ from .base import BaseSellStrategy
 
 class ConvertSellStrategy(BaseSellStrategy):
     """Convert-only sell strategy.
-    
+
     Example: BTC → USDT (convert operation, symbol ends with USDT)
-    
+
     Creates a single sell position with:
     - Original quantity and price
     - CONVERT sell type
@@ -19,12 +19,12 @@ class ConvertSellStrategy(BaseSellStrategy):
 
     def build_positions(self) -> List[SellPosition]:
         """Build a single convert sell position.
-        
+
         Returns:
             List with one SellPosition for convert operation
         """
         symbol = self.sell_strategy[0]
-        
+
         sell_position = SellPosition(
             config=self.original_position.config,
             state_info=self.original_position.state_info,
@@ -35,12 +35,12 @@ class ConvertSellStrategy(BaseSellStrategy):
             ),
             sell_type=SellType.CONVERT,
         )
-        
+
         # Add _CONVERT suffix only if not already present (to handle recovery cases)
         original_hp_id = str(self.original_position.config.hp_id)
         if not original_hp_id.endswith("_CONVERT"):
             sell_position.config.hp_id = f"{original_hp_id}_CONVERT"
         else:
             sell_position.config.hp_id = original_hp_id
-            
+
         return [sell_position]

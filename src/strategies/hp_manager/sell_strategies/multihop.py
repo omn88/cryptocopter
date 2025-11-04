@@ -19,25 +19,25 @@ logger = logging.getLogger("multihop_strategy")
 
 class MultihopSellStrategy(BaseSellStrategy):
     """Two-hop sell strategy for selling through intermediate pair.
-    
+
     Example: AXL → BTC → USDC
     - Leg 1: Sell AXL for BTC (AXLBTC)
     - Leg 2: Sell BTC for USDC (BTCUSDC)
-    
+
     Creates two sell positions:
     - Leg 1 (child 'a'): Sells base coin for intermediate coin
     - Leg 2 (child 'b'): Sells intermediate coin for end currency (USDC)
-    
+
     Both legs are marked as TWOHOPS sell type.
     Leg 2 starts in WAITING_CHILD state until leg 1 completes.
     """
 
     def build_positions(self) -> List[SellPosition]:
         """Build two-hop sell positions (leg1 + leg2).
-        
+
         Returns:
             List with two SellPosition objects for multihop trade
-            
+
         Raises:
             ValueError: If leg2 price is not available in price feed
         """
@@ -56,7 +56,7 @@ class MultihopSellStrategy(BaseSellStrategy):
         # Calculate leg1 price: Convert target sell_price in USDC to quote token (e.g., BTC)
         price_in_quote = sell_price / leg2.adjust_price(leg2_price)
         leg1_price = leg1.adjust_price(price_in_quote)
-        
+
         # Calculate leg1 quantity and stable amount
         leg1_quantity = leg1.adjust_quantity(quantity)
         leg1_quantity_stable = round(leg1_quantity * leg1_price, 8)
@@ -110,9 +110,7 @@ class MultihopSellStrategy(BaseSellStrategy):
                 buy_price=leg2_price,
                 end_currency=self.original_position.config.end_currency,
             ),
-            state_info=StateInfo(
-                side=PositionSide.SHORT, state=State.WAITING_CHILD
-            ),
+            state_info=StateInfo(side=PositionSide.SHORT, state=State.WAITING_CHILD),
             sell_order=self._generate_order(
                 symbol=leg2,
                 quantity=leg2.adjust_quantity(leg1_quantity_stable),
@@ -122,10 +120,10 @@ class MultihopSellStrategy(BaseSellStrategy):
         )
 
         sell_positions = [leg1_position, leg2_position]
-        
+
         logger.info(
             "[MULTIHOP] Created 2-hop positions: %s",
             [pos.config.hp_id for pos in sell_positions],
         )
-        
+
         return sell_positions

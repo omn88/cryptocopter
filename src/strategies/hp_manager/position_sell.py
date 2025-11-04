@@ -134,13 +134,13 @@ class HPPositionSell:
 
         # Use factory to create appropriate strategy and build positions
         from src.strategies.hp_manager.sell_strategies import SellStrategyFactory
-        
+
         strategy = SellStrategyFactory.create(
             original_position=self.original_position,
             sell_strategy=self.sell_strategy,
             price_resolver=self.price_resolver,
         )
-        
+
         self.sell_positions = strategy.build_positions()
 
     def _generate_order(self, symbol: Symbol, price: float, quantity: float) -> Order:

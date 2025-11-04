@@ -9,7 +9,7 @@ from src.common.symbol import Symbol
 
 class BaseSellStrategy(ABC):
     """Abstract base class for sell strategies.
-    
+
     Each strategy is responsible for:
     1. Building the appropriate SellPosition(s) based on the sell path
     2. Calculating prices, quantities, and order details
@@ -23,7 +23,7 @@ class BaseSellStrategy(ABC):
         price_resolver,
     ):
         """Initialize base sell strategy.
-        
+
         Args:
             original_position: Original sell position with config
             sell_strategy: List of symbols representing the sell path
@@ -36,7 +36,7 @@ class BaseSellStrategy(ABC):
     @abstractmethod
     def build_positions(self) -> List[SellPosition]:
         """Build list of sell positions for this strategy.
-        
+
         Returns:
             List of SellPosition objects ready for execution
         """
@@ -45,7 +45,7 @@ class BaseSellStrategy(ABC):
     def _generate_order(self, symbol: Symbol, price: float, quantity: float):
         """Helper to generate order with proper precision."""
         from src.common.identifiers import Order
-        
+
         return Order(
             quantity=symbol.adjust_quantity(quantity=quantity),
             price=symbol.adjust_price(price=price),
