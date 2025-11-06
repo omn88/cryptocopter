@@ -1,10 +1,4 @@
-"""Sell strategy modules for HP Manager.
-
-This package contains modularized sell strategies:
-- DirectSellStrategy: Direct sell to quote currency (e.g., BTC → USDC)
-- ConvertSellStrategy: Convert-only sell (e.g., BTC → USDT via market convert)
-- MultihopSellStrategy: Two-hop sell through intermediate pair (e.g., AXL → BTC → USDC)
-"""
+"""Sell strategy implementations for HP Manager."""
 
 from .base import BaseSellStrategy
 from .direct import DirectSellStrategy

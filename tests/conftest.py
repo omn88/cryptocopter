@@ -576,7 +576,7 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
                 state_info=StateInfo(side=PositionSide.SHORT),
                 sell_order=Order(quantity=0.0),
             ),
-            sell_strategy=[],
+            sell_strategy=None,
             db=test_db,
             price_resolver=strategy_executor_fixture.price_resolver,
             broker=strategy_executor_fixture.broker,

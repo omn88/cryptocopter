@@ -1321,10 +1321,11 @@ class HPSimulator:
         strategy = self.back.strategies["1000"]
         assert isinstance(strategy, HpStrategy)
 
-        assert len(strategy.sell.sell_strategy) == 2
-        assert strategy.sell.sell_strategy[0].name == f"{coin}BTC"
+        assert strategy.sell.sell_strategy is not None
+        assert len(strategy.sell.sell_strategy.sell_path) == 2
+        assert strategy.sell.sell_strategy.sell_path[0].name == f"{coin}BTC"
         assert (
-            strategy.sell.sell_strategy[1].name
+            strategy.sell.sell_strategy.sell_path[1].name
             == f"BTC{sell_config.config.end_currency}"
         )
 

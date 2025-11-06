@@ -1,46 +1,102 @@
-"""Convert sell strategy - convert-only operations (e.g., BTC → USDT)."""
+"""Convert sell strategy - uses Binance convert API instead of limit orders."""
 
-from typing import List
+import logging
+from typing import Any, Dict, List
 
-from src.common.identifiers import SellPosition, SellType
+from src.common.identifiers import (
+    HPSellConfig,
+    Order,
+    PositionSide,
+    SellPosition,
+    SellType,
+    StateInfo,
+)
 from .base import BaseSellStrategy
 
 
+logger = logging.getLogger("convert_sell_strategy")
+
+
 class ConvertSellStrategy(BaseSellStrategy):
-    """Convert-only sell strategy.
+    """Convert sell strategy for conversion operations.
 
-    Example: BTC → USDT (convert operation, symbol ends with USDT)
+    Example: BTC → USDT (using convert API, not limit order)
 
-    Creates a single sell position with:
-    - Original quantity and price
-    - CONVERT sell type
-    - HP ID appended with _CONVERT suffix
+    Creates one sell position marked for conversion via Binance convert API.
+    The actual conversion happens in hp_manager.convert_position().
     """
 
     def build_positions(self) -> List[SellPosition]:
-        """Build a single convert sell position.
+        """Build convert sell position.
 
         Returns:
-            List with one SellPosition for convert operation
+            List with single SellPosition marked for conversion
         """
-        symbol = self.sell_strategy[0]
+        symbol = self.sell_path[0]
 
-        sell_position = SellPosition(
-            config=self.original_position.config,
-            state_info=self.original_position.state_info,
-            sell_order=self._generate_order(
-                symbol,
-                quantity=self.original_position.config.quantity,
-                price=self.original_position.config.sell_price,
+        # For convert operations, use the symbol's current price
+        # The actual conversion will happen at market rate
+        sell_price = symbol.adjust_price(self.original_position.config.sell_price)
+        quantity = symbol.adjust_quantity(self.original_position.config.quantity)
+
+        position = SellPosition(
+            config=HPSellConfig(
+                hp_id=self.original_position.config.hp_id,
+                symbol=symbol,
+                quantity=quantity,
+                sell_price=sell_price,
+                coin=self.original_position.config.coin,
+                buy_price=self.original_position.config.buy_price,
+                end_currency=self.original_position.config.end_currency,
+                is_child=self.original_position.config.is_child,
+                parent_hp_id=self.original_position.config.parent_hp_id,
+            ),
+            state_info=StateInfo(side=PositionSide.SHORT),
+            sell_order=Order(
+                quantity=quantity,
+                price=sell_price,
+                precision=symbol.precision,
             ),
             sell_type=SellType.CONVERT,
         )
 
-        # Add _CONVERT suffix only if not already present (to handle recovery cases)
-        original_hp_id = str(self.original_position.config.hp_id)
-        if not original_hp_id.endswith("_CONVERT"):
-            sell_position.config.hp_id = f"{original_hp_id}_CONVERT"
-        else:
-            sell_position.config.hp_id = original_hp_id
+        logger.info(
+            "[CONVERT] Created position: %s for %s (convert operation)",
+            position.config.hp_id,
+            symbol.name,
+        )
 
-        return [sell_position]
+        return [position]
+
+    def should_use_convert(self) -> bool:
+        """Convert strategy uses Binance convert API.
+
+        Returns:
+            True - this strategy always uses convert API
+        """
+        return True
+
+    def handle_completion(
+        self,
+        current_position: SellPosition,
+        all_positions: List[SellPosition],
+    ) -> Dict[str, Any]:
+        """Handle convert operation completion.
+
+        For convert operations:
+        - DON'T send completion event (already sent in convert_position)
+        - Send HPClose to complete the position lifecycle
+
+        Returns:
+            Dict with empty completion_events and needs_close=True
+        """
+        logger.info(
+            "Convert operation completed for %s, skipping duplicate event",
+            current_position.config.hp_id,
+        )
+
+        return {
+            "next_position": None,
+            "needs_close": True,  # Send HPClose
+            "completion_events": [],  # No event - already sent in convert_position
+        }

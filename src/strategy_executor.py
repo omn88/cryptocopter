@@ -9,7 +9,8 @@ from binance.enums import (
     ORDER_STATUS_CANCELED,
     ORDER_STATUS_FILLED,
 )
-from src.common.helpers import determine_sell_strategy, generate_hp_id
+from src.common.helpers import generate_hp_id
+from src.strategies.hp_manager.sell_strategies.factory import SellStrategyFactory
 from src.database import Database
 from src.common.client import BinanceClient
 from src.common.identifiers import (
@@ -225,7 +226,7 @@ class StrategyExecutor:
                     sell_order=Order(quantity=0.0),
                 ),
                 db=self.db,
-                sell_strategy=[],
+                sell_strategy=None,  # No strategy for buy-only positions
                 price_resolver=self.price_resolver,
                 broker=self.broker,
                 worker_queue=worker_queue,
@@ -353,7 +354,7 @@ class StrategyExecutor:
         )
 
     async def setup_sell_position(
-        self, strategy_data: SellPosition, sell_strategy: List[Symbol]
+        self, strategy_data: SellPosition, sell_strategy  # BaseSellStrategy object
     ) -> None:
         logger.info(
             "Setting up sell position for existing HP: %s", strategy_data.config.hp_id
@@ -369,7 +370,7 @@ class StrategyExecutor:
                     sell_order=Order(quantity=strategy_data.config.quantity),
                 ),
                 db=self.db,
-                sell_strategy=sell_strategy,
+                sell_strategy=sell_strategy,  # Now BaseSellStrategy object
                 price_resolver=self.price_resolver,
                 broker=self.broker,
                 worker_queue=strategy.worker_queue,
@@ -399,7 +400,7 @@ class StrategyExecutor:
     async def setup_sell_position_with_new_hp(
         self,
         strategy_data: SellPosition,
-        sell_strategy: List[Symbol],
+        sell_strategy,  # BaseSellStrategy object
     ) -> None:
         # For restoration, preserve existing HP ID; for new positions, generate new one
         parent_hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
@@ -437,18 +438,10 @@ class StrategyExecutor:
                     config=strategy_data.config,
                     state_info=strategy_data.state_info,
                     sell_order=Order(quantity=strategy_data.config.quantity),
-                    sell_type=(
-                        SellType.TWOHOPS
-                        if len(sell_strategy) == 2
-                        else (
-                            SellType.CONVERT
-                            if sell_strategy[0].is_convert_only
-                            else SellType.DIRECT
-                        )
-                    ),
+                    # sell_type will be set by strategy.build_positions()
                 ),
                 db=self.db,
-                sell_strategy=sell_strategy,
+                sell_strategy=sell_strategy,  # Now BaseSellStrategy object
                 price_resolver=self.price_resolver,
                 broker=self.broker,
                 worker_queue=worker_queue,
@@ -491,7 +484,9 @@ class StrategyExecutor:
 
         # Setup broker subscriptions (main symbol + additional symbols for multihop)
         additional_symbols = (
-            [s.name for s in sell_strategy[1:]] if len(sell_strategy) > 1 else None
+            [s.name for s in sell_strategy.sell_path[1:]]
+            if len(sell_strategy.sell_path) > 1
+            else None
         )
         self.broker.setup_subscriptions(
             hp_id=str(parent_hp_id),
@@ -918,20 +913,26 @@ class StrategyExecutor:
 
     async def _handle_sell_config(self, strategy_data: HPSell) -> None:
         """Handle incoming sell position configuration."""
-        sell_strategy = determine_sell_strategy(
-            config=strategy_data.config, symbols=self.price_resolver.symbols
-        )
-        logger.info("Sell strategy determined: %s", sell_strategy)
-
-        # Patch: Set symbol if convert-only or USDC
-        if sell_strategy[0].is_convert_only or sell_strategy[0].name.endswith("USDC"):
-            strategy_data.config.symbol = sell_strategy[0]
-
+        # Create sell position first (needed for SellStrategyFactory)
         sell_position = SellPosition(
             sell_order=Order(quantity=0),
             config=strategy_data.config,
             state_info=strategy_data.state_info,
         )
+
+        # Determine sell strategy and create strategy object
+        sell_strategy = SellStrategyFactory.create_from_config(
+            config=strategy_data.config,
+            symbols=self.price_resolver.symbols,
+            original_position=sell_position,
+            price_resolver=self.price_resolver,
+        )
+        logger.info("Sell strategy determined: %s", sell_strategy.__class__.__name__)
+
+        # Patch: Set symbol from strategy's sell path
+        first_symbol = sell_strategy.sell_path[0]
+        if first_symbol.is_convert_only or first_symbol.name.endswith("USDC"):
+            strategy_data.config.symbol = first_symbol
 
         if not strategy_data.config.hp_id:
             await self.setup_sell_position_with_new_hp(
