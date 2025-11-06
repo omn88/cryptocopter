@@ -1639,9 +1639,9 @@ async def test_multihop_sell_price_recalculation_on_trigger(frontend_backend_set
     strategy = back.strategies["1000"]
 
     # Verify multihop strategy was created correctly
-    assert len(strategy.sell.sell_strategy) == 2
-    assert strategy.sell.sell_strategy[0].name == f"{coin}BTC"
-    assert strategy.sell.sell_strategy[1].name == f"BTCUSDC"
+    assert len(strategy.sell.sell_strategy.sell_path) == 2
+    assert strategy.sell.sell_strategy.sell_path[0].name == f"{coin}BTC"
+    assert strategy.sell.sell_strategy.sell_path[1].name == f"BTCUSDC"
 
     # Store initial calculated prices from position creation
     leg1_initial = strategy.sell.sell_positions[0]
