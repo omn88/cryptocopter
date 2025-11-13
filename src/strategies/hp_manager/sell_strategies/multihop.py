@@ -67,13 +67,31 @@ class MultihopSellStrategy(BaseSellStrategy):
         leg2_quantity = leg2.adjust_quantity(leg1_quantity_stable)
 
         # Log calculated values for debugging
-        logger.info("[MULTIHOP] Original sell price: %s", sell_price)
-        logger.info("[MULTIHOP] Leg2 price: %s", leg2_price)
-        logger.info("[MULTIHOP] Price in quote: %s", price_in_quote)
         logger.info(
-            "[MULTIHOP] Leg1 price: %s, quantity: %s", leg1_price, leg1_quantity
+            "[MULTIHOP] ═══ Building 2-hop position for %s (qty: %.8f) ═══",
+            self.original_position.config.coin,
+            leg1_quantity,
         )
-        logger.info("[MULTIHOP] Leg2 quantity: %s", leg2_quantity)
+        logger.info("[MULTIHOP] Path: %s -> %s", leg1.name, leg2.name)
+        logger.info("[MULTIHOP] Original sell price: %.8f", sell_price)
+        logger.info("[MULTIHOP] Leg2 current price: %.8f", leg2_price)
+        logger.info("[MULTIHOP] Calculated leg1 price in quote: %.8f", price_in_quote)
+        logger.info(
+            "[MULTIHOP] Leg1: %s @ %.8f x %.8f = %.8f %s",
+            leg1.name,
+            leg1_price,
+            leg1_quantity,
+            leg1_price * leg1_quantity,
+            leg2.extract_coin_from_symbol(leg2.name),
+        )
+        logger.info(
+            "[MULTIHOP] Leg2: %s @ %.8f x %.8f = %.8f %s",
+            leg2.name,
+            leg2_price_adjusted,
+            leg2_quantity,
+            leg2_price_adjusted * leg2_quantity,
+            self.original_position.config.end_currency,
+        )
 
         # Build first leg position (base -> intermediate)
         leg1_position = SellPosition(
@@ -145,11 +163,16 @@ class MultihopSellStrategy(BaseSellStrategy):
         leg1 = leg1_position.config.symbol
         leg2 = leg2_position.config.symbol
 
+        logger.info("[MULTIHOP RECALC] ═══ Recalculating prices before execution ═══")
+        logger.info("[MULTIHOP RECALC] HP ID: %s", self.original_position.config.hp_id)
+        logger.info("[MULTIHOP RECALC] Coin: %s", self.original_position.config.coin)
+        logger.info("[MULTIHOP RECALC] Path: %s -> %s", leg1.name, leg2.name)
+
         # Get current market price for leg2
         current_leg2_price = self.price_resolver.latest_prices.get(leg2.name)
         if not current_leg2_price:
             logger.warning(
-                "Missing current price for %s, skipping recalculation",
+                "[MULTIHOP RECALC] ⚠ Missing current price for %s, skipping recalculation",
                 leg2.name,
             )
             return
@@ -157,6 +180,15 @@ class MultihopSellStrategy(BaseSellStrategy):
         # Store old prices for logging
         old_leg1_price = leg1_position.sell_order.price
         old_leg2_price = leg2_position.sell_order.price
+
+        logger.info(
+            "[MULTIHOP RECALC] Old prices: Leg1=%.8f, Leg2=%.8f",
+            old_leg1_price,
+            old_leg2_price,
+        )
+        logger.info(
+            "[MULTIHOP RECALC] Current leg2 market price: %.8f", current_leg2_price
+        )
 
         # Recalculate leg1 price based on current leg2 price
         sell_price = self.original_position.config.sell_price
@@ -186,21 +218,30 @@ class MultihopSellStrategy(BaseSellStrategy):
         leg2_position.config.buy_price = current_leg2_price
 
         logger.info(
-            "[MULTIHOP PRICE RECALC] Updated prices before execution - "
-            "Leg1: %s -> %s (symbol: %s), Leg2: %s -> %s (symbol: %s)",
-            old_leg1_price,
+            "[MULTIHOP RECALC] ✓ New prices: Leg1=%.8f (Δ %.8f%%), Leg2=%.8f (Δ %.8f%%)",
             current_leg1_price,
-            leg1.name,
-            old_leg2_price,
+            (
+                ((current_leg1_price - old_leg1_price) / old_leg1_price * 100)
+                if old_leg1_price
+                else 0
+            ),
             current_leg2_price_adjusted,
-            leg2.name,
+            (
+                ((current_leg2_price_adjusted - old_leg2_price) / old_leg2_price * 100)
+                if old_leg2_price
+                else 0
+            ),
         )
         logger.info(
-            "[MULTIHOP PRICE RECALC] Updated quantities - "
-            "Leg1: %s stable: %s, Leg2: %s",
+            "[MULTIHOP RECALC] ✓ New quantities: Leg1=%.8f (stable: %.8f), Leg2=%.8f",
             leg1_quantity,
             leg1_quantity_stable,
             leg2_quantity,
+        )
+        logger.info(
+            "[MULTIHOP RECALC] ✓ Expected total value: %.8f %s",
+            leg2_quantity * current_leg2_price_adjusted,
+            self.original_position.config.end_currency,
         )
 
     def handle_completion(

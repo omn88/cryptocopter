@@ -39,6 +39,45 @@ class ConvertSellStrategy(BaseSellStrategy):
         sell_price = symbol.adjust_price(self.original_position.config.sell_price)
         quantity = symbol.adjust_quantity(self.original_position.config.quantity)
 
+        logger.info(
+            "[CONVERT] ═══ Building convert position for %s ═══",
+            self.original_position.config.coin,
+        )
+        logger.info("[CONVERT] Symbol: %s (convert-only)", symbol.name)
+        logger.info("[CONVERT] Quantity: %.8f", quantity)
+        logger.info("[CONVERT] Price: %.8f", sell_price)
+        logger.info(
+            "[CONVERT] Expected value: %.8f %s",
+            quantity * sell_price,
+            self.original_position.config.end_currency,
+        )
+
+        # Get current market price to check spread
+        current_price = self.price_resolver.latest_prices.get(symbol.name)
+        if current_price:
+            spread_pct = (
+                ((sell_price - current_price) / current_price * 100)
+                if current_price
+                else 0
+            )
+            logger.info(
+                "[CONVERT] Current market price: %.8f (spread: %.2f%%)",
+                current_price,
+                spread_pct,
+            )
+            if spread_pct < -5:
+                logger.warning(
+                    "[CONVERT] ⚠ Large negative spread detected! "
+                    "Price may be too low: target=%.8f market=%.8f (%.2f%%)",
+                    sell_price,
+                    current_price,
+                    spread_pct,
+                )
+        else:
+            logger.warning(
+                "[CONVERT] ⚠ No current market price available for %s", symbol.name
+            )
+
         position = SellPosition(
             config=HPSellConfig(
                 hp_id=self.original_position.config.hp_id,

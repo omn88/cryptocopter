@@ -36,6 +36,41 @@ class DirectSellStrategy(BaseSellStrategy):
         sell_price = symbol.adjust_price(self.original_position.config.sell_price)
         quantity = symbol.adjust_quantity(self.original_position.config.quantity)
 
+        logger.info(
+            "[DIRECT] ═══ Building direct sell position for %s ═══",
+            self.original_position.config.coin,
+        )
+        logger.info("[DIRECT] Symbol: %s", symbol.name)
+        logger.info("[DIRECT] Quantity: %.8f", quantity)
+        logger.info("[DIRECT] Sell price: %.8f", sell_price)
+        logger.info(
+            "[DIRECT] Expected value: %.8f %s",
+            quantity * sell_price,
+            self.original_position.config.end_currency,
+        )
+
+        # Check current market price
+        current_price = self.price_resolver.latest_prices.get(symbol.name)
+        if current_price:
+            spread_pct = (
+                ((sell_price - current_price) / current_price * 100)
+                if current_price
+                else 0
+            )
+            logger.info(
+                "[DIRECT] Current market price: %.8f (spread: %.2f%%)",
+                current_price,
+                spread_pct,
+            )
+            if spread_pct < -5:
+                logger.warning(
+                    "[DIRECT] ⚠ Large negative spread! May fill immediately or be rejected"
+                )
+        else:
+            logger.warning(
+                "[DIRECT] ⚠ No current market price available for %s", symbol.name
+            )
+
         position = SellPosition(
             config=HPSellConfig(
                 hp_id=self.original_position.config.hp_id,

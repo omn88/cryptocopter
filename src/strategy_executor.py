@@ -405,9 +405,13 @@ class StrategyExecutor:
         # For restoration, preserve existing HP ID; for new positions, generate new one
         parent_hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
         strategy_data.config.hp_id = parent_hp_id
-        logger.info(
-            "Setting up NEW SELL position with config: %s", strategy_data.config
-        )
+        logger.info("[EXECUTOR] ═══ Setting up NEW SELL position ═══")
+        logger.info("[EXECUTOR] HP ID: %s", parent_hp_id)
+        logger.info("[EXECUTOR] Coin: %s", strategy_data.config.coin)
+        logger.info("[EXECUTOR] Symbol: %s", strategy_data.config.symbol.name)
+        logger.info("[EXECUTOR] Quantity: %.8f", strategy_data.config.quantity)
+        logger.info("[EXECUTOR] Sell price: %.8f", strategy_data.config.sell_price)
+        logger.info("[EXECUTOR] Strategy type: %s", type(sell_strategy).__name__)
 
         assert self.client is not None
         assert self.recovery_service is not None
