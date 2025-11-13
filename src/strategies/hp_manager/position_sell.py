@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import queue
-from typing import List
+from typing import List, Optional
 from binance.enums import (
     TIME_IN_FORCE_GTC,
     ORDER_STATUS_PARTIALLY_FILLED,
@@ -27,7 +27,6 @@ from src.common.identifiers import (
     Order,
     SellPosition,
     SellType,
-    State,
     StateInfo,
     SubscriptionInfo,
     SubscriptionTarget,
@@ -36,6 +35,7 @@ from src.common.identifiers import (
     PositionSide,
 )
 from src.portfolio.usd_price_resolver import UsdPriceResolver
+from src.strategies.hp_manager.sell_strategies.base import BaseSellStrategy
 
 
 logger = logging.getLogger("pos_handler")
@@ -46,7 +46,7 @@ class HPPositionSell:
         self,
         client: BinanceClient,
         original_position: SellPosition,
-        sell_strategy: List[Symbol],
+        sell_strategy: Optional[BaseSellStrategy],
         db: Database,
         price_resolver: UsdPriceResolver,
         broker: BrokerSpot,
@@ -128,141 +128,12 @@ class HPPositionSell:
         )
 
     def _build_sell_positions(self) -> None:
+        """Build sell positions using the strategy object."""
         if not self.sell_strategy:
             self.sell_positions = []
+            return
 
-        assert len(self.sell_strategy) <= 2, "Only 1 or 2-hop strategies are supported."
-
-        if len(self.sell_strategy) == 1:
-            self.sell_positions = self._build_1hop_position(self.sell_strategy[0])
-        if len(self.sell_strategy) == 2:
-            self.sell_positions = self._build_2hop_positions(self.sell_strategy)
-
-    def _build_1hop_position(self, symbol: Symbol) -> List[SellPosition]:
-        if not symbol.name.endswith("USDT"):
-            sell_position = SellPosition(
-                config=self.original_position.config,
-                state_info=self.original_position.state_info,
-                sell_order=self._generate_order(
-                    symbol,
-                    quantity=self.original_position.config.quantity,
-                    price=self.original_position.config.sell_price,
-                ),
-                sell_type=SellType.DIRECT,
-            )
-            return [sell_position]
-
-        # Symbol ends with USDT - this is a convert operation
-        # Keep the original config (with clean parent HP ID) for the position
-        sell_position = SellPosition(
-            config=self.original_position.config,
-            state_info=self.original_position.state_info,
-            sell_order=self._generate_order(
-                symbol,
-                quantity=self.original_position.config.quantity,
-                price=self.original_position.config.sell_price,
-            ),
-            sell_type=SellType.CONVERT,
-        )
-        # Add _CONVERT suffix only if not already present (to handle recovery cases)
-        original_hp_id = str(self.original_position.config.hp_id)
-        if not original_hp_id.endswith("_CONVERT"):
-            sell_position.config.hp_id = f"{original_hp_id}_CONVERT"
-        else:
-            sell_position.config.hp_id = original_hp_id
-        return [sell_position]
-
-    def _build_2hop_positions(self, sell_strategy: List[Symbol]) -> List[SellPosition]:
-        original = self.original_position
-        sell_price = original.config.sell_price
-        quantity = original.config.quantity
-
-        leg1 = sell_strategy[0]
-        leg2 = sell_strategy[1]
-
-        leg2_price = self.price_resolver.latest_prices.get(leg2.name)
-        if not leg2_price:
-            raise ValueError(f"{leg2.name} price is missing from feed")
-
-        # Convert target sell_price in USDC to quote token of leg1 (e.g. BTC)
-        price_in_quote = sell_price / leg2.adjust_price(leg2_price)
-
-        leg1_price = leg1.adjust_price(price_in_quote)
-        leg1_quantity = leg1.adjust_quantity(quantity)
-        leg1_quantity_stable = round(leg1_quantity * leg1_price, 8)
-
-        leg2_price_adjusted = leg2.adjust_price(
-            self.price_resolver.latest_prices[leg2.name]
-        )
-        leg2_quantity = leg2.adjust_quantity(leg1_quantity_stable)
-
-        logger.info("Original sell data: %s", original)
-        logger.info("Sell price: %s", sell_price)
-        logger.info("Leg2 price: %s", leg2_price)
-        logger.info("price in quote: %s", price_in_quote)
-
-        logger.info("leg1_price: %s", leg1_price)
-        logger.info("leg1_quantity: %s", leg1_quantity)
-        logger.info("leg2_quantity: %s", leg2_quantity)
-
-        sell_positions = [
-            SellPosition(
-                config=HPSellConfig(
-                    hp_id=f"{self.original_position.config.hp_id}a",
-                    is_child=True,
-                    parent_hp_id=self.original_position.config.hp_id,
-                    symbol=leg1,
-                    quantity=leg1_quantity,
-                    sell_price=leg1_price,
-                    coin=self.original_position.config.coin,
-                    buy_price=self.original_position.config.buy_price / leg2_price,
-                    end_currency=self.original_position.config.end_currency,
-                ),
-                state_info=StateInfo(side=PositionSide.SHORT),
-                sell_order=self._generate_order(
-                    symbol=leg1,
-                    quantity=leg1_quantity,
-                    price=leg1_price,
-                ),
-                sell_type=SellType.TWOHOPS,
-            ),
-            SellPosition(
-                config=HPSellConfig(
-                    hp_id=f"{self.original_position.config.hp_id}b",
-                    is_child=True,
-                    parent_hp_id=self.original_position.config.hp_id,
-                    symbol=leg2,
-                    quantity=leg2_quantity,
-                    sell_price=leg2_price,
-                    coin=leg2.extract_coin_from_symbol(leg2.name),
-                    buy_price=leg2_price,
-                    end_currency=self.original_position.config.end_currency,
-                ),
-                state_info=StateInfo(
-                    side=PositionSide.SHORT, state=State.WAITING_CHILD
-                ),
-                sell_order=self._generate_order(
-                    symbol=leg2,
-                    quantity=leg2.adjust_quantity(leg1_quantity_stable),
-                    price=leg2_price_adjusted,
-                ),
-                sell_type=SellType.TWOHOPS,
-            ),
-        ]
-        logger.info(
-            "[MULTIHOP DEBUG] Created 2-hop positions: %s",
-            [pos.config.hp_id for pos in sell_positions],
-        )
-        return sell_positions
-
-    def _generate_order(self, symbol: Symbol, price: float, quantity: float) -> Order:
-        return Order(
-            quantity=symbol.adjust_quantity(quantity=quantity),
-            price=symbol.adjust_price(price=price),
-            precision=symbol.precision,
-            price_precision=symbol.price_precision,
-            quantity_stable=symbol.adjust_price(price * quantity),
-        )
+        self.sell_positions = self.sell_strategy.build_positions()
 
     async def open_position(self) -> None:
         """Send a list of orders concurrently.
@@ -305,76 +176,12 @@ class HPPositionSell:
     async def recalculate_multihop_prices(self) -> None:
         """Recalculate leg prices using current market data before execution.
 
-        This ensures both legs use fresh market prices at execution time
-        rather than stale prices from position creation time.
+        Delegates to the strategy object which handles the recalculation logic.
         """
-        if len(self.sell_positions) != 2:
-            logger.debug("Not a multihop trade, skipping price recalculation")
-            return  # Not a multihop trade
-
-        # Get symbol info for both legs
-        leg1_position = self.sell_positions[0]
-        leg2_position = self.sell_positions[1]
-        leg1 = leg1_position.config.symbol
-        leg2 = leg2_position.config.symbol
-
-        # Get current market price for leg2
-        current_leg2_price = self.price_resolver.latest_prices.get(leg2.name)
-        if not current_leg2_price:
-            logger.warning(
-                "Missing current price for %s, skipping recalculation",
-                leg2.name,
-            )
+        if not self.sell_strategy:
             return
 
-        # Store old prices for logging
-        old_leg1_price = leg1_position.sell_order.price
-        old_leg2_price = leg2_position.sell_order.price
-
-        # Recalculate leg1 price based on current leg2 price
-        sell_price = self.original_position.config.sell_price
-        current_price_in_quote = sell_price / leg2.adjust_price(current_leg2_price)
-        current_leg1_price = leg1.adjust_price(current_price_in_quote)
-
-        # Calculate leg1 quantity and stable amount
-        leg1_quantity = leg1.adjust_quantity(self.original_position.config.quantity)
-        leg1_quantity_stable = round(leg1_quantity * current_leg1_price, 8)
-
-        # Recalculate leg2 price and quantity
-        current_leg2_price_adjusted = leg2.adjust_price(current_leg2_price)
-        leg2_quantity = leg2.adjust_quantity(leg1_quantity_stable)
-
-        # Update leg1 position with fresh prices
-        leg1_position.sell_order.price = current_leg1_price
-        leg1_position.sell_order.quantity_stable = leg1_quantity_stable
-        leg1_position.config.sell_price = current_leg1_price
-        leg1_position.config.buy_price = (
-            self.original_position.config.buy_price / current_leg2_price
-        )
-
-        # Update leg2 position with fresh prices
-        leg2_position.sell_order.price = current_leg2_price_adjusted
-        leg2_position.sell_order.quantity = leg2_quantity
-        leg2_position.config.sell_price = current_leg2_price
-        leg2_position.config.buy_price = current_leg2_price
-
-        logger.info(
-            "[MULTIHOP PRICE RECALC] Updated prices before execution - "
-            "Leg1: %s -> %s (symbol: %s), Leg2: %s -> %s (symbol: %s)",
-            old_leg1_price,
-            current_leg1_price,
-            leg1.name,
-            old_leg2_price,
-            current_leg2_price_adjusted,
-            leg2.name,
-        )
-        logger.info(
-            "[MULTIHOP PRICE RECALC] Updated quantities - "
-            "Leg1: %s stable: %s, Leg2: %s",
-            leg1_quantity,
-            leg1_quantity_stable,
-            leg2_quantity,
-        )
+        await self.sell_strategy.recalculate_prices(self.sell_positions)
 
     async def cancel_position(self) -> None:
         assert isinstance(self.current_position, SellPosition)

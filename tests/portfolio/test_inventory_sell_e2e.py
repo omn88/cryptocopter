@@ -258,21 +258,12 @@ async def test_inventory_sell_configure_convert_only_usdc_to_pln(
     # Debug: Print actual HP frontend data to understand the structure
     logger.info(f"HP frontend data: {hp_front.hp_list_data}")
 
-    # Validate initial state - parent + convert child (convert creates parent + 1000_CONVERT child)
+    # Validate initial state - convert positions are single positions (no child)
     hp_simulator.validate_parent(
         hp_id=hp_id,
         quantity="200.0",
         state="BOUGHT",
         buy_price="1.12",
-        sell_price="1.4",
-    )
-
-    # For convert positions, there's a child with hp_id = parent_id + "_CONVERT"
-    hp_simulator.validate_child_convert(
-        hp_id=hp_id,
-        quantity="200.0",
-        realized_quantity="200.0",  # Convert child shows inventory quantity
-        state="BOUGHT",  # Convert child state matches parent
         sell_price="1.4",
     )
 
@@ -867,15 +858,6 @@ async def test_inventory_sell_execute_convert_sell_to_completion(
         realized_quantity="0.0",
         state="BOUGHT",
         buy_price="1.12",
-        sell_price="1.4",
-    )
-
-    # For convert positions, there's a child with hp_id = parent_id + "_CONVERT"
-    hp_simulator.validate_child_convert(
-        hp_id=hp_id,
-        quantity="200.0",
-        realized_quantity="200.0",  # Convert child shows inventory quantity
-        state="BOUGHT",  # Convert child state matches parent
         sell_price="1.4",
     )
 

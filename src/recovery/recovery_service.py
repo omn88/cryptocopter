@@ -13,8 +13,8 @@ from typing import List, Dict, Optional, Tuple, Any
 from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_NEW
 
 from src.broker import BrokerSpot
-from src.common.helpers import determine_sell_strategy
 from src.database.trading_database import Database
+from src.strategies.hp_manager.sell_strategies.factory import SellStrategyFactory
 from src.common.client import BinanceClient
 from src.common.identifiers import (
     HPBuyConfig,
@@ -164,7 +164,7 @@ class RecoveryService:
                     sell_order=Order(quantity=0.0),
                 ),
                 db=self.db,
-                sell_strategy=[],
+                sell_strategy=None,
                 price_resolver=price_resolver,
                 broker=self.broker,
                 worker_queue=worker_queue,
@@ -308,9 +308,12 @@ class RecoveryService:
             sell_order=Order(quantity=sell_data.config.quantity),
         )
 
-        # Determine sell strategy for this position
-        sell_strategy = determine_sell_strategy(
-            config=sell_data.config, symbols=self.symbols
+        # Determine sell strategy for this position (returns BaseSellStrategy object)
+        sell_strategy = SellStrategyFactory.create_from_config(
+            config=sell_data.config,
+            symbols=self.symbols,
+            original_position=sell_position,
+            price_resolver=price_resolver,
         )
 
         # For restored positions, extract parent ID for strategy registration
@@ -343,22 +346,9 @@ class RecoveryService:
             ),
             sell_position=HPPositionSell(
                 client=client,
-                original_position=SellPosition(
-                    config=sell_position.config,
-                    state_info=sell_position.state_info,
-                    sell_order=Order(quantity=sell_position.config.quantity),
-                    sell_type=(
-                        SellType.TWOHOPS
-                        if len(sell_strategy) == 2
-                        else (
-                            SellType.CONVERT
-                            if sell_strategy[0].is_convert_only
-                            else SellType.DIRECT
-                        )
-                    ),
-                ),
+                original_position=sell_position,  # sell_type set by strategy.build_positions()
                 db=self.db,
-                sell_strategy=sell_strategy,
+                sell_strategy=sell_strategy,  # Now BaseSellStrategy object
                 price_resolver=price_resolver,
                 broker=self.broker,
                 worker_queue=worker_queue,
@@ -430,7 +420,9 @@ class RecoveryService:
 
         # Setup broker subscriptions (main symbol + additional symbols for multihop)
         additional_symbols = (
-            [s.name for s in sell_strategy[1:]] if len(sell_strategy) > 1 else None
+            [s.name for s in sell_strategy.sell_path[1:]]
+            if len(sell_strategy.sell_path) > 1
+            else None
         )
         self.broker.setup_subscriptions(
             hp_id=str(parent_hp_id),
