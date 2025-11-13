@@ -901,6 +901,13 @@ class StrategyExecutor:
             data=sell.original_position, strategy_state=State.CLOSED
         )
 
+        # Send parent position update to UI
+        self.send_sell_position_to_ui(
+            config=sell.original_position.config,
+            state_info=sell.original_position.state_info,
+            state=State.CLOSED,
+        )
+
         # Remove from active strategies
         if base_hp_id in self.strategies:
             del self.strategies[base_hp_id]
