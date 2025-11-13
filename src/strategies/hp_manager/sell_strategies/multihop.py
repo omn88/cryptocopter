@@ -22,7 +22,7 @@ logger = logging.getLogger("multihop_sell_strategy")
 class MultihopSellStrategy(BaseSellStrategy):
     """Two-hop sell strategy for selling through intermediate pair.
 
-    Example: AXL → BTC → USDC
+    Example: AXL -> BTC -> USDC
     - Leg 1: Sell AXL for BTC (AXLBTC)
     - Leg 2: Sell BTC for USDC (BTCUSDC)
 
@@ -49,7 +49,7 @@ class MultihopSellStrategy(BaseSellStrategy):
         leg1 = self.sell_path[0]
         leg2 = self.sell_path[1]
 
-        # Get current market price for leg2 (intermediate → end)
+        # Get current market price for leg2 (intermediate -> end)
         leg2_price = self.price_resolver.latest_prices.get(leg2.name)
         if not leg2_price:
             raise ValueError(f"{leg2.name} price is missing from feed")
@@ -75,7 +75,7 @@ class MultihopSellStrategy(BaseSellStrategy):
         )
         logger.info("[MULTIHOP] Leg2 quantity: %s", leg2_quantity)
 
-        # Build first leg position (base → intermediate)
+        # Build first leg position (base -> intermediate)
         leg1_position = SellPosition(
             config=HPSellConfig(
                 hp_id=f"{self.original_position.config.hp_id}a",
@@ -97,7 +97,7 @@ class MultihopSellStrategy(BaseSellStrategy):
             sell_type=SellType.TWOHOPS,
         )
 
-        # Build second leg position (intermediate → end)
+        # Build second leg position (intermediate -> end)
         leg2_position = SellPosition(
             config=HPSellConfig(
                 hp_id=f"{self.original_position.config.hp_id}b",
@@ -120,7 +120,7 @@ class MultihopSellStrategy(BaseSellStrategy):
         )
 
         logger.info(
-            "[MULTIHOP] Created 2-hop positions: %s → %s",
+            "[MULTIHOP] Created 2-hop positions: %s -> %s",
             leg1_position.config.hp_id,
             leg2_position.config.hp_id,
         )

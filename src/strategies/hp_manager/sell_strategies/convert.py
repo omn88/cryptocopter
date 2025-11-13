@@ -20,7 +20,7 @@ logger = logging.getLogger("convert_sell_strategy")
 class ConvertSellStrategy(BaseSellStrategy):
     """Convert sell strategy for conversion operations.
 
-    Example: BTC → USDT (using convert API, not limit order)
+    Example: BTC -> USDT (using convert API, not limit order)
 
     Creates one sell position marked for conversion via Binance convert API.
     The actual conversion happens in hp_manager.convert_position().
