@@ -201,10 +201,10 @@ class SellStrategyFactory:
                 price_resolver=price_resolver,
             )
 
-        # Multihop sell: Two symbols (leg1 → leg2)
+        # Multihop sell: Two symbols (leg1 -> leg2)
         if len(sell_path) == 2:
             logger.info(
-                "Creating MultihopSellStrategy for %s → %s",
+                "Creating MultihopSellStrategy for %s -> %s",
                 sell_path[0].name,
                 sell_path[1].name,
             )

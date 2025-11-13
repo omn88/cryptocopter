@@ -217,5 +217,4 @@ class BuyHPModal(BaseHPModal):
             budget=float(self.budget_input.text),
             buy_price=buy_price,
             order_trigger=float(self.order_trigger_spinner.text),
-            mode=self.mode_spinner.text,
         )

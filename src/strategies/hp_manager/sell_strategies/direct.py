@@ -19,7 +19,7 @@ logger = logging.getLogger("direct_sell_strategy")
 class DirectSellStrategy(BaseSellStrategy):
     """Direct sell strategy for single-hop sells to end currency.
 
-    Example: BTC → USDC (BTCUSDC)
+    Example: BTC -> USDC (BTCUSDC)
 
     Creates one sell position that directly sells to the target currency.
     """

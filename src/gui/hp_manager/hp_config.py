@@ -24,7 +24,6 @@ class HPConfiguration:
     buy_price: Optional[float] = None
     budget: Optional[float] = None
     order_trigger: Optional[float] = None
-    mode: Optional[str] = None
 
     # Sell-specific fields
     quantity: Optional[float] = None
