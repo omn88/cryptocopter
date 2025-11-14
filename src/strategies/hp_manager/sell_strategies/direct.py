@@ -37,7 +37,7 @@ class DirectSellStrategy(BaseSellStrategy):
         quantity = symbol.adjust_quantity(self.original_position.config.quantity)
 
         logger.info(
-            "[DIRECT] ═══ Building direct sell position for %s ═══",
+            "[DIRECT] === Building direct sell position for %s ===",
             self.original_position.config.coin,
         )
         logger.info("[DIRECT] Symbol: %s", symbol.name)
@@ -64,11 +64,12 @@ class DirectSellStrategy(BaseSellStrategy):
             )
             if spread_pct < -5:
                 logger.warning(
-                    "[DIRECT] ⚠ Large negative spread! May fill immediately or be rejected"
+                    "[DIRECT] WARNING: Large negative spread! May fill immediately or be rejected"
                 )
         else:
             logger.warning(
-                "[DIRECT] ⚠ No current market price available for %s", symbol.name
+                "[DIRECT] WARNING: No current market price available for %s",
+                symbol.name,
             )
 
         position = SellPosition(

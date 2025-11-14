@@ -379,6 +379,16 @@ class StrategyExecutor:
                 "Current position in standard setup sell: %s",
                 strategy.sell.current_position,
             )
+
+            strategy.portfolio_event_helper.send_sell_creation_event(
+                hp_id=strategy_data.config.hp_id,
+                coin=strategy_data.config.coin,
+                quantity=strategy_data.config.quantity,
+                buy_price=strategy_data.config.buy_price,
+                sell_price=strategy_data.config.sell_price,
+                end_currency=strategy_data.config.end_currency,
+            )
+
         if strategy_data.state_info.state == State.CLOSED:
             logger.info("Closing sell position")
             if strategy.state == State.SELLING:
@@ -405,7 +415,7 @@ class StrategyExecutor:
         # For restoration, preserve existing HP ID; for new positions, generate new one
         parent_hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
         strategy_data.config.hp_id = parent_hp_id
-        logger.info("[EXECUTOR] ═══ Setting up NEW SELL position ═══")
+        logger.info("[EXECUTOR] === Setting up NEW SELL position ===")
         logger.info("[EXECUTOR] HP ID: %s", parent_hp_id)
         logger.info("[EXECUTOR] Coin: %s", strategy_data.config.coin)
         logger.info("[EXECUTOR] Symbol: %s", strategy_data.config.symbol.name)

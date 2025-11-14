@@ -59,7 +59,7 @@ class SellStrategyFactory:
         end_currency = config.end_currency
 
         logger.info(
-            "[FACTORY] ═══ Determining sell path for %s -> %s (qty: %.8f, hp_id: %s) ═══",
+            "[FACTORY] === Determining sell path for %s -> %s (qty: %.8f, hp_id: %s) ===",
             coin,
             end_currency,
             config.quantity,
@@ -69,7 +69,7 @@ class SellStrategyFactory:
         if end_currency == "PLN":
             # Priority 1: Direct pair to PLN
             if f"{coin}PLN" in symbols:
-                logger.info("[FACTORY] ✓ Priority 1: Found direct path %sPLN", coin)
+                logger.info("[FACTORY] > Priority 1: Found direct path %sPLN", coin)
                 sell_path.append(symbols[f"{coin}PLN"])
                 return SellStrategyFactory.create(
                     original_position, sell_path, price_resolver
@@ -77,7 +77,7 @@ class SellStrategyFactory:
 
             # Priority 2: coinUSDC + USDCPLN
             if f"{coin}USDC" in symbols and "USDCPLN" in symbols:
-                logger.info("[FACTORY] ✓ Priority 2: Multihop %sUSDC -> USDCPLN", coin)
+                logger.info("[FACTORY] > Priority 2: Multihop %sUSDC -> USDCPLN", coin)
                 sell_path.append(symbols[f"{coin}USDC"])
                 sell_path.append(symbols["USDCPLN"])
                 return SellStrategyFactory.create(
@@ -90,7 +90,7 @@ class SellStrategyFactory:
                 and f"{coin}BTC" in symbols
                 and "BTCPLN" in symbols
             ):
-                logger.info("[FACTORY] ✓ Priority 3: Multihop %sBTC -> BTCPLN", coin)
+                logger.info("[FACTORY] > Priority 3: Multihop %sBTC -> BTCPLN", coin)
                 sell_path.append(symbols[f"{coin}BTC"])
                 sell_path.append(symbols["BTCPLN"])
                 return SellStrategyFactory.create(
@@ -103,7 +103,7 @@ class SellStrategyFactory:
                 and f"{coin}BNB" in symbols
                 and "BNBPLN" in symbols
             ):
-                logger.info("[FACTORY] ✓ Priority 4: Multihop %sBNB -> BNBPLN", coin)
+                logger.info("[FACTORY] > Priority 4: Multihop %sBNB -> BNBPLN", coin)
                 sell_path.append(symbols[f"{coin}BNB"])
                 sell_path.append(symbols["BNBPLN"])
                 return SellStrategyFactory.create(
@@ -111,7 +111,7 @@ class SellStrategyFactory:
                 )
 
             # Priority 5: Converting
-            logger.info("[FACTORY] ✓ Priority 5: Using convert operation for %s", coin)
+            logger.info("[FACTORY] > Priority 5: Using convert operation for %s", coin)
             # Use USDT symbol for convert operations - ending with USDT indicates conversion
             symbol = symbols[f"{coin}USDT"]
             symbol.is_convert_only = True
@@ -123,7 +123,7 @@ class SellStrategyFactory:
         if end_currency == "USDC":
             # Priority 1: coinUSDC
             if f"{coin}USDC" in symbols:
-                logger.info("[FACTORY] ✓ Priority 1: Found direct path %sUSDC", coin)
+                logger.info("[FACTORY] > Priority 1: Found direct path %sUSDC", coin)
                 sell_path.append(symbols[f"{coin}USDC"])
                 return SellStrategyFactory.create(
                     original_position, sell_path, price_resolver
@@ -135,7 +135,7 @@ class SellStrategyFactory:
                 and f"{coin}BTC" in symbols
                 and "BTCUSDC" in symbols
             ):
-                logger.info("[FACTORY] ✓ Priority 2: Multihop %sBTC -> BTCUSDC", coin)
+                logger.info("[FACTORY] > Priority 2: Multihop %sBTC -> BTCUSDC", coin)
                 sell_path.append(symbols[f"{coin}BTC"])
                 sell_path.append(symbols["BTCUSDC"])
                 return SellStrategyFactory.create(
@@ -151,7 +151,7 @@ class SellStrategyFactory:
                             continue
                         if f"{quote}USDC" in symbols:
                             logger.info(
-                                "[FACTORY] ✓ Priority 3: Exotic multihop %s%s -> %sUSDC",
+                                "[FACTORY] > Priority 3: Exotic multihop %s%s -> %sUSDC",
                                 coin,
                                 quote,
                                 quote,
@@ -163,7 +163,7 @@ class SellStrategyFactory:
                             )
 
             # Priority 4: Converting
-            logger.info("[FACTORY] ✓ Priority 4: Using convert operation for %s", coin)
+            logger.info("[FACTORY] > Priority 4: Using convert operation for %s", coin)
             # Use USDT symbol for convert operations - ending with USDT indicates conversion
             symbol = symbols[f"{coin}USDT"]
             symbol.is_convert_only = True

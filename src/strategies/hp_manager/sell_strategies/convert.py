@@ -40,7 +40,7 @@ class ConvertSellStrategy(BaseSellStrategy):
         quantity = symbol.adjust_quantity(self.original_position.config.quantity)
 
         logger.info(
-            "[CONVERT] ═══ Building convert position for %s ═══",
+            "[CONVERT] === Building convert position for %s ===",
             self.original_position.config.coin,
         )
         logger.info("[CONVERT] Symbol: %s (convert-only)", symbol.name)
@@ -67,7 +67,7 @@ class ConvertSellStrategy(BaseSellStrategy):
             )
             if spread_pct < -5:
                 logger.warning(
-                    "[CONVERT] ⚠ Large negative spread detected! "
+                    "[CONVERT] WARNING: Large negative spread detected! "
                     "Price may be too low: target=%.8f market=%.8f (%.2f%%)",
                     sell_price,
                     current_price,
@@ -75,7 +75,8 @@ class ConvertSellStrategy(BaseSellStrategy):
                 )
         else:
             logger.warning(
-                "[CONVERT] ⚠ No current market price available for %s", symbol.name
+                "[CONVERT] WARNING: No current market price available for %s",
+                symbol.name,
             )
 
         position = SellPosition(

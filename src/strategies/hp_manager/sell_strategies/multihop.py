@@ -68,7 +68,7 @@ class MultihopSellStrategy(BaseSellStrategy):
 
         # Log calculated values for debugging
         logger.info(
-            "[MULTIHOP] ═══ Building 2-hop position for %s (qty: %.8f) ═══",
+            "[MULTIHOP] === Building 2-hop position for %s (qty: %.8f) ===",
             self.original_position.config.coin,
             leg1_quantity,
         )
@@ -163,7 +163,7 @@ class MultihopSellStrategy(BaseSellStrategy):
         leg1 = leg1_position.config.symbol
         leg2 = leg2_position.config.symbol
 
-        logger.info("[MULTIHOP RECALC] ═══ Recalculating prices before execution ═══")
+        logger.info("[MULTIHOP RECALC] === Recalculating prices before execution ===")
         logger.info("[MULTIHOP RECALC] HP ID: %s", self.original_position.config.hp_id)
         logger.info("[MULTIHOP RECALC] Coin: %s", self.original_position.config.coin)
         logger.info("[MULTIHOP RECALC] Path: %s -> %s", leg1.name, leg2.name)
@@ -172,7 +172,7 @@ class MultihopSellStrategy(BaseSellStrategy):
         current_leg2_price = self.price_resolver.latest_prices.get(leg2.name)
         if not current_leg2_price:
             logger.warning(
-                "[MULTIHOP RECALC] ⚠ Missing current price for %s, skipping recalculation",
+                "[MULTIHOP RECALC] WARNING: Missing current price for %s, skipping recalculation",
                 leg2.name,
             )
             return
@@ -218,7 +218,7 @@ class MultihopSellStrategy(BaseSellStrategy):
         leg2_position.config.buy_price = current_leg2_price
 
         logger.info(
-            "[MULTIHOP RECALC] ✓ New prices: Leg1=%.8f (Δ %.8f%%), Leg2=%.8f (Δ %.8f%%)",
+            "[MULTIHOP RECALC] > New prices: Leg1=%.8f (Delta %.8f%%), Leg2=%.8f (Delta %.8f%%)",
             current_leg1_price,
             (
                 ((current_leg1_price - old_leg1_price) / old_leg1_price * 100)
@@ -233,13 +233,13 @@ class MultihopSellStrategy(BaseSellStrategy):
             ),
         )
         logger.info(
-            "[MULTIHOP RECALC] ✓ New quantities: Leg1=%.8f (stable: %.8f), Leg2=%.8f",
+            "[MULTIHOP RECALC] > New quantities: Leg1=%.8f (stable: %.8f), Leg2=%.8f",
             leg1_quantity,
             leg1_quantity_stable,
             leg2_quantity,
         )
         logger.info(
-            "[MULTIHOP RECALC] ✓ Expected total value: %.8f %s",
+            "[MULTIHOP RECALC] > Expected total value: %.8f %s",
             leg2_quantity * current_leg2_price_adjusted,
             self.original_position.config.end_currency,
         )
