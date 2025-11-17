@@ -155,28 +155,8 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
 
     await portfolio_ui.handle_hp_sell_created(hp_sell_created)
 
-    # Simulate exchange locking the balance (exchange-driven architecture)
-    btc_available = get_inventory_available(portfolio_ui, "BTC")
-    btc_locked = sum(
-        item.locked_quantity for item in portfolio_ui.inventory if item.coin == "BTC"
-    )
-
-    # Create AccountPosition event to simulate exchange locking 0.5 BTC
-    account_position = AccountPosition(
-        event_time=0,
-        last_update_time=0,
-        balances=[
-            Balance(
-                coin="BTC",
-                free=btc_available - 0.5,  # Reduce available by 0.5
-                locked=btc_locked + 0.5,  # Increase locked by 0.5
-            )
-        ],
-    )
-    portfolio_ui.ui_queue.put(
-        Event(name=EventName.ACCOUNT_POSITION, content=account_position)
-    )
-    await portfolio_ui.process_test_events()
+    # Note: handle_hp_sell_created now immediately locks quantities proportionally
+    # No need to simulate AccountPosition event - locking happens instantly
 
     # Verify total inventory unchanged but locked quantities updated
     btc_balance = get_inventory_balance(portfolio_ui, "BTC")

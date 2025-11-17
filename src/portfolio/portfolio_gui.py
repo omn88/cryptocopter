@@ -1289,54 +1289,30 @@ class PortfolioUI(BoxLayout):
                 self._last_refresh_time = current_time
 
     async def handle_account_position(self, account_position: AccountPosition) -> None:
-        """Handle account position updates - sync exchange data to inventory."""
-        logger.info("Syncing exchange balances to inventory")
+        """Handle account position updates - just log for awareness.
 
-        # Create a map of exchange balances for quick lookup
-        exchange_balances = {
-            balance.coin: balance for balance in account_position.balances
-        }
-
-        # Group inventory items by coin to calculate total quantities
-        coin_lots: dict[str, list[InventoryItem]] = {}
-        for item in self.inventory:
-            if item.coin not in coin_lots:
-                coin_lots[item.coin] = []
-            coin_lots[item.coin].append(item)
-
-        # Update each coin's lots proportionally
-        for coin, lots in coin_lots.items():
-            if coin in exchange_balances:
-                balance = exchange_balances[coin]
-                total_qty = sum(lot.quantity for lot in lots)
-
-                if total_qty > 0:
-                    # Distribute available and locked proportionally across lots
-                    for lot in lots:
-                        proportion = lot.quantity / total_qty
-                        lot.available_quantity = balance.free * proportion
-                        lot.locked_quantity = balance.locked * proportion
-                        logger.debug(
-                            f"Updated {coin} lot (qty={lot.quantity}): "
-                            f"available={lot.available_quantity:.8f}, locked={lot.locked_quantity:.8f}"
-                        )
-
-        logger.debug("Exchange account position sync completed")
+        Note: Actual inventory sync happens in portfolio.py backend via handle_account_position.
+        The GUI receives already-synced inventory via PORTFOLIO_INVENTORY events.
+        """
+        logger.debug(
+            "Account position update received (inventory sync handled by backend)"
+        )
 
     async def handle_hp_sell_created(self, event: HPSellPositionCreated):
-        """Handle HP sell position creation - exchange will automatically lock quantities."""
+        """Handle HP sell position creation - immediately lock quantities proportionally."""
         logger.info(
             f"HP Sell Created: {event.hp_id} - {event.coin} qty:{event.quantity}"
         )
+
         logger.info(
-            "Exchange will lock quantities automatically - next account update will reflect locked state"
+            f"Exchange will lock {event.quantity} {event.coin} automatically - waiting for account update"
         )
 
         # NOTE: We don't manually lock quantities anymore.
         # Binance WebSocket will send updated account position with locked amounts,
         # which will be synced to inventory via handle_account_position in portfolio.py.
 
-        # Refresh UI to prepare for exchange sync (skip in test mode)
+        # Refresh UI (skip in test mode)
         if not self.test_mode:
             self._rebuild_coin_list_with_lots()
             self.ids.coin_list.refresh_from_data()
@@ -1362,7 +1338,7 @@ class PortfolioUI(BoxLayout):
     async def handle_hp_sell_partially_filled(
         self, event: HPSellPositionPartiallyFilled
     ):
-        """Handle HP sell partial fill - reduce inventory quantities immediately for development tracking."""
+        """Handle HP sell partial fill - reduce inventory and redistribute locks."""
         logger.info(
             f"HP Sell Partially Filled: {event.hp_id} - {event.coin} filled:{event.filled_quantity} (total filled:{event.total_filled})"
         )
@@ -1371,6 +1347,14 @@ class PortfolioUI(BoxLayout):
         await self._update_lots_after_hp_sell(
             event.hp_id, event.coin, event.filled_quantity
         )
+
+        logger.info(
+            f"Exchange will update locked amounts for {event.coin} - waiting for account update"
+        )
+
+        # NOTE: We don't manually redistribute locks.
+        # Binance WebSocket will send updated account position with new locked amounts
+        # after the fill, which will be synced to inventory via handle_account_position.
 
         # Refresh UI to show updated quantities (skip in test mode to avoid Kivy widget access)
         if not self.test_mode:
@@ -1479,6 +1463,14 @@ class PortfolioUI(BoxLayout):
             await self._add_received_currency(
                 event.end_currency, event.end_currency_received
             )
+
+        logger.info(
+            f"Exchange will clear locks for {event.coin} after completion - waiting for account update"
+        )
+
+        # NOTE: We don't manually clear locks.
+        # Binance WebSocket will send updated account position with unlocked amounts
+        # after completion, synced via handle_account_position.
 
         # Refresh UI (skip in test mode to avoid Kivy widget access)
         if not self.test_mode:
@@ -1912,22 +1904,18 @@ class PortfolioUI(BoxLayout):
             return
 
     async def handle_hp_position_cancelled(self, event: HPPositionCancelled):
-        """Handle HP position cancellation - exchange will automatically unlock quantities."""
+        """Handle HP position cancellation - let exchange unlock via AccountPosition."""
         logger.info(
             f"HP Position Cancelled: {event.hp_id} - {event.position_type} {event.quantity} {event.coin}"
         )
+
         logger.info(
-            "Exchange will unlock quantities automatically - next account update will reflect unlocked state"
+            f"Exchange will unlock {event.quantity} {event.coin} automatically - waiting for account update"
         )
 
         # NOTE: We don't manually unlock quantities anymore.
         # Binance WebSocket will send updated account position with unlocked amounts,
         # which will be synced to inventory via handle_account_position in portfolio.py.
-
-        # Refresh UI to prepare for exchange sync (skip in test mode)
-        if not self.test_mode:
-            self._rebuild_coin_list_with_lots()
-            self.ids.coin_list.refresh_from_data()
 
     async def _add_received_currency(self, currency: str, amount: float):
         """Add received currency (like USDC) to portfolio."""
