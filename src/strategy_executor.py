@@ -626,7 +626,9 @@ class StrategyExecutor:
                 if hasattr(sell, "sell_positions") and len(sell.sell_positions) > 1:
                     await self._cancel_multihop_sell(strategy, hp_id, base_hp_id)
                 else:
-                    # Single sell position cancellation
+                    # Single sell position cancellation - cancel exchange order first
+                    await sell.cancel_remaining_order()
+                    
                     strategy.portfolio_event_helper.send_cancellation_event(
                         hp_id,
                         sell.current_position.config.coin,
