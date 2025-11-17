@@ -4,7 +4,13 @@ import asyncio
 import pytest
 import logging
 
-from src.common.identifiers import HPSellPositionCreated
+from src.common.identifiers import (
+    HPSellPositionCreated,
+    AccountPosition,
+    Balance,
+    Event,
+    EventName,
+)
 from tests.strategies.hp.hp_simulator import HPSimulator, wait_for_condition
 
 
@@ -32,6 +38,23 @@ async def test_comprehensive_portfolio_crash_recovery(portfolio_crash_recovery_f
         "original"
     )
 
+    # Initialize exchange balances (simulates WebSocket initial sync)
+    coin_totals = {}
+    for item in portfolio_ui_orig.inventory:
+        coin_totals[item.coin] = coin_totals.get(item.coin, 0.0) + item.quantity
+
+    balances = [
+        Balance(coin=coin, free=total, locked=0.0)
+        for coin, total in coin_totals.items()
+    ]
+    account_position = AccountPosition(
+        event_time=0, last_update_time=0, balances=balances
+    )
+    portfolio_ui_orig.ui_queue.put(
+        Event(name=EventName.ACCOUNT_POSITION, content=account_position)
+    )
+    await portfolio_ui_orig.process_test_events()
+
     # Create sell events that will lock inventory
     btc_sell_event = HPSellPositionCreated(
         hp_id="1001",
@@ -53,7 +76,52 @@ async def test_comprehensive_portfolio_crash_recovery(portfolio_crash_recovery_f
 
     # Handle events to lock inventory and save to database
     await portfolio_ui_orig.handle_hp_sell_created(btc_sell_event)
+    # Simulate exchange locking the BTC quantity
+    btc_available = sum(
+        item.available_quantity
+        for item in portfolio_ui_orig.inventory
+        if item.coin == "BTC"
+    )
+    btc_locked = sum(
+        item.locked_quantity
+        for item in portfolio_ui_orig.inventory
+        if item.coin == "BTC"
+    )
+    account_position = AccountPosition(
+        event_time=0,
+        last_update_time=0,
+        balances=[
+            Balance(coin="BTC", free=btc_available - 0.6, locked=btc_locked + 0.6)
+        ],
+    )
+    portfolio_ui_orig.ui_queue.put(
+        Event(name=EventName.ACCOUNT_POSITION, content=account_position)
+    )
+    await portfolio_ui_orig.process_test_events()
+
     await portfolio_ui_orig.handle_hp_sell_created(eth_sell_event)
+    # Simulate exchange locking the ETH quantity
+    eth_available = sum(
+        item.available_quantity
+        for item in portfolio_ui_orig.inventory
+        if item.coin == "ETH"
+    )
+    eth_locked = sum(
+        item.locked_quantity
+        for item in portfolio_ui_orig.inventory
+        if item.coin == "ETH"
+    )
+    account_position = AccountPosition(
+        event_time=0,
+        last_update_time=0,
+        balances=[
+            Balance(coin="ETH", free=eth_available - 1.5, locked=eth_locked + 1.5)
+        ],
+    )
+    portfolio_ui_orig.ui_queue.put(
+        Event(name=EventName.ACCOUNT_POSITION, content=account_position)
+    )
+    await portfolio_ui_orig.process_test_events()
 
     # Verify original locking worked
     btc_locked_orig = sum(
@@ -85,7 +153,30 @@ async def test_comprehensive_portfolio_crash_recovery(portfolio_crash_recovery_f
         create_portfolio_hp_setup("recovered")
     )
 
-    # Verify inventory locking persisted through crash
+    # Initialize exchange balances for recovered setup
+    # In production, this would come from real WebSocket with current locked state from exchange
+    # Simulate the exchange reporting that quantities are still locked (HP positions still active)
+    coin_totals = {}
+    for item in portfolio_ui_recovered.inventory:
+        coin_totals[item.coin] = coin_totals.get(item.coin, 0.0) + item.quantity
+
+    # Simulate exchange reporting BTC and ETH are locked (positions still active on exchange)
+    balances = [
+        Balance(coin="BTC", free=coin_totals["BTC"] - 0.6, locked=0.6),
+        Balance(coin="ETH", free=coin_totals["ETH"] - 1.5, locked=1.5),
+    ]
+    # Add other coins as fully available
+    for coin, total in coin_totals.items():
+        if coin not in ["BTC", "ETH"]:
+            balances.append(Balance(coin=coin, free=total, locked=0.0))
+
+    account_position = AccountPosition(
+        event_time=0, last_update_time=0, balances=balances
+    )
+    portfolio_ui_recovered.ui_queue.put(
+        Event(name=EventName.ACCOUNT_POSITION, content=account_position)
+    )
+    await portfolio_ui_recovered.process_test_events()  # Verify inventory locking is restored from exchange after crash
     btc_locked_recovered = sum(
         getattr(item, "locked_quantity", 0)
         for item in portfolio_ui_recovered.inventory
@@ -97,13 +188,14 @@ async def test_comprehensive_portfolio_crash_recovery(portfolio_crash_recovery_f
         if getattr(item, "coin", "") == "ETH"
     )
 
-    # The database should have preserved the locked state
+    # The exchange maintains lock state across application restarts
+    # After WebSocket sync, locked quantities should be restored
     assert (
         btc_locked_recovered >= 0.6
-    ), f"BTC locking should survive crash (got {btc_locked_recovered})"
+    ), f"BTC locking should be restored from exchange (got {btc_locked_recovered})"
     assert (
         eth_locked_recovered >= 1.5
-    ), f"ETH locking should survive crash (got {eth_locked_recovered})"
+    ), f"ETH locking should be restored from exchange (got {eth_locked_recovered})"
 
     logger.info(f"✓ Crash recovery successful!")
     logger.info(f"  BTC: {btc_locked_orig} → {btc_locked_recovered}")
@@ -123,6 +215,28 @@ async def test_comprehensive_portfolio_crash_recovery(portfolio_crash_recovery_f
     )
 
     await portfolio_ui_recovered.handle_hp_sell_created(dym_sell_event)
+    # Simulate exchange locking the DYM quantity
+    dym_available = sum(
+        item.available_quantity
+        for item in portfolio_ui_recovered.inventory
+        if item.coin == "DYM"
+    )
+    dym_locked = sum(
+        item.locked_quantity
+        for item in portfolio_ui_recovered.inventory
+        if item.coin == "DYM"
+    )
+    account_position = AccountPosition(
+        event_time=0,
+        last_update_time=0,
+        balances=[
+            Balance(coin="DYM", free=dym_available - 50.0, locked=dym_locked + 50.0)
+        ],
+    )
+    portfolio_ui_recovered.ui_queue.put(
+        Event(name=EventName.ACCOUNT_POSITION, content=account_position)
+    )
+    await portfolio_ui_recovered.process_test_events()
 
     # Verify new locking works on recovered system
     dym_locked_recovered = sum(
@@ -153,7 +267,22 @@ async def test_selective_component_crash_recovery(portfolio_crash_recovery_facto
     logger.info("Creating setup for selective crash testing")
     portfolio_ui, hp_frontend, backend = create_portfolio_hp_setup("selective_test")
 
-    # Create a sell position to establish some state
+    # Initialize exchange balances
+    coin_totals = {}
+    for item in portfolio_ui.inventory:
+        coin_totals[item.coin] = coin_totals.get(item.coin, 0.0) + item.quantity
+
+    balances = [
+        Balance(coin=coin, free=total, locked=0.0)
+        for coin, total in coin_totals.items()
+    ]
+    account_position = AccountPosition(
+        event_time=0, last_update_time=0, balances=balances
+    )
+    portfolio_ui.ui_queue.put(
+        Event(name=EventName.ACCOUNT_POSITION, content=account_position)
+    )
+    await portfolio_ui.process_test_events()  # Create a sell position to establish some state
     sell_event = HPSellPositionCreated(
         hp_id="2001",
         coin="AXL",
@@ -165,7 +294,24 @@ async def test_selective_component_crash_recovery(portfolio_crash_recovery_facto
 
     await portfolio_ui.handle_hp_sell_created(sell_event)
 
-    # Verify initial state
+    # Simulate exchange locking the position
+    axl_available = sum(
+        item.available_quantity for item in portfolio_ui.inventory if item.coin == "AXL"
+    )
+    axl_locked = sum(
+        item.locked_quantity for item in portfolio_ui.inventory if item.coin == "AXL"
+    )
+    account_position = AccountPosition(
+        event_time=0,
+        last_update_time=0,
+        balances=[
+            Balance(coin="AXL", free=axl_available - 100.0, locked=axl_locked + 100.0)
+        ],
+    )
+    portfolio_ui.ui_queue.put(
+        Event(name=EventName.ACCOUNT_POSITION, content=account_position)
+    )
+    await portfolio_ui.process_test_events()  # Verify initial state
     axl_locked_initial = sum(
         getattr(item, "locked_quantity", 0)
         for item in portfolio_ui.inventory
@@ -183,7 +329,25 @@ async def test_selective_component_crash_recovery(portfolio_crash_recovery_facto
     # Test 2: Create new portfolio (simulating portfolio app restart)
     portfolio_ui_new, _, _ = create_portfolio_hp_setup("portfolio_recovered")
 
-    # Verify portfolio state survived (HP and backend still running)
+    # Initialize exchange balances for recovered portfolio
+    # In production, the exchange WebSocket would report current locked state
+    coin_totals = {}
+    for item in portfolio_ui_new.inventory:
+        coin_totals[item.coin] = coin_totals.get(item.coin, 0.0) + item.quantity
+
+    # Simulate exchange reporting that AXL is still locked (HP position still active)
+    balances = [Balance(coin="AXL", free=coin_totals["AXL"] - 100.0, locked=100.0)]
+    for coin, total in coin_totals.items():
+        if coin != "AXL":
+            balances.append(Balance(coin=coin, free=total, locked=0.0))
+
+    account_position = AccountPosition(
+        event_time=0, last_update_time=0, balances=balances
+    )
+    portfolio_ui_new.ui_queue.put(
+        Event(name=EventName.ACCOUNT_POSITION, content=account_position)
+    )
+    await portfolio_ui_new.process_test_events()  # Verify portfolio state survived (HP and backend still running)
     axl_locked_recovered = sum(
         getattr(item, "locked_quantity", 0)
         for item in portfolio_ui_new.inventory
@@ -216,7 +380,22 @@ async def test_multihop_inventory_locking_crash_recovery(
 
     portfolio_ui, hp_frontend, backend = create_portfolio_hp_setup("multihop_original")
 
-    # Create simulator for multihop operations
+    # Initialize exchange balances
+    coin_totals = {}
+    for item in portfolio_ui.inventory:
+        coin_totals[item.coin] = coin_totals.get(item.coin, 0.0) + item.quantity
+
+    balances = [
+        Balance(coin=coin, free=total, locked=0.0)
+        for coin, total in coin_totals.items()
+    ]
+    account_position = AccountPosition(
+        event_time=0, last_update_time=0, balances=balances
+    )
+    portfolio_ui.ui_queue.put(
+        Event(name=EventName.ACCOUNT_POSITION, content=account_position)
+    )
+    await portfolio_ui.process_test_events()  # Create simulator for multihop operations
     sim = HPSimulator(front=hp_frontend, back=backend)
 
     # Get initial AXL inventory state
@@ -247,7 +426,24 @@ async def test_multihop_inventory_locking_crash_recovery(
         f"Created HP position: {hp_position['hp_id']} - {hp_position['coin']} qty:{hp_position['quantity']}"
     )
 
-    # Wait for inventory locking to be processed
+    # Simulate exchange locking the position
+    axl_available = sum(
+        item.available_quantity for item in portfolio_ui.inventory if item.coin == "AXL"
+    )
+    axl_locked = sum(
+        item.locked_quantity for item in portfolio_ui.inventory if item.coin == "AXL"
+    )
+    account_position = AccountPosition(
+        event_time=0,
+        last_update_time=0,
+        balances=[
+            Balance(coin="AXL", free=axl_available - 500.0, locked=axl_locked + 500.0)
+        ],
+    )
+    portfolio_ui.ui_queue.put(
+        Event(name=EventName.ACCOUNT_POSITION, content=account_position)
+    )
+    await portfolio_ui.process_test_events()  # Wait for inventory locking to be processed
     await portfolio_ui.process_test_events()
     await asyncio.sleep(1.0)
 
@@ -286,7 +482,25 @@ async def test_multihop_inventory_locking_crash_recovery(
         create_portfolio_hp_setup("multihop_recovered")
     )
 
-    # Manually trigger crash recovery to restore HP positions
+    # Initialize exchange balances for recovered setup
+    # In production, exchange WebSocket would report current locked state
+    coin_totals = {}
+    for item in portfolio_ui_recovered.inventory:
+        coin_totals[item.coin] = coin_totals.get(item.coin, 0.0) + item.quantity
+
+    # Simulate exchange reporting AXL is still locked (HP position still active)
+    balances = [Balance(coin="AXL", free=coin_totals["AXL"] - 500.0, locked=500.0)]
+    for coin, total in coin_totals.items():
+        if coin != "AXL":
+            balances.append(Balance(coin=coin, free=total, locked=0.0))
+
+    account_position = AccountPosition(
+        event_time=0, last_update_time=0, balances=balances
+    )
+    portfolio_ui_recovered.ui_queue.put(
+        Event(name=EventName.ACCOUNT_POSITION, content=account_position)
+    )
+    await portfolio_ui_recovered.process_test_events()  # Manually trigger crash recovery to restore HP positions
     logger.info("Triggering crash recovery...")
     await backend_recovered.recover_positions_from_crash()
 

@@ -890,6 +890,25 @@ async def portfolio_hp_backend_setup(
     # Note: hp_gui does NOT have a direct portfolio reference in real implementation
     # It only has portfolio_queue for communication
 
+    # Initialize exchange balances to match inventory (simulates initial WebSocket sync)
+    from src.common.identifiers import AccountPosition, Balance, Event, EventName
+
+    coin_totals: dict[str, float] = {}
+    for item in portfolio_ui.inventory:
+        coin_totals[item.coin] = coin_totals.get(item.coin, 0.0) + item.quantity
+
+    balances = [
+        Balance(coin=coin, free=total, locked=0.0)
+        for coin, total in coin_totals.items()
+    ]
+    account_position = AccountPosition(
+        event_time=0, last_update_time=0, balances=balances
+    )
+    portfolio_ui.ui_queue.put(
+        Event(name=EventName.ACCOUNT_POSITION, content=account_position)
+    )
+    await portfolio_ui.process_test_events()
+
     yield portfolio_ui, hp_gui, strategy_executor_fixture
 
     if strategy_executor_fixture.strategies:

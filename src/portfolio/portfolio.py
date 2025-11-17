@@ -329,11 +329,71 @@ class PortfolioManager:
             return False
 
     async def handle_account_position(self, account_position: AccountPosition) -> None:
-        """Handle account position updates (forward to UI only - inventory is managed separately)."""
-        logger.info("Handling account position update - forwarding to UI.")
+        """Handle account position updates - sync exchange data to inventory."""
+        logger.info("Syncing exchange balances to inventory")
 
-        # Simply forward the account position to UI
-        # The inventory is managed separately through database operations
+        # Create a map of exchange balances for quick lookup
+        exchange_balances = {
+            balance.coin: balance for balance in account_position.balances
+        }
+
+        # Update inventory items with real-time exchange data
+        for item in self.inventory:
+            if item.coin in exchange_balances:
+                balance = exchange_balances[item.coin]
+
+                # Store old values for change detection
+                old_available = item.available_quantity
+                old_locked = item.locked_quantity
+
+                # Update with real Binance data (runtime only, not persisted to DB)
+                item.available_quantity = balance.free
+                item.locked_quantity = balance.locked
+
+                # Log significant changes for debugging
+                if abs(old_available - balance.free) > 0.00001:
+                    logger.debug(
+                        "[EXCHANGE SYNC] %s available: %.8f -> %.8f",
+                        item.coin,
+                        old_available,
+                        balance.free,
+                    )
+                if abs(old_locked - balance.locked) > 0.00001:
+                    logger.debug(
+                        "[EXCHANGE SYNC] %s locked: %.8f -> %.8f",
+                        item.coin,
+                        old_locked,
+                        balance.locked,
+                    )
+            else:
+                # Coin in DB but not on exchange - zero out exchange fields
+                if item.available_quantity != 0 or item.locked_quantity != 0:
+                    logger.info(
+                        "[EXCHANGE SYNC] %s not on exchange, zeroing exchange fields",
+                        item.coin,
+                    )
+                    item.available_quantity = 0.0
+                    item.locked_quantity = 0.0
+
+        # Check for coins on exchange not in DB (optional warning for validation)
+        for coin, balance in exchange_balances.items():
+            total_on_exchange = balance.free + balance.locked
+            if total_on_exchange > 0.001:  # Ignore dust amounts
+                if not any(item.coin == coin for item in self.inventory):
+                    logger.warning(
+                        "[EXCHANGE SYNC] %s exists on exchange (free=%.8f, locked=%.8f) "
+                        "but not in inventory DB - consider adding to inventory",
+                        coin,
+                        balance.free,
+                        balance.locked,
+                    )
+
+        # Notify UI of updated inventory with exchange data
+        self.ui_queue.put_nowait(
+            Event(name=EventName.PORTFOLIO_INVENTORY, content=self.inventory)
+        )
+
+        # Also forward account position for other potential uses
         self.ui_queue.put_nowait(
             Event(name=EventName.ACCOUNT_POSITION, content=account_position)
         )

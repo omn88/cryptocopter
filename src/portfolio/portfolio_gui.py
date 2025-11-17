@@ -1014,6 +1014,73 @@ class PortfolioUI(BoxLayout):
         pnl_percentage = ((current_price - buy_price) / buy_price) * 100
         return f"{pnl_percentage:+.2f}%"
 
+    def _get_exchange_available(self, coin: str) -> float:
+        """Get real-time available quantity from exchange (sum across all lots).
+
+        This reflects what's actually available to sell on Binance right now.
+        """
+        total_available = 0.0
+
+        for item in self.inventory:
+            if item.coin == coin:
+                total_available += item.available_quantity
+
+        return total_available
+
+    def _get_exchange_locked(self, coin: str) -> float:
+        """Get real-time locked quantity from exchange (sum across all lots).
+
+        This reflects what's locked in pending orders on Binance.
+        """
+        total_locked = 0.0
+
+        for item in self.inventory:
+            if item.coin == coin:
+                total_locked += item.locked_quantity
+
+        return total_locked
+
+    def _get_database_quantity(self, coin: str) -> float:
+        """Get total quantity from database records (sum across all lots).
+
+        This reflects your total portfolio tracking (Binance + external storage).
+        """
+        total_quantity = 0.0
+
+        for item in self.inventory:
+            if item.coin == coin:
+                total_quantity += item.quantity
+
+        return total_quantity
+
+    def validate_sell_quantity(self, coin: str, quantity: float) -> tuple[bool, str]:
+        """Validate if we can sell the requested quantity against exchange availability.
+
+        Args:
+            coin: The coin to validate
+            quantity: The quantity we want to sell
+
+        Returns:
+            (is_valid, error_message) - error_message is empty string if valid
+        """
+        available = self._get_exchange_available(coin)
+
+        if quantity > available:
+            db_total = self._get_database_quantity(coin)
+            exchange_total = available + self._get_exchange_locked(coin)
+
+            error_msg = (
+                f"Insufficient balance on exchange:\n"
+                f"Requested: {quantity:.8f} {coin}\n"
+                f"Available on Binance: {available:.8f} {coin}\n"
+                f"Locked on Binance: {self._get_exchange_locked(coin):.8f} {coin}\n"
+                f"Total in DB: {db_total:.8f} {coin}\n\n"
+                f"Please transfer {(quantity - available):.8f} {coin} to Binance first."
+            )
+            return False, error_msg
+
+        return True, ""
+
     async def update_ui(self) -> None:
         while not self.test_mode:  # Exit loop immediately in test mode
             try:
@@ -1053,11 +1120,7 @@ class PortfolioUI(BoxLayout):
             self.set_inventory(data.content)
         if data.name == EventName.ACCOUNT_POSITION:
             assert isinstance(data.content, AccountPosition)
-            # Don't update inventory from account positions - inventory is managed separately
-            # Account positions only show exchange balances, not full portfolio inventory
-            logger.debug(
-                f"[PORTFOLIO GUI DEBUG] Received ACCOUNT_POSITION but ignoring - inventory managed separately"
-            )
+            await self.handle_account_position(data.content)
         if data.name == EventName.PRICE_UPDATES:
             assert isinstance(data.content, PriceUpdates)
             # Update saldo in USD and BTC
@@ -1225,65 +1288,73 @@ class PortfolioUI(BoxLayout):
                 self.ids.coin_list.refresh_from_data()
                 self._last_refresh_time = current_time
 
+    async def handle_account_position(self, account_position: AccountPosition) -> None:
+        """Handle account position updates - sync exchange data to inventory."""
+        logger.info("Syncing exchange balances to inventory")
+
+        # Create a map of exchange balances for quick lookup
+        exchange_balances = {
+            balance.coin: balance for balance in account_position.balances
+        }
+
+        # Group inventory items by coin to calculate total quantities
+        coin_lots: dict[str, list[InventoryItem]] = {}
+        for item in self.inventory:
+            if item.coin not in coin_lots:
+                coin_lots[item.coin] = []
+            coin_lots[item.coin].append(item)
+
+        # Update each coin's lots proportionally
+        for coin, lots in coin_lots.items():
+            if coin in exchange_balances:
+                balance = exchange_balances[coin]
+                total_qty = sum(lot.quantity for lot in lots)
+
+                if total_qty > 0:
+                    # Distribute available and locked proportionally across lots
+                    for lot in lots:
+                        proportion = lot.quantity / total_qty
+                        lot.available_quantity = balance.free * proportion
+                        lot.locked_quantity = balance.locked * proportion
+                        logger.debug(
+                            f"Updated {coin} lot (qty={lot.quantity}): "
+                            f"available={lot.available_quantity:.8f}, locked={lot.locked_quantity:.8f}"
+                        )
+
+        logger.debug("Exchange account position sync completed")
+
     async def handle_hp_sell_created(self, event: HPSellPositionCreated):
-        """Handle HP sell position creation - lock quantities using FIFO from lowest buy price."""
+        """Handle HP sell position creation - exchange will automatically lock quantities."""
         logger.info(
             f"HP Sell Created: {event.hp_id} - {event.coin} qty:{event.quantity}"
         )
+        logger.info(
+            "Exchange will lock quantities automatically - next account update will reflect locked state"
+        )
 
-        # Find the parent coin
-        parent_coin = None
-        for coin in self.coin_list_data:
-            if not coin.get("is_lot_row", False) and coin["symbol"] == event.coin:
-                parent_coin = coin
-                break
+        # NOTE: We don't manually lock quantities anymore.
+        # Binance WebSocket will send updated account position with locked amounts,
+        # which will be synced to inventory via handle_account_position in portfolio.py.
 
-        if not parent_coin:
-            logger.warning("Parent coin %s not found for HP sell", event.coin)
-            return
-
-        # Lock quantities using FIFO (lowest buy price first)
-        await self._lock_quantities_fifo(event.coin, event.quantity)
-
-        # Refresh UI to show locked quantities (skip in test mode to avoid Kivy widget access)
+        # Refresh UI to prepare for exchange sync (skip in test mode)
         if not self.test_mode:
             self._rebuild_coin_list_with_lots()
             self.ids.coin_list.refresh_from_data()
 
     async def handle_hp_buy_orders_placed(self, event: HPBuyOrdersPlaced):
-        """Handle HP buy orders placement - lock budget in end currency (usually USDC)."""
+        """Handle HP buy orders placed - exchange will automatically lock budget."""
         logger.info(
-            f"HP Buy Orders Placed: {event.hp_id} - {event.coin} budget:{event.budget_amount} {event.end_currency}"
+            f"HP Buy Orders Placed: {event.hp_id} - {event.budget_amount} {event.end_currency} will be locked by exchange"
+        )
+        logger.info(
+            "Exchange will lock budget automatically - next account update will reflect locked state"
         )
 
-        # Find the parent coin (end currency, usually USDC)
-        parent_coin = None
-        for coin in self.coin_list_data:
-            if (
-                not coin.get("is_lot_row", False)
-                and coin["symbol"] == event.end_currency
-            ):
-                parent_coin = coin
-                break
+        # NOTE: We don't manually lock budget anymore.
+        # Binance WebSocket will send updated account position with locked amounts,
+        # which will be synced to inventory via handle_account_position in portfolio.py.
 
-        if not parent_coin:
-            logger.warning(
-                f"Parent coin {event.end_currency} not found for HP buy budget locking"
-            )
-            return
-
-        # Lock budget using FIFO (lowest buy price first) - same as sell position locking
-        await self._lock_quantities_fifo(event.end_currency, event.budget_amount)
-
-        # Track the locked amount for this HP ID and currency for later unlocking
-        if event.hp_id not in self._hp_locked_amounts:
-            self._hp_locked_amounts[event.hp_id] = {}
-        self._hp_locked_amounts[event.hp_id][event.end_currency] = event.budget_amount
-        logger.debug(
-            f"Tracking locked amount: HP {event.hp_id} -> {event.budget_amount} {event.end_currency}"
-        )
-
-        # Refresh UI to show locked quantities (skip in test mode to avoid Kivy widget access)
+        # Refresh UI to prepare for exchange sync (skip in test mode)
         if not self.test_mode:
             self._rebuild_coin_list_with_lots()
             self.ids.coin_list.refresh_from_data()
@@ -1520,90 +1591,6 @@ class PortfolioUI(BoxLayout):
             }
             self.coin_list_data.append(new_coin)
             logger.info("Created new parent coin entry for %s", coin)
-
-    async def _lock_quantities_fifo(self, coin: str, quantity_to_lock: float):
-        """Lock quantities using FIFO (lowest buy price first)."""
-        # Find the parent coin
-        parent_coin = None
-        for coin_data in self.coin_list_data:
-            if not coin_data.get("is_lot_row", False) and coin_data["symbol"] == coin:
-                parent_coin = coin_data
-                break
-
-        if not parent_coin or not parent_coin.get("lots"):
-            logger.warning("No lots found for %s to lock quantities", coin)
-            return
-
-        # Sort lots by buy price (lowest first) for FIFO locking
-        lots = parent_coin["lots"]
-        lots.sort(
-            key=lambda lot: (
-                getattr(lot, "buy_price", 0)
-                if hasattr(lot, "buy_price")
-                else lot.get("buy_price", 0)
-            )
-        )
-
-        remaining_to_lock = quantity_to_lock
-
-        for lot in lots:
-            if remaining_to_lock <= 0:
-                break
-
-            if hasattr(lot, "available_quantity"):  # InventoryItem object
-                available = lot.available_quantity
-            else:  # Dictionary (shouldn't happen with real inventory but safety check)
-                available = float(lot.get("available_quantity", 0))
-
-            # Calculate how much we can lock from this lot
-            can_lock = min(available, remaining_to_lock)
-
-            if can_lock > 0:
-                # Update lot quantities
-                if hasattr(lot, "available_quantity"):  # InventoryItem object
-                    lot.available_quantity -= can_lock
-                    lot.locked_quantity += can_lock
-
-                    # CRITICAL FIX: Persist locked quantities to database
-                    try:
-                        await self.db.update_inventory_item(lot)
-                        logger.debug(
-                            f"Persisted lock state to database for lot {lot.id}"
-                        )
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to persist locked quantity to database: {e}"
-                        )
-
-                remaining_to_lock -= can_lock
-                logger.debug(
-                    f"Locked {can_lock} from lot at price {getattr(lot, 'buy_price', 'unknown')}"
-                )
-
-        # Update parent available quantity
-        total_available = sum(
-            (
-                getattr(lot, "available_quantity", 0)
-                if hasattr(lot, "available_quantity")
-                else lot.get("available_quantity", 0)
-            )
-            for lot in lots
-        )
-        total_locked = sum(
-            (
-                getattr(lot, "locked_quantity", 0)
-                if hasattr(lot, "locked_quantity")
-                else lot.get("locked_quantity", 0)
-            )
-            for lot in lots
-        )
-
-        parent_coin["available_qty"] = str(total_available)
-        parent_coin["locked_qty"] = str(total_locked)
-
-        logger.info(
-            f"Locked {quantity_to_lock - remaining_to_lock} {coin}. Remaining available: {total_available}, Locked: {total_locked}"
-        )
 
     async def handle_hp_buy_filled(self, event: HPBuyPositionFilled):
         """Handle HP buy position filled - add new inventory to portfolio."""
@@ -1925,122 +1912,22 @@ class PortfolioUI(BoxLayout):
             return
 
     async def handle_hp_position_cancelled(self, event: HPPositionCancelled):
-        """Handle HP position cancellation - unlock quantities that were locked."""
+        """Handle HP position cancellation - exchange will automatically unlock quantities."""
         logger.info(
-            f"[PORTFOLIO CANCELLATION] HP Position Cancelled: {event.hp_id} - {event.position_type} {event.quantity} {event.coin}"
+            f"HP Position Cancelled: {event.hp_id} - {event.position_type} {event.quantity} {event.coin}"
         )
-        logger.info("[PORTFOLIO CANCELLATION] Test mode: %s", self.test_mode)
         logger.info(
-            f"[PORTFOLIO CANCELLATION] Before unlock - {event.coin} locked quantity check..."
+            "Exchange will unlock quantities automatically - next account update will reflect unlocked state"
         )
 
-        if event.position_type == "SELL":
-            # Unlock quantities that were locked for this sell position
-            logger.info(
-                f"[PORTFOLIO CANCELLATION] Processing SELL cancellation for {event.coin}"
-            )
-            await self._unlock_quantities_fifo(event.coin, event.quantity)
-            logger.info(
-                f"[PORTFOLIO CANCELLATION] Completed unlock operation for {event.coin}"
-            )
-        elif event.position_type == "BUY":
-            # For buy positions, unlock the budget that was locked when orders were placed
-            logger.info(
-                f"[PORTFOLIO CANCELLATION] Processing BUY cancellation for {event.coin}"
-            )
-            await self._unlock_quantities_fifo(event.coin, event.quantity)
-            logger.info(
-                f"[PORTFOLIO CANCELLATION] Completed budget unlock operation for {event.coin}"
-            )
+        # NOTE: We don't manually unlock quantities anymore.
+        # Binance WebSocket will send updated account position with unlocked amounts,
+        # which will be synced to inventory via handle_account_position in portfolio.py.
 
-        # Refresh UI (skip in test mode to avoid Kivy widget access)
+        # Refresh UI to prepare for exchange sync (skip in test mode)
         if not self.test_mode:
             self._rebuild_coin_list_with_lots()
             self.ids.coin_list.refresh_from_data()
-
-    async def _unlock_quantities_fifo(self, coin: str, quantity_to_unlock: float):
-        """Unlock quantities using FIFO (same order as locking)."""
-        # Find the parent coin
-        parent_coin = None
-        for coin_data in self.coin_list_data:
-            if not coin_data.get("is_lot_row", False) and coin_data["symbol"] == coin:
-                parent_coin = coin_data
-                break
-
-        if not parent_coin or not parent_coin.get("lots"):
-            logger.warning("No lots found for %s to unlock quantities", coin)
-            return
-
-        # Sort lots by buy price (lowest first) for FIFO unlocking
-        lots = parent_coin["lots"]
-        lots.sort(
-            key=lambda lot: (
-                getattr(lot, "buy_price", 0)
-                if hasattr(lot, "buy_price")
-                else lot.get("buy_price", 0)
-            )
-        )
-
-        remaining_to_unlock = quantity_to_unlock
-
-        for lot in lots:
-            if remaining_to_unlock <= 0:
-                break
-
-            if hasattr(lot, "locked_quantity"):  # InventoryItem object
-                locked = lot.locked_quantity
-            else:  # Dictionary (shouldn't happen with real inventory but safety check)
-                locked = float(lot.get("locked_quantity", 0))
-
-            # Calculate how much we can unlock from this lot
-            can_unlock = min(locked, remaining_to_unlock)
-
-            if can_unlock > 0:
-                # Update lot quantities
-                if hasattr(lot, "locked_quantity"):  # InventoryItem object
-                    lot.locked_quantity -= can_unlock
-                    lot.available_quantity += can_unlock
-
-                    # CRITICAL FIX: Persist unlocked quantities to database
-                    try:
-                        await self.db.update_inventory_item(lot)
-                        logger.debug(
-                            f"Persisted unlock state to database for lot {lot.id}"
-                        )
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to persist unlocked quantity to database: {e}"
-                        )
-
-                remaining_to_unlock -= can_unlock
-                logger.debug(
-                    f"Unlocked {can_unlock} from lot at price {getattr(lot, 'buy_price', 'unknown')}"
-                )
-
-        # Update parent available/locked quantities
-        total_available = sum(
-            (
-                getattr(lot, "available_quantity", 0)
-                if hasattr(lot, "available_quantity")
-                else lot.get("available_quantity", 0)
-            )
-            for lot in lots
-        )
-        total_locked = sum(
-            (
-                getattr(lot, "locked_quantity", 0)
-                if hasattr(lot, "locked_quantity")
-                else lot.get("locked_quantity", 0)
-            )
-            for lot in lots
-        )
-
-        parent_coin["available_qty"] = str(total_available)
-        parent_coin["locked_qty"] = str(total_locked)
-
-        logger.info(
-            f"Unlocked {quantity_to_unlock - remaining_to_unlock} {coin}. Available: {total_available}, Locked: {total_locked}"
-        )
 
     async def _add_received_currency(self, currency: str, amount: float):
         """Add received currency (like USDC) to portfolio."""
