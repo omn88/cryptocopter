@@ -860,9 +860,9 @@ class PortfolioUI(BoxLayout):
                         "symbol": f"  └─ Lot",
                         "buy_price": f"${price_usd}",  # Show buy price in new column
                         "quantity": str(lot_quantity),
-                        "available_qty": f"{lot_available:.8f}".rstrip("0").rstrip(
-                            "."
-                        ),  # Proportional available
+                        "available_qty": self._format_quantity(
+                            lot_available, parent_coin["symbol"]
+                        ),
                         "locked_qty": "0",
                         "price_usd": "—",  # Don't show current price for lots
                         "total_usd": "0.00",
@@ -942,10 +942,10 @@ class PortfolioUI(BoxLayout):
                     f"${weighted_avg_buy_price}" if weighted_avg_buy_price > 0 else "—"
                 ),
                 "quantity": str(total_qty),
-                "available_qty": str(total_available),
+                "available_qty": self._format_quantity(total_available, coin),
                 "locked_qty": str(total_locked),
                 "price_usd": "0.00",
-                "total_usd": f"{total_value:.2f}",
+                "total_usd": self._format_usd_value(total_value),
                 "pnl": "—",  # Will be calculated when current prices are available
                 "pnl_color": [
                     1,
@@ -1013,6 +1013,40 @@ class PortfolioUI(BoxLayout):
 
         pnl_percentage = ((current_price - buy_price) / buy_price) * 100
         return f"{pnl_percentage:+.2f}%"
+
+    def _format_usd_value(self, value: float) -> str:
+        """Format USD value elegantly: 0 decimals if < $1, 2 decimals if >= $1."""
+        if value < 1.0:
+            return f"{value:.0f}"
+        return f"{value:.2f}"
+
+    def _format_quantity(self, quantity: float, coin_symbol: str = "") -> str:
+        """Format quantity using Symbol's precision rules if available.
+
+        Args:
+            quantity: The quantity to format
+            coin_symbol: The coin symbol (e.g., 'BTC', 'ETH') to look up Symbol info
+
+        Returns:
+            Formatted quantity string with proper precision
+        """
+        if coin_symbol:
+            try:
+                symbol_key = f"{coin_symbol}USDT"
+                if symbol_key in self.price_resolver.symbols:
+                    return self.price_resolver.symbols[symbol_key].format_quantity(
+                        quantity
+                    )
+            except (KeyError, AttributeError):
+                pass
+
+        # Fallback: use Symbol's format_quantity logic
+        # For quantities < 1, show with proper precision (strip trailing zeros)
+        if quantity < 1.0:
+            # Show up to 8 decimal places, strip trailing zeros
+            formatted = f"{quantity:.8f}".rstrip("0").rstrip(".")
+            return formatted if formatted else "0"
+        return f"{quantity:.2f}"
 
     def _get_exchange_available(self, coin: str) -> float:
         """Get real-time available quantity from exchange (sum across all lots).
@@ -1165,7 +1199,7 @@ class PortfolioUI(BoxLayout):
                     self.price_resolver.symbols[f"{symbol}USDT"].adjust_price(price)
                 )
                 total_in_usd = round(float(coin["quantity"]) * price, 2)
-                coin["total_usd"] = str(total_in_usd)
+                coin["total_usd"] = self._format_usd_value(total_in_usd)
 
                 # Calculate PnL if we have a buy price
                 buy_price = coin.get("weighted_avg_buy_price", 0.0)
@@ -1246,9 +1280,9 @@ class PortfolioUI(BoxLayout):
                         "symbol": f"  └─ Lot",
                         "buy_price": f"${buy_price}",  # Show buy price in new column
                         "quantity": str(lot_quantity),
-                        "available_qty": f"{lot_available:.8f}".rstrip("0").rstrip(
-                            "."
-                        ),  # Proportional available
+                        "available_qty": self._format_quantity(
+                            lot_available, parent_coin["symbol"]
+                        ),
                         "locked_qty": "0",
                         "price_usd": "—",  # Don't show current price for lots
                         "total_usd": "0.00",
@@ -1270,9 +1304,8 @@ class PortfolioUI(BoxLayout):
         self.coin_list_data.extend(new_coin_list)
 
         # Update saldo labels
-        self.saldo_usd_label = round(
-            sum([float(coin.get("total_usd", "0.00")) for coin in parent_coins]), 2
-        )
+        total_usd = sum([float(coin.get("total_usd", "0")) for coin in parent_coins])
+        self.saldo_usd_label = float(self._format_usd_value(total_usd))
         if last_btc_price:
             self.saldo_btc_label = round(self.saldo_usd_label / last_btc_price, 8)
 
@@ -1289,28 +1322,127 @@ class PortfolioUI(BoxLayout):
                 self._last_refresh_time = current_time
 
     async def handle_account_position(self, account_position: AccountPosition) -> None:
-        """Handle account position updates - just log for awareness.
+        """Handle account position updates - sync exchange balances to inventory.
 
-        Note: Actual inventory sync happens in portfolio.py backend via handle_account_position.
-        The GUI receives already-synced inventory via PORTFOLIO_INVENTORY events.
+        In production: Backend (portfolio.py) handles this + GUI for redundancy.
+        In tests: Only GUI handles this (no backend running).
         """
-        logger.debug(
-            "Account position update received (inventory sync handled by backend)"
+        logger.info(
+            "Syncing exchange balances to inventory from AccountPosition update"
         )
 
+        # Create a map of exchange balances for quick lookup
+        exchange_balances = {
+            balance.coin: balance for balance in account_position.balances
+        }
+
+        # Group inventory items by coin to calculate total quantities
+        coin_lots: dict[str, list[InventoryItem]] = {}
+        for item in self.inventory:
+            if item.coin not in coin_lots:
+                coin_lots[item.coin] = []
+            coin_lots[item.coin].append(item)
+
+        # Update each coin's lots proportionally based on exchange balances
+        for coin, lots in coin_lots.items():
+            if coin in exchange_balances:
+                balance = exchange_balances[coin]
+                total_qty = sum(lot.quantity for lot in lots)
+
+                if total_qty > 0:
+                    # Distribute available and locked proportionally across lots
+                    for lot in lots:
+                        old_available = lot.available_quantity
+                        old_locked = lot.locked_quantity
+
+                        proportion = lot.quantity / total_qty
+                        lot.available_quantity = balance.free * proportion
+                        lot.locked_quantity = balance.locked * proportion
+
+                        # Log significant changes for debugging
+                        if abs(old_available - lot.available_quantity) > 0.00001:
+                            logger.debug(
+                                "[EXCHANGE SYNC] %s lot (qty=%.8f) available: %.8f -> %.8f",
+                                coin,
+                                lot.quantity,
+                                old_available,
+                                lot.available_quantity,
+                            )
+                        if abs(old_locked - lot.locked_quantity) > 0.00001:
+                            logger.debug(
+                                "[EXCHANGE SYNC] %s lot (qty=%.8f) locked: %.8f -> %.8f",
+                                coin,
+                                lot.quantity,
+                                old_locked,
+                                lot.locked_quantity,
+                            )
+                else:
+                    logger.warning(
+                        f"[EXCHANGE SYNC] {coin} has zero total quantity in inventory"
+                    )
+            # Note: If coin is not in exchange_balances, we leave it unchanged
+            # The AccountPosition message may only contain coins that changed,
+            # not all coins, so we shouldn't zero out missing coins
+
+        # Refresh UI to show updated quantities (skip in test mode)
+        if not self.test_mode:
+            self._rebuild_coin_list_with_lots()
+            self.ids.coin_list.refresh_from_data()
+
+        logger.debug("Account position update processed - inventory quantities synced")
+
     async def handle_hp_sell_created(self, event: HPSellPositionCreated):
-        """Handle HP sell position creation - immediately lock quantities proportionally."""
+        """Handle HP sell position creation - immediately lock quantities proportionally.
+
+        In production: Exchange locks quantities and WebSocket AccountPosition updates inventory.
+        In tests: We need immediate local locking since there's no real exchange.
+        """
         logger.info(
             f"HP Sell Created: {event.hp_id} - {event.coin} qty:{event.quantity}"
         )
 
+        # Immediately lock quantities locally (for tests and early feedback)
+        coin_items = [item for item in self.inventory if item.coin == event.coin]
+
+        if not coin_items:
+            logger.warning(f"Cannot lock {event.coin} - no inventory items found")
+            return
+
+        # Calculate total available quantity across all lots
+        total_available = sum(item.available_quantity for item in coin_items)
+
+        if total_available < event.quantity:
+            logger.warning(
+                f"Cannot lock {event.quantity} {event.coin} - only {total_available} available"
+            )
+            return
+
+        # Lock quantities proportionally across lots based on their available amounts
+        remaining_to_lock = event.quantity
+        for item in coin_items:
+            if remaining_to_lock <= 0:
+                break
+
+            if item.available_quantity > 0:
+                # Lock from this lot proportionally or up to its available amount
+                lock_amount = min(item.available_quantity, remaining_to_lock)
+                item.available_quantity -= lock_amount
+                item.locked_quantity += lock_amount
+                remaining_to_lock -= lock_amount
+
+                logger.debug(
+                    f"Locked {lock_amount} {event.coin} from lot {item.id} "
+                    f"(available: {item.available_quantity + lock_amount:.8f} -> {item.available_quantity:.8f}, "
+                    f"locked: {item.locked_quantity - lock_amount:.8f} -> {item.locked_quantity:.8f})"
+                )
+
         logger.info(
-            f"Exchange will lock {event.quantity} {event.coin} automatically - waiting for account update"
+            f"Locked {event.quantity} {event.coin} across {len(coin_items)} lots"
         )
 
-        # NOTE: We don't manually lock quantities anymore.
-        # Binance WebSocket will send updated account position with locked amounts,
-        # which will be synced to inventory via handle_account_position in portfolio.py.
+        # NOTE: Exchange will also lock on its side and send AccountPosition update.
+        # When that arrives, handle_account_position() will sync to exchange state.
+        # The local locking here provides immediate feedback and works for tests.
 
         # Refresh UI (skip in test mode)
         if not self.test_mode:
@@ -1318,17 +1450,57 @@ class PortfolioUI(BoxLayout):
             self.ids.coin_list.refresh_from_data()
 
     async def handle_hp_buy_orders_placed(self, event: HPBuyOrdersPlaced):
-        """Handle HP buy orders placed - exchange will automatically lock budget."""
+        """Handle HP buy orders placed - immediately lock budget.
+
+        In production: Exchange locks budget and WebSocket AccountPosition updates inventory.
+        In tests: We need immediate local locking since there's no real exchange.
+        """
         logger.info(
-            f"HP Buy Orders Placed: {event.hp_id} - {event.budget_amount} {event.end_currency} will be locked by exchange"
-        )
-        logger.info(
-            "Exchange will lock budget automatically - next account update will reflect locked state"
+            f"HP Buy Orders Placed: {event.hp_id} - {event.budget_amount} {event.end_currency}"
         )
 
-        # NOTE: We don't manually lock budget anymore.
-        # Binance WebSocket will send updated account position with locked amounts,
-        # which will be synced to inventory via handle_account_position in portfolio.py.
+        # Immediately lock budget locally (for tests and early feedback)
+        currency_items = [
+            item for item in self.inventory if item.coin == event.end_currency
+        ]
+
+        if not currency_items:
+            logger.warning(
+                f"Cannot lock {event.end_currency} budget - no inventory items found"
+            )
+            return
+
+        # Calculate total available across all lots
+        total_available = sum(item.available_quantity for item in currency_items)
+
+        if total_available < event.budget_amount:
+            logger.warning(
+                f"Cannot lock {event.budget_amount} {event.end_currency} - only {total_available} available"
+            )
+            return
+
+        # Lock budget proportionally across lots
+        remaining_to_lock = event.budget_amount
+        for item in currency_items:
+            if remaining_to_lock <= 0:
+                break
+
+            if item.available_quantity > 0:
+                lock_amount = min(item.available_quantity, remaining_to_lock)
+                item.available_quantity -= lock_amount
+                item.locked_quantity += lock_amount
+                remaining_to_lock -= lock_amount
+
+                logger.debug(
+                    f"Locked {lock_amount} {event.end_currency} from lot {item.id} "
+                    f"(available: {item.available_quantity + lock_amount:.8f} -> {item.available_quantity:.8f}, "
+                    f"locked: {item.locked_quantity - lock_amount:.8f} -> {item.locked_quantity:.8f})"
+                )
+
+        logger.info(f"Locked {event.budget_amount} {event.end_currency} budget")
+
+        # NOTE: Exchange will also lock on its side and send AccountPosition update.
+        # When that arrives, handle_account_position() will sync to exchange state.
 
         # Refresh UI to prepare for exchange sync (skip in test mode)
         if not self.test_mode:
@@ -1904,18 +2076,65 @@ class PortfolioUI(BoxLayout):
             return
 
     async def handle_hp_position_cancelled(self, event: HPPositionCancelled):
-        """Handle HP position cancellation - let exchange unlock via AccountPosition."""
+        """Handle HP position cancellation - immediately unlock quantities.
+
+        In production: Exchange unlocks and WebSocket AccountPosition updates inventory.
+        In tests: We need immediate local unlocking since there's no real exchange.
+        """
         logger.info(
             f"HP Position Cancelled: {event.hp_id} - {event.position_type} {event.quantity} {event.coin}"
         )
 
+        # Immediately unlock quantities locally (for tests and early feedback)
+        coin_items = [item for item in self.inventory if item.coin == event.coin]
+
+        if not coin_items:
+            logger.warning(f"Cannot unlock {event.coin} - no inventory items found")
+            return
+
+        # Calculate total locked quantity across all lots
+        total_locked = sum(item.locked_quantity for item in coin_items)
+
+        if total_locked < event.quantity:
+            logger.warning(
+                f"Cannot unlock {event.quantity} {event.coin} - only {total_locked} locked"
+            )
+            # Unlock what we have
+            unlock_amount = total_locked
+        else:
+            unlock_amount = event.quantity
+
+        # Unlock quantities proportionally across lots based on their locked amounts
+        remaining_to_unlock = unlock_amount
+        for item in coin_items:
+            if remaining_to_unlock <= 0:
+                break
+
+            if item.locked_quantity > 0:
+                # Unlock from this lot proportionally or up to its locked amount
+                unlock_from_lot = min(item.locked_quantity, remaining_to_unlock)
+                item.locked_quantity -= unlock_from_lot
+                item.available_quantity += unlock_from_lot
+                remaining_to_unlock -= unlock_from_lot
+
+                logger.debug(
+                    f"Unlocked {unlock_from_lot} {event.coin} from lot {item.id} "
+                    f"(locked: {item.locked_quantity + unlock_from_lot:.8f} -> {item.locked_quantity:.8f}, "
+                    f"available: {item.available_quantity - unlock_from_lot:.8f} -> {item.available_quantity:.8f})"
+                )
+
         logger.info(
-            f"Exchange will unlock {event.quantity} {event.coin} automatically - waiting for account update"
+            f"Unlocked {unlock_amount} {event.coin} across {len(coin_items)} lots"
         )
 
-        # NOTE: We don't manually unlock quantities anymore.
-        # Binance WebSocket will send updated account position with unlocked amounts,
-        # which will be synced to inventory via handle_account_position in portfolio.py.
+        # NOTE: Exchange will also unlock on its side and send AccountPosition update.
+        # When that arrives, handle_account_position() will sync to exchange state.
+        # The local unlocking here provides immediate feedback and works for tests.
+
+        # Refresh UI (skip in test mode)
+        if not self.test_mode:
+            self._rebuild_coin_list_with_lots()
+            self.ids.coin_list.refresh_from_data()
 
     async def _add_received_currency(self, currency: str, amount: float):
         """Add received currency (like USDC) to portfolio."""

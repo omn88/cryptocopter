@@ -628,7 +628,7 @@ class StrategyExecutor:
                 else:
                     # Single sell position cancellation - cancel exchange order first
                     await sell.cancel_remaining_order()
-                    
+
                     strategy.portfolio_event_helper.send_cancellation_event(
                         hp_id,
                         sell.current_position.config.coin,

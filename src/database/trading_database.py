@@ -65,14 +65,16 @@ class Database:
         async with aiosqlite.connect(self.db_path) as conn:
             await conn.execute(
                 """
-                INSERT INTO inventory (id, coin, buy_price, quantity, source, timestamp, notes)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO inventory (id, coin, buy_price, quantity, available_quantity, locked_quantity, source, timestamp, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     item.id,
                     item.coin,
                     item.buy_price,
                     item.quantity,
+                    item.available_quantity,
+                    item.locked_quantity,
                     item.source,
                     (
                         item.timestamp.isoformat()
@@ -88,13 +90,15 @@ class Database:
         async with aiosqlite.connect(self.db_path) as conn:
             await conn.execute(
                 """
-                UPDATE inventory SET coin=?, buy_price=?, quantity=?, source=?, timestamp=?, notes=?
+                UPDATE inventory SET coin=?, buy_price=?, quantity=?, available_quantity=?, locked_quantity=?, source=?, timestamp=?, notes=?
                 WHERE id=?
                 """,
                 (
                     item.coin,
                     item.buy_price,
                     item.quantity,
+                    item.available_quantity,
+                    item.locked_quantity,
                     item.source,
                     (
                         item.timestamp.isoformat()

@@ -127,10 +127,6 @@ class PortfolioManager:
             ),
         )
 
-        # Start periodic account balance sync task
-        # This ensures available/locked quantities stay in sync even if WebSocket fails
-        self.loop.create_task(self._periodic_account_sync())
-
         while not self.stop_event.is_set():
             try:
                 event = self.worker_queue.get_nowait()
@@ -303,107 +299,6 @@ class PortfolioManager:
                 "Inventory available/locked quantities may be incorrect until first WebSocket update"
             )
 
-    async def _periodic_account_sync(self) -> None:
-        """Periodically sync account balances from exchange to ensure accurate available/locked quantities.
-
-        This compensates for unreliable WebSocket AccountPosition updates from Binance.
-        Syncs every 3 seconds to catch order state changes quickly.
-        """
-        logger.info("Starting periodic account balance sync (every 3 seconds)")
-        sync_count = 0
-
-        while not self.stop_event.is_set():
-            try:
-                await asyncio.sleep(3)  # Sync every 3 seconds
-                sync_count += 1
-
-                if not self.inventory:
-                    logger.debug(
-                        f"[PERIODIC SYNC #{sync_count}] Skipping - no inventory"
-                    )
-                    continue  # Skip if no inventory
-
-                logger.debug(
-                    f"[PERIODIC SYNC #{sync_count}] Fetching account balances..."
-                )
-
-                # Fetch account info from Binance
-                if self.client is None:
-                    logger.error(
-                        f"[PERIODIC SYNC #{sync_count}] Client not initialized, skipping sync"
-                    )
-                    continue
-
-                account_info = await self.client.get_account()
-                balances = account_info.get("balances", [])
-
-                # Create map of exchange balances
-                exchange_balances = {
-                    balance["asset"]: {
-                        "free": float(balance["free"]),
-                        "locked": float(balance["locked"]),
-                    }
-                    for balance in balances
-                    if float(balance["free"]) > 0 or float(balance["locked"]) > 0
-                }
-
-                # Group inventory by coin
-                coin_lots: dict[str, list[InventoryItem]] = {}
-                for item in self.inventory:
-                    if item.coin not in coin_lots:
-                        coin_lots[item.coin] = []
-                    coin_lots[item.coin].append(item)
-
-                # Update available/locked proportionally
-                has_changes = False
-                for coin, lots in coin_lots.items():
-                    if coin in exchange_balances:
-                        balance = exchange_balances[coin]
-                        total_qty = sum(lot.quantity for lot in lots)
-
-                        if total_qty > 0:
-                            for lot in lots:
-                                proportion = lot.quantity / total_qty
-                                new_available = balance["free"] * proportion
-                                new_locked = balance["locked"] * proportion
-
-                                # Check if values changed significantly
-                                if (
-                                    abs(lot.available_quantity - new_available)
-                                    > 0.00001
-                                    or abs(lot.locked_quantity - new_locked) > 0.00001
-                                ):
-                                    logger.info(
-                                        f"[PERIODIC SYNC #{sync_count}] {coin} lot updated: "
-                                        f"available {lot.available_quantity:.8f} -> {new_available:.8f}, "
-                                        f"locked {lot.locked_quantity:.8f} -> {new_locked:.8f}"
-                                    )
-                                    lot.available_quantity = new_available
-                                    lot.locked_quantity = new_locked
-                                    has_changes = True
-
-                # Send update to UI if there were changes
-                if has_changes:
-                    logger.info(
-                        f"[PERIODIC SYNC #{sync_count}] Account balances updated - sending to UI"
-                    )
-                    try:
-                        ui_event = Event(
-                            name=EventName.PORTFOLIO_INVENTORY,
-                            content=self.inventory,
-                        )
-                        self.ui_queue.put_nowait(ui_event)
-                    except queue.Full:
-                        logger.warning(
-                            f"[PERIODIC SYNC #{sync_count}] UI queue full, skipping update"
-                        )
-                else:
-                    logger.debug(f"[PERIODIC SYNC #{sync_count}] No changes detected")
-
-            except Exception as e:
-                logger.error(f"[PERIODIC SYNC #{sync_count}] Error: {e}", exc_info=True)
-                await asyncio.sleep(10)  # Wait longer on error
-
     async def _try_load_inventory_csv(self) -> bool:
         """Try to load inventory from CSV file. Returns True if successful, False otherwise."""
 
@@ -566,16 +461,9 @@ class PortfolioManager:
                     logger.warning(
                         f"[EXCHANGE SYNC] {coin} has zero total quantity in inventory"
                     )
-            else:
-                # Coin in inventory but not on exchange - zero out quantities
-                for lot in lots:
-                    if lot.available_quantity != 0 or lot.locked_quantity != 0:
-                        logger.info(
-                            "[EXCHANGE SYNC] %s not on exchange, zeroing exchange fields",
-                            coin,
-                        )
-                        lot.available_quantity = 0.0
-                        lot.locked_quantity = 0.0
+            # Note: If coin is not in exchange_balances, we leave it unchanged
+            # The AccountPosition message may only contain coins that changed,
+            # not all coins, so we shouldn't zero out missing coins
 
         # Check for coins on exchange not in DB (optional warning for validation)
         for coin, balance in exchange_balances.items():

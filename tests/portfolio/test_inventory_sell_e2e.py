@@ -1240,30 +1240,11 @@ async def test_axl_multihop_sell_cancellation_inventory_unlock(
     # CRITICAL: Process pending portfolio events (including HP_POSITION_CANCELLED for inventory unlocking)
     await portfolio.process_test_events()
 
-    # Simulate exchange unlocking the position after cancellation
-    axl_available = sum(
-        item.available_quantity for item in portfolio.inventory if item.coin == "AXL"
-    )
-    axl_locked = sum(
-        item.locked_quantity for item in portfolio.inventory if item.coin == "AXL"
-    )
-    account_position = AccountPosition(
-        event_time=0,
-        last_update_time=0,
-        balances=[
-            Balance(
-                coin="AXL",
-                free=axl_available + sell_quantity,
-                locked=axl_locked - sell_quantity,
-            )
-        ],
-    )
-    portfolio.ui_queue.put(
-        Event(name=EventName.ACCOUNT_POSITION, content=account_position)
-    )
-    await portfolio.process_test_events()
+    # NOTE: With immediate local unlocking, we don't need to simulate AccountPosition anymore.
+    # The handle_hp_position_cancelled() already unlocked the quantities locally.
+    # In production, exchange would also send AccountPosition update which would sync to exchange state.
 
-    # Step 6: Verify the bug - inventory should be unlocked but currently isn't
+    # Step 6: Verify inventory was properly unlocked
     locked_axl_after_cancel = sim.get_locked_quantity("AXL")
     available_axl_after_cancel = sim.get_available_quantity("AXL")
 
@@ -1355,28 +1336,9 @@ async def test_axl_multihop_sell_cancellation_fix_validation(
     await portfolio.process_test_events()
     await asyncio.sleep(0.1)
 
-    # Simulate exchange unlocking the position after cancellation
-    axl_available = sum(
-        item.available_quantity for item in portfolio.inventory if item.coin == "AXL"
-    )
-    axl_locked = sum(
-        item.locked_quantity for item in portfolio.inventory if item.coin == "AXL"
-    )
-    account_position = AccountPosition(
-        event_time=0,
-        last_update_time=0,
-        balances=[
-            Balance(
-                coin="AXL",
-                free=axl_available + sell_quantity,
-                locked=axl_locked - sell_quantity,
-            )
-        ],
-    )
-    portfolio.ui_queue.put(
-        Event(name=EventName.ACCOUNT_POSITION, content=account_position)
-    )
-    await portfolio.process_test_events()
+    # NOTE: With immediate local unlocking, we don't need to simulate AccountPosition anymore.
+    # The handle_hp_position_cancelled() already unlocked the quantities locally.
+    # In production, exchange would also send AccountPosition update which would sync to exchange state.
 
     # Step 5: Verify proper inventory unlock with automatic side detection
     locked_axl_after_cancel = sim.get_locked_quantity("AXL")
