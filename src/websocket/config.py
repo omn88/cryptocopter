@@ -51,17 +51,21 @@ class WebSocketConfig:
 
     @classmethod
     def create_ultra_robust_config(cls) -> "WebSocketConfig":
-        """Create a configuration for very unstable network conditions"""
+        """Create a configuration for very unstable network conditions.
+
+        Optimized for production stability after Nov 25 network failure analysis.
+        More aggressive timeouts to detect failures faster while maintaining robustness.
+        """
         return cls(
-            connection_timeout=120,  # 2 minutes for initial connection
-            read_timeout=30,  # Longer read timeout
-            keepalive_timeout=180,  # 3 minutes before considering connection dead
-            initial_reconnect_delay=10,  # Start with 10 second delay
-            max_reconnect_delay=1800,  # 30 minutes max delay
-            max_reconnect_attempts=50,  # Many more attempts
-            health_check_interval=45,  # Check every 45 seconds
-            message_timeout_threshold=300,  # 5 minutes before timeout warning
-            error_suppression_time=1800,  # 30 minutes suppression
+            connection_timeout=60,  # 1 minute - reduced from 2 min for faster failure detection
+            read_timeout=20,  # Reduced from 30s - detect read issues faster
+            keepalive_timeout=120,  # 2 minutes - reduced from 3 min
+            initial_reconnect_delay=5,  # Faster initial retry - reduced from 10s
+            max_reconnect_delay=900,  # 15 minutes max - reduced from 30 min
+            max_reconnect_attempts=50,  # Keep many attempts
+            health_check_interval=30,  # More frequent checks - reduced from 45s
+            message_timeout_threshold=180,  # 3 minutes - reduced from 5 min
+            error_suppression_time=900,  # 15 minutes - reduced from 30 min
             max_errors_before_resubscribe=5,  # Lower threshold for resubscribe
         )
 

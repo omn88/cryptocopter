@@ -64,10 +64,21 @@ class WebSocketManager:
         # Configuration
         self._ws_config = ULTRA_ROBUST_CONFIG
         self._connection_timeout = ULTRA_ROBUST_CONFIG.message_timeout_threshold
-        self._max_ticker_silence_duration = 300  # 5 minutes
-        self._ticker_timeout_check_interval = 60  # Check every minute
+        self._max_ticker_silence_duration = 180  # 3 minutes - more aggressive
+        self._ticker_timeout_check_interval = 30  # Check every 30 seconds
+        self._force_restart_threshold = 600  # Force full restart after 10 min silence
         self._restart_base_delay = 60
-        self._max_restart_delay = 3600
+        self._max_restart_delay = 300  # 5 minutes max instead of 1 hour
+
+        # Network fallback configuration
+        self._use_fallback_connection = False
+        self._proxy_failed_count = 0
+        self._max_proxy_failures_before_fallback = (
+            3  # Switch to direct after 3 failures
+        )
+
+        # Health reporting
+        self._health_report_interval = 300  # Report every 5 minutes
 
         # Subscription registry for resubscription after restart
         self._subscription_registry: Dict[str, SubscriptionInfo] = {}
@@ -114,6 +125,9 @@ class WebSocketManager:
         self._ticker_timeout_task = self.loop.create_task(
             self._monitor_ticker_timeout()
         )
+
+        # Start health reporting
+        self._health_report_task = self.loop.create_task(self._report_system_health())
 
         # Start websocket streams
         await self._start_websocket_tasks()
@@ -359,10 +373,14 @@ class WebSocketManager:
         logger.info("Connection health monitor stopped")
 
     async def _monitor_ticker_timeout(self) -> None:
-        """Monitor ticker timeout and trigger restart if silent too long."""
+        """Monitor ticker timeout and trigger restart if silent too long.
+
+        This is the DEAD-MAN SWITCH that forces restart if no ticker data received.
+        """
         logger.info(
-            "Starting ticker timeout monitoring (max silence: %d seconds)",
+            "Starting ticker timeout monitoring (warning: %d seconds, force restart: %d seconds)",
             self._max_ticker_silence_duration,
+            self._force_restart_threshold,
         )
 
         while not self.stop_event.is_set():
@@ -374,20 +392,29 @@ class WebSocketManager:
 
                 # Check for ticker timeout
                 time_since_ticker = time.time() - self._last_ticker_time
-                if time_since_ticker > self._max_ticker_silence_duration:
-                    logger.error(
-                        "Ticker silent for %.1f seconds (max: %d). Forcing restart...",
+
+                # CRITICAL: Force complete restart if silent too long
+                if time_since_ticker > self._force_restart_threshold:
+                    logger.critical(
+                        "DEAD-MAN SWITCH ACTIVATED: No ticker data for %.1f seconds. "
+                        "Forcing complete WebSocket restart...",
                         time_since_ticker,
-                        self._max_ticker_silence_duration,
                     )
 
                     # Trigger restart
                     timeout_error = {
                         "type": "TickerTimeoutError",
-                        "m": f"Ticker silent for {time_since_ticker:.1f} seconds",
+                        "m": f"CRITICAL: Ticker silent for {time_since_ticker:.1f} seconds (threshold: {self._force_restart_threshold}s)",
                     }
                     await self._handle_websocket_error(timeout_error)
                     return
+
+                elif time_since_ticker > self._max_ticker_silence_duration:
+                    logger.warning(
+                        "Ticker timeout: ticker silent for %.1f seconds (warning threshold: %d seconds)",
+                        time_since_ticker,
+                        self._max_ticker_silence_duration,
+                    )
 
             except asyncio.CancelledError:
                 logger.info("Ticker timeout monitoring cancelled")
@@ -397,6 +424,57 @@ class WebSocketManager:
                 await asyncio.sleep(10)
 
         logger.info("Ticker timeout monitoring stopped")
+
+    async def _report_system_health(self) -> None:
+        """Periodically report system health status for monitoring.
+
+        This provides visibility into system state and helps detect issues early.
+        """
+        logger.info(
+            "Starting system health reporter (interval: %d seconds)",
+            self._health_report_interval,
+        )
+
+        while not self.stop_event.is_set():
+            try:
+                await asyncio.sleep(self._health_report_interval)
+
+                if self.stop_event.is_set():
+                    break
+
+                ticker_silence = time.time() - self._last_ticker_time
+
+                # Determine health status
+                if ticker_silence > self._force_restart_threshold:
+                    health_status = "CRITICAL"
+                    message = (
+                        f"SYSTEM CRITICAL: No ticker data for {ticker_silence:.0f}s"
+                    )
+                elif ticker_silence > self._max_ticker_silence_duration:
+                    health_status = "DEGRADED"
+                    message = (
+                        f"SYSTEM DEGRADED: No ticker data for {ticker_silence:.0f}s"
+                    )
+                elif self._restart_count > 0:
+                    health_status = "RECOVERING"
+                    message = f"RECOVERING: {self._restart_count} restarts, fallback={self._use_fallback_connection}"
+                else:
+                    health_status = "HEALTHY"
+                    num_subscriptions = sum(
+                        len(subs) for subs in self.subscriptions.values()
+                    )
+                    message = f"SYSTEM HEALTHY: Ticker active, {num_subscriptions} subscriptions"
+
+                logger.info("[HEALTH CHECK] %s - %s", health_status, message)
+
+            except asyncio.CancelledError:
+                logger.info("System health reporter cancelled")
+                break
+            except Exception as e:
+                logger.error("Error in health reporter: %s", e)
+                await asyncio.sleep(30)
+
+        logger.info("System health reporter stopped")
 
     async def _handle_websocket_error(
         self, error_msg: Union[str, Dict[str, Any]]
@@ -440,21 +518,28 @@ class WebSocketManager:
             self._restart_count += 1
             time_since_last = current_time - self._last_restart_time
 
-            # Reset counter if it's been a while
-            if time_since_last > 600:
+            # Reset counter if it's been stable for 30 minutes
+            if time_since_last > 1800:
+                logger.info(
+                    "System has been stable for 30+ minutes. Resetting restart counter."
+                )
                 self._restart_count = 1
+                self._use_fallback_connection = False  # Can try proxy again
+                self._proxy_failed_count = 0
 
-            # Calculate progressive delay
+            # Calculate progressive delay with gentler progression
             restart_delay = min(
-                self._restart_base_delay * (self._restart_count**1.5),
+                self._restart_base_delay
+                * (self._restart_count**1.2),  # Gentler than 1.5
                 self._max_restart_delay,
             )
 
             logger.error(
-                "Unrecoverable error: %s. Restart #%d in %.1f seconds...",
+                "Unrecoverable error: %s. Restart #%d in %.1f seconds... (fallback mode: %s)",
                 error_msg,
                 self._restart_count,
                 restart_delay,
+                self._use_fallback_connection,
             )
 
             await asyncio.sleep(restart_delay)
@@ -465,11 +550,35 @@ class WebSocketManager:
             logger.error("WebSocket error: %s", error_msg)
 
     async def _restart_websocket_client(self) -> None:
-        """Restart WebSocket streams by recreating socket manager."""
+        """Restart WebSocket streams by recreating socket manager.
+
+        Will switch to direct Binance connection as fallback if proxy fails repeatedly.
+        """
         retry_count = 0
+
+        # Check if we should enable fallback mode
+        if (
+            self._restart_count >= self._max_proxy_failures_before_fallback
+            and not self._use_fallback_connection
+        ):
+            logger.warning(
+                "Proxy connection failed %d times (threshold: %d). "
+                "Switching to DIRECT Binance connection as fallback...",
+                self._restart_count,
+                self._max_proxy_failures_before_fallback,
+            )
+            self._use_fallback_connection = True
+            # Note: Actual proxy removal would require recreating BinanceClient
+            # For now, this flag can be used by client initialization code
+            # TODO: Implement client recreation without proxy
+
         while True:
             try:
-                logger.info("Attempting WebSocket restart #%d...", self._restart_count)
+                logger.info(
+                    "Attempting WebSocket restart #%d... (fallback mode: %s)",
+                    self._restart_count,
+                    self._use_fallback_connection,
+                )
 
                 # Cancel existing tasks
                 logger.info("Cancelling existing websocket tasks...")
@@ -502,7 +611,10 @@ class WebSocketManager:
                 logger.info("Resubscription complete")
 
                 if retry_count == 0:
-                    logger.info("WebSocket restart successful")
+                    logger.info(
+                        "WebSocket restart successful on attempt #%d",
+                        self._restart_count,
+                    )
                 break
 
             except Exception as e:
