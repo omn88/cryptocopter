@@ -66,6 +66,7 @@ class AsyncApp(App):
         client: BinanceClient,
         db: Database,
         price_resolver: UsdPriceResolver,
+        exchange_manager=None,  # Optional for backward compatibility
         **kwargs,
     ):
         """Initializes the `AsyncApp` instance.
@@ -73,12 +74,14 @@ class AsyncApp(App):
         Args:
             client (BinanceClient): The Binance client to use for trading.
             db (Database): The database instance to use for database operations.
+            exchange_manager: ExchangeManager for multi-exchange support (optional)
             **kwargs: Additional keyword arguments.
         """
         super(AsyncApp, self).__init__(**kwargs)
         self.client = client
         self.db = db
         self.price_resolver = price_resolver
+        self.exchange_manager = exchange_manager
         self.broker: BrokerSpot = BrokerSpot()
         self.portfolio: Optional[PortfolioManager] = None
         self.portfolio_ui: Optional[PortfolioUI] = (
@@ -235,6 +238,7 @@ class AsyncApp(App):
             strategy_config_queue=queue.Queue(),
             price_resolver=self.price_resolver,
             db=self.db,
+            exchange_manager=self.exchange_manager,
         )
 
         # Initialize the PortfolioUI to start UI queue processing

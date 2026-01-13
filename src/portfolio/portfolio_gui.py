@@ -44,6 +44,8 @@ class PortfolioUI(BoxLayout):
     virtual_positions = ListProperty([])
     saldo_usd_label = ObjectProperty(None)  # Label for USD saldo in the GUI
     saldo_btc_label = ObjectProperty(None)  # Label for BTC saldo in the GUI
+    exchange_label = ObjectProperty(None)  # Label for current exchange
+    exchange_health_label = ObjectProperty(None)  # Label for exchange health status
 
     coin_list_data = ListProperty()
 
@@ -53,6 +55,7 @@ class PortfolioUI(BoxLayout):
         strategy_config_queue: queue.Queue,
         price_resolver: UsdPriceResolver,
         db: Database,
+        exchange_manager=None,
         test_mode: bool = False,
         **kwargs,
     ) -> None:
@@ -66,6 +69,8 @@ class PortfolioUI(BoxLayout):
         self.ui_queue = ui_queue
         self.strategy_config_queue: queue.Queue = strategy_config_queue
         self.price_resolver = price_resolver
+        self.exchange_manager = exchange_manager
+        self.current_exchange = "binance"  # Default exchange
         self.coin_list_data = []
         self.inventory: List[InventoryItem] = []
         self.db = db
@@ -85,10 +90,336 @@ class PortfolioUI(BoxLayout):
             logger.info(
                 "[PORTFOLIO PRODUCTION] Started UI queue processing task in production mode"
             )
+
+            # Update exchange label and health status
+            self._update_exchange_display()
         else:
             logger.info(
                 "[PORTFOLIO PRODUCTION] Skipped UI queue task - running in test mode"
             )
+
+    def switch_exchange(self, exchange_name: str):
+        """
+        Switch to a different exchange for portfolio display.
+
+        Args:
+            exchange_name: Exchange to switch to ("binance", "kraken", etc.)
+        """
+        if self.exchange_manager is None:
+            logger.warning("No exchange manager available, cannot switch exchanges")
+            return
+
+        if not self.exchange_manager.has_exchange(exchange_name):
+            logger.warning(f"Exchange {exchange_name} not available")
+            return
+
+        logger.info(f"Switching portfolio display to {exchange_name}")
+        self.current_exchange = exchange_name
+        self._update_exchange_display()
+
+        # Fetch fresh data from selected exchange
+        asyncio.create_task(self._fetch_and_display_exchange_data(exchange_name))
+
+    async def _fetch_and_display_exchange_data(self, exchange_name: str):
+        """
+        Fetch account data from the selected exchange and update display.
+
+        Args:
+            exchange_name: Exchange to fetch data from
+        """
+        try:
+            logger.info(f"Fetching account data from {exchange_name}")
+
+            # Get the exchange client
+            client = self.exchange_manager.get_client(exchange_name)
+            if not client:
+                logger.error(f"Failed to get client for {exchange_name}")
+                return
+
+            # Fetch account balance and ticker prices
+            account_data = await client.get_account()
+            balances = account_data.get("balances", {})
+
+            logger.info(f"Fetched {len(balances)} balances from {exchange_name}")
+
+            # Fetch current market prices for Kraken
+            prices = {}
+            if exchange_name == "kraken":
+                try:
+                    tickers = await client.get_all_tickers()
+                    # Kraken ticker format: {'XBTUSDT': {'c': ['94567.00000', ...]}, ...}
+                    # Note: Kraken returns pairs WITHOUT slashes in ticker endpoint
+                    for pair, data in tickers.items():
+                        if "c" in data and len(data["c"]) > 0:
+                            # Extract current price (first element of 'c' array)
+                            prices[pair] = float(data["c"][0])
+                    logger.info(f"Fetched {len(prices)} ticker prices from Kraken")
+
+                    # Log all available pairs that contain FART for debugging
+                    fart_pairs = [
+                        pair for pair in prices.keys() if "FART" in pair.upper()
+                    ]
+                    if fart_pairs:
+                        logger.info(f"Found FARTCOIN pairs: {fart_pairs}")
+                    else:
+                        logger.warning("No FARTCOIN pairs found in Kraken tickers")
+                        # Log sample of available pairs for debugging
+                        sample_pairs = list(prices.keys())[:10]
+                        logger.info(f"Sample ticker pairs: {sample_pairs}")
+
+                except Exception as e:
+                    logger.warning(f"Failed to fetch Kraken ticker prices: {e}")
+
+            # Convert balances to inventory format
+            inventory_items = []
+            for asset, balance_str in balances.items():
+                try:
+                    balance = float(balance_str)
+                    if balance > 0:  # Only show non-zero balances
+                        # Clean up asset names (Kraken uses XXBT, ZUSD, etc.)
+                        clean_asset = (
+                            self._clean_kraken_asset_name(asset)
+                            if exchange_name == "kraken"
+                            else asset
+                        )
+
+                        # Get current price for the asset
+                        current_market_price = self._get_asset_price(
+                            clean_asset, prices, exchange_name
+                        )
+
+                        logger.info(
+                            f"[EXCHANGE VIEW] {clean_asset}: balance={balance}, market_price=${current_market_price}"
+                        )
+
+                        # For exchange viewing (no historical trade data), we don't know the actual buy price
+                        # Store current market price in buy_price for now (will be extracted for display)
+                        # The current market price will be shown in "Price in USD" column
+
+                        # Create inventory item
+                        item = InventoryItem(
+                            id=str(uuid.uuid4()),
+                            coin=clean_asset,
+                            quantity=balance,
+                            available_quantity=balance,  # All balance is available (no locked funds for viewing)
+                            locked_quantity=0.0,
+                            buy_price=current_market_price,  # Store current price here temporarily
+                            timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
+                        )
+                        inventory_items.append(item)
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Failed to parse balance for {asset}: {e}")
+                    continue
+
+            logger.info(
+                f"Prepared {len(inventory_items)} inventory items from {exchange_name}"
+            )
+
+            # Clear existing inventory and display new data
+            self.inventory = inventory_items
+            self.coin_list_data.clear()
+
+            # Build coin list from inventory (exchange view mode - no historical buy prices)
+            self._build_coin_list_from_inventory(inventory_items, is_exchange_view=True)
+
+            logger.info(f"Display updated with {exchange_name} data")
+
+        except Exception as e:
+            error_msg = str(e)
+            if "Permission denied" in error_msg:
+                logger.error(
+                    f"Kraken API permission denied. Please check that your API key has 'Query Funds' permission enabled at https://www.kraken.com/u/security/api"
+                )
+            else:
+                logger.error(
+                    f"Failed to fetch data from {exchange_name}: {e}", exc_info=True
+                )
+
+    def _get_asset_price(
+        self, asset: str, prices: Dict[str, float], exchange_name: str
+    ) -> float:
+        """
+        Get current price for an asset.
+
+        Args:
+            asset: Cleaned asset name (e.g., "BTC", "USDC", "FARTCOIN")
+            prices: Dictionary of ticker prices from exchange
+            exchange_name: Name of the exchange
+
+        Returns:
+            Current price in USD, or 1.0 for stablecoins
+        """
+        # Stablecoins always worth $1
+        if asset in ["USDC", "USDT", "USD", "DAI", "BUSD"]:
+            return 1.0
+
+        if exchange_name == "kraken":
+            # Try to find price in Kraken ticker format
+            # Kraken ticker pairs: "FARTCOINUSDT", "XBTUSDT", etc. (NO slashes in ticker endpoint)
+            possible_pairs = [
+                f"{asset}USD",
+                f"{asset}USDT",
+                f"{asset}USDC",
+            ]
+
+            logger.debug(f"Searching for {asset} price in pairs: {possible_pairs}")
+
+            for pair in possible_pairs:
+                if pair in prices:
+                    logger.info(
+                        f"Found Kraken price for {asset}: ${prices[pair]} (pair: {pair})"
+                    )
+                    return prices[pair]
+
+            # For BTC, also try XBT (Kraken's ticker symbol)
+            if asset == "BTC":
+                for xbt_pair in ["XBTUSD", "XBTUSDT"]:
+                    if xbt_pair in prices:
+                        logger.info(
+                            f"Found Kraken price for BTC via {xbt_pair}: ${prices[xbt_pair]}"
+                        )
+                        return prices[xbt_pair]
+
+            # Try searching for any pair that starts with the asset name
+            logger.debug(f"Exact pairs not found, searching all pairs for {asset}")
+            matching_pairs = [
+                p
+                for p in prices.keys()
+                if p.startswith(asset)
+                and any(p.endswith(quote) for quote in ["USD", "USDT", "USDC"])
+            ]
+            if matching_pairs:
+                logger.info(f"Found alternative pairs for {asset}: {matching_pairs}")
+                # Use the first match
+                found_pair = matching_pairs[0]
+                logger.info(f"Using {found_pair} for {asset}: ${prices[found_pair]}")
+                return prices[found_pair]
+
+            logger.warning(
+                f"No Kraken price found for {asset}, tried pairs: {possible_pairs}, found no matches"
+            )
+            return 0.0001  # Small default for unknown coins
+
+        # Default for other exchanges
+        return 1.0
+
+    def _clean_kraken_asset_name(self, asset: str) -> str:
+        """
+        Clean Kraken asset names by removing X/Z prefixes.
+
+        Kraken uses XXBT for BTC, ZUSD for USD, etc.
+
+        Args:
+            asset: Kraken asset name (e.g., "XXBT", "ZUSD")
+
+        Returns:
+            Cleaned asset name (e.g., "BTC", "USD")
+        """
+        # Common Kraken prefixes
+        if asset.startswith("X") and len(asset) == 4:
+            # XXBT -> XBT, XETH -> ETH, etc.
+            cleaned = asset[1:]
+        elif asset.startswith("Z") and len(asset) == 4:
+            # ZUSD -> USD, ZEUR -> EUR, etc.
+            cleaned = asset[1:]
+        else:
+            cleaned = asset
+
+        # Special case: XBT -> BTC
+        if cleaned == "XBT":
+            cleaned = "BTC"
+
+        return cleaned
+
+    def _build_coin_list_from_inventory(
+        self, inventory_items: List[InventoryItem], is_exchange_view: bool = False
+    ):
+        """
+        Build coin list display from inventory items.
+
+        Args:
+            inventory_items: List of inventory items to display
+            is_exchange_view: True if viewing exchange data (no historical buy prices), False for actual portfolio
+        """
+        # Group by coin
+        coin_lots = defaultdict(list)
+        for item in inventory_items:
+            coin_lots[item.coin].append(item)
+
+        # Build display list
+        for coin, lots in coin_lots.items():
+            total_qty = sum(lot.quantity for lot in lots)
+            total_available = sum(lot.available_quantity for lot in lots)
+            total_locked = sum(lot.locked_quantity for lot in lots)
+
+            # For exchange view, we don't have historical buy prices
+            if is_exchange_view:
+                # Get current market price (stored in buy_price field temporarily)
+                current_price = lots[0].buy_price if lots else 0.0
+                buy_price_display = "N/A"  # No historical data for exchange viewing
+                weighted_avg_buy_price = 0.0
+                logger.info(
+                    f"[EXCHANGE VIEW BUILD] {coin}: current_price=${current_price}, buy_price_display={buy_price_display}"
+                )
+            else:
+                # Calculate weighted average buy price from actual trades
+                weighted_avg_buy_price = self._calculate_weighted_average_buy_price(
+                    lots, coin
+                )
+                # Get current market price (from the first lot's buy_price which we set to current price)
+                current_price = lots[0].buy_price if lots else 0.0
+                buy_price_display = (
+                    f"${weighted_avg_buy_price:.4f}"
+                    if weighted_avg_buy_price > 0
+                    else "—"
+                )
+
+            # Calculate total value based on current price
+            total_value = total_qty * current_price
+
+            coin_data = {
+                "symbol": coin,
+                "buy_price": buy_price_display,
+                "quantity": str(total_qty),
+                "available_qty": str(total_available),
+                "locked_qty": str(total_locked),
+                "price_usd": f"{current_price:.4f}",  # Current market price
+                "total_usd": f"{total_value:.2f}",
+                "pnl": "—",
+                "pnl_color": [1, 1, 1, 1],
+                "weighted_avg_buy_price": weighted_avg_buy_price,
+                "lots": lots,
+                "expanded": False,
+                "has_lots": len(lots) > 0,
+                "portfolio_manager": self,
+            }
+
+            logger.info(
+                f"[COIN_DATA] {coin}: buy_price='{coin_data['buy_price']}', price_usd='{coin_data['price_usd']}'"
+            )
+
+            self.coin_list_data.append(coin_data)
+
+        logger.info(f"Built coin list with {len(self.coin_list_data)} coins")
+
+    def _update_exchange_display(self):
+        """Update exchange label and health status in GUI."""
+        if self.exchange_label:
+            self.exchange_label.text = f"Exchange: {self.current_exchange.upper()}"
+
+        if self.exchange_health_label and self.exchange_manager:
+            health = self.exchange_manager.is_healthy()
+            is_healthy = health.get(self.current_exchange, False)
+            status = "●" if is_healthy else "○"
+            color = "[color=00ff00]" if is_healthy else "[color=ff0000]"
+            self.exchange_health_label.text = f"{color}{status}[/color]"
+            self.exchange_health_label.markup = True
+
+    def get_available_exchanges(self) -> list:
+        """Get list of available exchanges."""
+        if self.exchange_manager:
+            return self.exchange_manager.get_available_exchanges()
+        return ["binance"]  # Fallback to binance only
 
     def sell_lot_button(self, lot_symbol, available_quantity, buy_price):
         """Handle sell button for individual lot (child row)."""

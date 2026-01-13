@@ -5,6 +5,7 @@ class Symbol:
     def __init__(
         self,
         name: str = "",
+        exchange: str = "",
         min_notional: float = 0,
         lot_size: float = 0,
         min_qty: float = 0,
@@ -15,6 +16,7 @@ class Symbol:
         is_convert_only: bool = False,
     ):
         self.name = name
+        self.exchange = exchange
         self.min_notional = min_notional
         self.lot_size = lot_size
         self.min_qty = min_qty
@@ -26,7 +28,7 @@ class Symbol:
 
     def __repr__(self):
         return (
-            f"Symbol(name={self.name}, min_notional={self.min_notional}, "
+            f"Symbol(name={self.name}, exchange={self.exchange}, min_notional={self.min_notional}, "
             f"lot_size={self.lot_size}, min_qty={self.min_qty}, max_qty={self.max_qty}, "
             f"price_filter={self.price_filter}, precision={self.precision}, "
             f"price_precision={self.price_precision}, is_convert_only={self.is_convert_only})"
@@ -78,12 +80,31 @@ class Symbol:
                 f"price: {price_str}, quantity: {quantity_str}"
             )
 
-    def extract_coin_from_symbol(self, symbol: str) -> str:
+    def extract_coin_from_symbol(self) -> str:
+        """Extract base coin from symbol name based on exchange format"""
+        if self.exchange == "binance":
+            return self._extract_binance_format()
+        elif self.exchange == "kraken":
+            return self._extract_kraken_format()
+        else:
+            raise ValueError(f"Unknown exchange: {self.exchange}")
+
+    def _extract_binance_format(self) -> str:
+        """Extract coin from Binance format (e.g., BTCUSDC -> BTC)"""
         known_quote_currencies = ["BTC", "USDC", "PLN", "BNB", "USDT"]
         for quote in known_quote_currencies:
-            if symbol.endswith(quote):
-                return symbol[: -len(quote)]
-        raise ValueError(f"Symbol '{symbol}' does not end with a known quote currency")
+            if self.name.endswith(quote):
+                return self.name[: -len(quote)]
+        raise ValueError(
+            f"Symbol '{self.name}' does not end with a known quote currency"
+        )
+
+    def _extract_kraken_format(self) -> str:
+        """Extract coin from Kraken format (e.g., XBT/USD -> XBT)"""
+        if "/" in self.name:
+            return self.name.split("/")[0]
+        # Handle legacy format if needed (XXBTZUSD)
+        raise ValueError(f"Unable to parse Kraken symbol: {self.name}")
 
     @staticmethod
     def calculate_precision(step_size):
@@ -93,22 +114,6 @@ class Symbol:
         return 0
 
 
-async def fetch_symbols(client) -> Dict[str, Symbol]:
-    exchange_info = await client.get_exchange_info()
-    symbols = {}
-    for symbol in exchange_info["symbols"]:
-        if symbol["status"] == "TRADING":
-            filters = {f["filterType"]: f for f in symbol["filters"]}
-            symbols[symbol["symbol"]] = Symbol(
-                name=symbol["symbol"],
-                min_notional=float(filters.get("NOTIONAL", {}).get("minNotional", 0)),
-                lot_size=float(filters.get("LOT_SIZE", {}).get("stepSize", 0)),
-                min_qty=float(filters.get("LOT_SIZE", {}).get("minQty", 0)),
-                max_qty=float(filters.get("LOT_SIZE", {}).get("maxQty", 0)),
-                price_filter=float(filters.get("PRICE_FILTER", {}).get("tickSize", 0)),
-                precision=Symbol.calculate_precision(filters["LOT_SIZE"]["stepSize"]),
-                price_precision=Symbol.calculate_precision(
-                    filters.get("PRICE_FILTER", {}).get("tickSize", 0)
-                ),
-            )
-    return symbols
+# NOTE: fetch_symbols() has been moved to exchange client implementations
+# (BinanceExchangeClient.fetch_symbols() and KrakenExchangeClient.fetch_symbols())
+# This allows each exchange to parse its own trading rules format.

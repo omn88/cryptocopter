@@ -1,6 +1,41 @@
 <PortfolioUI>:
     orientation: 'vertical'
 
+    # Exchange selector row
+    BoxLayout:
+        orientation: 'horizontal'
+        size_hint_y: 0.08
+        padding: [20, 5]
+        spacing: 10
+
+        Label:
+            text: 'Exchange:'
+            size_hint_x: 0.1
+            font_size: '14sp'
+        
+        Spinner:
+            id: exchange_spinner
+            text: 'BINANCE'
+            values: ['BINANCE', 'KRAKEN']
+            size_hint_x: 0.15
+            on_text: root.switch_exchange(self.text.lower())
+        
+        Label:
+            id: exchange_label
+            text: 'Exchange: BINANCE'
+            size_hint_x: 0.2
+            font_size: '14sp'
+        
+        Label:
+            id: exchange_health_label
+            text: '[color=00ff00]●[/color]'
+            markup: True
+            size_hint_x: 0.05
+            font_size: '20sp'
+        
+        Widget:
+            size_hint_x: 0.5
+
     # Sizing for the labels at the top (USD and BTC saldo)
     BoxLayout:
         orientation: 'horizontal'

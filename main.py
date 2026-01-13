@@ -18,8 +18,7 @@ import kivy_config  # noinspection PyUnresolvedReferences
 import logging_config  # noinspection PyUnresolvedReferences
 import logging
 from decouple import Config, RepositoryEnv
-from src.common.client import BinanceClient
-from src.common.symbol import fetch_symbols
+from src.broker.exchange_manager import ExchangeManager
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 
 os.environ["KIVY_NO_CONSOLELOG"] = "1"
@@ -56,19 +55,42 @@ async def main() -> None:
     # Initialize SQLite database
     db = Database()  # Uses default "trading.db" file
 
-    client = BinanceClient(
-        api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
-    )
+    # Initialize exchange manager for multi-exchange support
+    exchange_manager = ExchangeManager(config=config_env)
+    initialization_results = await exchange_manager.initialize_all()
+
+    logger.info(f"Exchange initialization results: {initialization_results}")
+
+    # Get default exchange client (Binance for backward compatibility)
+    default_exchange = "binance" if initialization_results.get("binance") else "kraken"
+    client = exchange_manager.get_client(default_exchange)
+
+    if client is None:
+        logger.error("No exchange client available. Please check API credentials.")
+        return
+
+    # Fetch symbols from default exchange
+    symbols = await client.fetch_symbols()
 
     price_resolver = UsdPriceResolver(
-        client=client, symbols=await fetch_symbols(client=client)
+        client=(
+            client.get_native_client()
+            if hasattr(client, "get_native_client")
+            else client
+        ),
+        symbols=symbols,
     )
     await price_resolver.fetch_all_prices()
 
     app = AsyncApp(
-        client=client,
+        client=(
+            client.get_native_client()
+            if hasattr(client, "get_native_client")
+            else client
+        ),
         db=db,
         price_resolver=price_resolver,
+        exchange_manager=exchange_manager,
     )
 
     logger.info("Created %s", app)
@@ -81,9 +103,15 @@ async def main() -> None:
         logger.error(f"Unexpected error in main application: {e}")
     finally:
         try:
-            await client.close_connection()
+            if hasattr(client, "close_connection"):
+                await client.close_connection()
         except Exception as e:
             logger.error(f"Error closing client connection: {e}")
+
+        try:
+            await exchange_manager.cleanup()
+        except Exception as e:
+            logger.error(f"Error cleaning up exchange manager: {e}")
 
         try:
             await db.close()
