@@ -7,6 +7,7 @@ This module tests the parsing and validation of WebSocket messages from Binance:
 - Error handling and validation
 """
 
+import copy
 import logging
 import queue
 from typing import Dict, List
@@ -830,9 +831,10 @@ class TestIntegration:
             ]
         }
 
-        # Process new order
-        execution_report_new["s"] = "ETHUSDC"
-        handle_user_message(execution_report_new, subscriptions)
+        # Process new order (use copy to avoid modifying fixture)
+        report_new = copy.deepcopy(execution_report_new)
+        report_new["s"] = "ETHUSDC"
+        handle_user_message(report_new, subscriptions)
         event1 = test_queue.get()
         assert event1.content.current_order_status == "NEW"
 
@@ -842,11 +844,12 @@ class TestIntegration:
         assert event2.content.current_order_status == "PARTIALLY_FILLED"
         assert event2.content.cumulative_filled_quantity == 1.0
 
-        # Process full fill
-        execution_report_filled["s"] = "ETHUSDC"
-        execution_report_filled["q"] = "2.0"
-        execution_report_filled["z"] = "2.0"
-        handle_user_message(execution_report_filled, subscriptions)
+        # Process full fill (use copy to avoid modifying fixture)
+        report_filled = copy.deepcopy(execution_report_filled)
+        report_filled["s"] = "ETHUSDC"
+        report_filled["q"] = "2.0"
+        report_filled["z"] = "2.0"
+        handle_user_message(report_filled, subscriptions)
         event3 = test_queue.get()
         assert event3.content.current_order_status == "FILLED"
         assert event3.content.cumulative_filled_quantity == 2.0
