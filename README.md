@@ -1,6 +1,6 @@
-# RSI Based Trading System
+# Cryptocopter
 
-Advanced cryptocurrency spot trading system with multiple strategies, portfolio management, and real-time execution on Binance Spot.
+Advanced cryptocurrency spot trading system with DCA-based strategies, multi-exchange support (Binance & Kraken), portfolio management, and real-time execution.
 
 ## 🌟 Features
 
@@ -31,8 +31,8 @@ Binance Spot API credentials
 ### Installation
 ```bash
 # Clone repository
-git clone https://gitlab.com/omn88/rsi_based_futures.git
-cd rsi_based_futures
+git clone https://github.com/omn88/cryptocopter.git
+cd cryptocopter
 
 # Create virtual environment
 python -m venv windows_venv  # Windows

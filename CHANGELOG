@@ -1,5 +1,10 @@
 ############################################# CHANGELOG #############################################
 
+### Version 2.1.0 (January 24, 2026)
+- Migrated project from GitLab to GitHub
+- Renamed project from 'rsi_based_futures' to 'cryptocopter'
+- Updated repository URL to https://github.com/omn88/cryptocopter
+
 ### NEW FEATURES
 - Test the converting methods.
 - Bunch of crash recovery tests under test_hp_manager_recovery_db.py
