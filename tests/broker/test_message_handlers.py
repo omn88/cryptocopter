@@ -35,6 +35,7 @@ from src.common.identifiers import (
 # Fixtures - Sample Binance API Messages
 # ============================================================================
 
+
 @pytest.fixture
 def execution_report_new():
     """Sample execution report for a new order."""
@@ -533,9 +534,7 @@ class TestAccountPositionParsing:
 class TestMessageDispatch:
     """Tests for message routing and dispatch logic."""
 
-    def test_handle_user_message_execution_report_dispatch(
-        self, execution_report_new
-    ):
+    def test_handle_user_message_execution_report_dispatch(self, execution_report_new):
         """Test execution report is dispatched to correct subscribers."""
         test_queue = queue.Queue()
         subscriptions = {
