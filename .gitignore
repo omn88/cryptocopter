@@ -7,6 +7,8 @@ sample_data.txt
 .env
 *.txt
 *.csv
+venv
+.venv
 linux_venv
 windows_venv
 .vscode/
