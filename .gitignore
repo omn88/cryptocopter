@@ -11,6 +11,7 @@ sample_data.txt
 *.txt
 *.csv
 venv
+.venv
 linux_venv
 windows_venv
 .vscode/

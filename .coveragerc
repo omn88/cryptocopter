@@ -1,0 +1,31 @@
+[run]
+branch = True
+source =
+    src
+    tests
+omit =
+    */__init__.py
+    */tests/*
+    */.venv/*
+    */venv/*
+    */build/*
+    */dist/*
+    */.tox/*
+    */.pytest_cache/*
+
+[report]
+skip_empty = True
+show_missing = True
+exclude_lines =
+    pragma: no cover
+    if __name__ == "__main__":
+    @abstractmethod
+    @abc.abstractmethod
+    raise NotImplementedError
+    pass
+
+[paths]
+source =
+    src
+    */cryptocopter/src
+    */cryptocopter/.venv/lib/python*/site-packages
