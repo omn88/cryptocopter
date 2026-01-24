@@ -110,12 +110,12 @@ async def test_hp_buy_orders_lock_persists_to_db(portfolio_ui, test_db):
     usdc_item = next((item for item in portfolio_ui.inventory if item.coin == "USDC"), None)
     assert usdc_item is not None, "USDC inventory item should exist"
     
-    # Fetch from database
-    db_items = await test_db.get_inventory_items()
-    db_usdc_items = [item for item in db_items if item.coin == "USDC"]
+    # Fetch from database - returns list of dictionaries
+    db_items = await test_db.fetch_all_inventory_items()
+    db_usdc_items = [item for item in db_items if item["coin"] == "USDC"]
     
     # Verify database has locked state
-    db_locked = sum(item.locked_quantity for item in db_usdc_items)
+    db_locked = sum(item["locked_quantity"] for item in db_usdc_items)
     memory_locked = sum(item.locked_quantity for item in portfolio_ui.inventory if item.coin == "USDC")
     
     assert db_locked == memory_locked, \
@@ -337,9 +337,9 @@ async def test_hp_sell_position_lock_persists_to_db(portfolio_ui, test_db):
         item.locked_quantity for item in portfolio_ui.inventory if item.coin == "ETH"
     )
     
-    # Get database locked amount
-    db_items = await test_db.get_inventory_items()
-    db_locked = sum(item.locked_quantity for item in db_items if item.coin == "ETH")
+    # Get database locked amount - returns list of dictionaries
+    db_items = await test_db.fetch_all_inventory_items()
+    db_locked = sum(item["locked_quantity"] for item in db_items if item["coin"] == "ETH")
     
     assert db_locked == memory_locked, \
         f"Database locked quantity ({db_locked}) should match memory ({memory_locked})"
@@ -543,9 +543,9 @@ async def test_cancellation_persists_to_db(portfolio_ui, test_db):
         item.locked_quantity for item in portfolio_ui.inventory if item.coin == "AXL"
     )
     
-    # Get database state
-    db_items = await test_db.get_inventory_items()
-    db_locked = sum(item.locked_quantity for item in db_items if item.coin == "AXL")
+    # Get database state - returns list of dictionaries
+    db_items = await test_db.fetch_all_inventory_items()
+    db_locked = sum(item["locked_quantity"] for item in db_items if item["coin"] == "AXL")
     
     assert db_locked == memory_locked, \
         f"Database locked quantity ({db_locked}) should match memory ({memory_locked})"
@@ -581,6 +581,7 @@ async def test_buy_partial_fill_adds_inventory(portfolio_ui):
         filled_quantity=0.1,
         total_filled=0.1,
         buy_price=buy_price,
+        partial_cost=0.1 * buy_price,
     )
     await portfolio_ui.handle_hp_buy_partially_filled(fill1)
     
@@ -597,6 +598,7 @@ async def test_buy_partial_fill_adds_inventory(portfolio_ui):
         filled_quantity=0.05,
         total_filled=0.15,
         buy_price=buy_price,
+        partial_cost=0.05 * buy_price,
     )
     await portfolio_ui.handle_hp_buy_partially_filled(fill2)
     

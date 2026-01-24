@@ -13,5 +13,6 @@ sample_data.txt
 venv
 linux_venv
 windows_venv
+.venv
 .vscode/
 *.db

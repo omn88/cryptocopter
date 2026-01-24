@@ -812,7 +812,7 @@ def mock_inventory():
 
 
 @pytest.fixture
-def portfolio_ui(test_db: Database, mock_async_client, mock_inventory):
+async def portfolio_ui(test_db: Database, mock_async_client, mock_inventory):
     """Create portfolio UI for testing with test mode enabled."""
     ui_queue: queue.Queue = queue.Queue()
 
@@ -842,6 +842,10 @@ def portfolio_ui(test_db: Database, mock_async_client, mock_inventory):
 
     # Set up the inventory directly from the mock_inventory fixture
     portfolio.set_inventory(mock_inventory)
+    
+    # Save inventory items to the database so they can be updated later
+    for item in mock_inventory:
+        await test_db.insert_inventory_item(item)
 
     yield portfolio
 
