@@ -407,7 +407,14 @@ class WebSocketManager:
                         "m": f"CRITICAL: Ticker silent for {time_since_ticker:.1f} seconds (threshold: {self._force_restart_threshold}s)",
                     }
                     await self._handle_websocket_error(timeout_error)
-                    return
+                    
+                    # Reset last ticker time after restart to avoid immediate re-trigger
+                    # The restart should restore ticker flow; if not, we'll detect again
+                    self._last_ticker_time = time.time()
+                    
+                    # Continue monitoring instead of exiting - the dead-man switch
+                    # must keep running to handle future connection failures
+                    continue
 
                 elif time_since_ticker > self._max_ticker_silence_duration:
                     logger.warning(
