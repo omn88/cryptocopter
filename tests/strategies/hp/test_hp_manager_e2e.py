@@ -10,8 +10,6 @@ from binance.enums import (
     ORDER_STATUS_PARTIALLY_FILLED,
 )
 from src.common.symbol import Symbol
-from src.strategy_executor import StrategyExecutor
-from src.gui.hp_manager.hpfront import HpFront
 from src.common.identifiers import (
     HPSellConfig,
     HPSell,
@@ -21,7 +19,6 @@ from src.common.identifiers import (
 )
 from tests.helpers import get_new_order
 from tests.strategies.hp.hp_simulator import (
-    HPSimulator,
     wait_for_condition,
     get_buy_positions,
     wait_for_active_buy_positions,
@@ -31,32 +28,15 @@ from tests.strategies.hp.hp_simulator import (
 logger = logging.getLogger("hp_e2e_test")
 
 
-async def test_get_default_buy_position(frontend_backend_setup):
-    front, back = frontend_backend_setup
-
-    sim = HPSimulator(front=front, back=back)
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    assert len(back.strategies) == 0
-
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
+async def test_get_default_buy_position(hp_idle):
+    sim, strategy = hp_idle
 
 
-async def test_default_buy_position_send_order(frontend_backend_setup):
-    front, back = frontend_backend_setup
-    sim = HPSimulator(front=front, back=back)
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-
-    assert len(back.strategies) == 0
-
-    # Get default buy position
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
+async def test_default_buy_position_send_order(hp_idle):
+    sim, strategy = hp_idle
+    front, back = sim.front, sim.back
 
     # Open position and send order
-    strategy = back.strategies["1000"]
     strategy.client.create_order.side_effect = [
         get_new_order(order=strategy.buy.buy_order)
     ]
@@ -91,21 +71,9 @@ async def test_default_buy_position_send_order(frontend_backend_setup):
     logger.info("Idle buy positions: %s", get_buy_positions(front, state="NEW"))
 
 
-async def test_cancel_default_position_untouched(frontend_backend_setup):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-
-    sim = HPSimulator(front=front, back=back)
-
-    assert len(back.strategies) == 0
-
-    # Get default buy position
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
-
-    await sim.move_to_position_active_buy()
-    strategy = back.strategies["1000"]
+async def test_cancel_default_position_untouched(hp_buying):
+    sim, strategy = hp_buying
+    front, back = sim.front, sim.back
 
     assert strategy.buy.order_cancel_price == 1428.0
     sim.new_price(price=1428)
@@ -142,22 +110,8 @@ async def test_cancel_default_position_untouched(frontend_backend_setup):
     sim.validate_strategy_state(strategy, "NEW", expected_buy_state="NEW")
 
 
-async def test_cancel_default_position_untouched_then_resend_order(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-
-    sim = HPSimulator(front=front, back=back)
-
-    assert len(back.strategies) == 0
-
-    # Get default buy position
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
-
-    await sim.move_to_position_active_buy()
+async def test_cancel_default_position_untouched_then_resend_order(hp_buying):
+    sim, strategy = hp_buying
 
     await sim.cancel_buy_position_untouched()
 
@@ -165,22 +119,8 @@ async def test_cancel_default_position_untouched_then_resend_order(
     await sim.move_to_position_active_buy()
 
 
-async def test_default_position_order_filled_partially(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-
-    sim = HPSimulator(front=front, back=back)
-
-    assert len(back.strategies) == 0
-
-    # Get default buy position
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
-
-    await sim.move_to_position_active_buy()
+async def test_default_position_order_filled_partially(hp_buying):
+    sim, _ = hp_buying
 
     # Simulate partial fill
     strategy = await sim.simulate_partial_fill()
@@ -206,22 +146,9 @@ async def test_default_position_order_filled_partially(
     )
 
 
-async def test_default_position_order_filled_partially_then_cancel(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-
-    sim = HPSimulator(front=front, back=back)
-
-    assert len(back.strategies) == 0
-
-    # Get default buy position
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
-
-    await sim.move_to_position_active_buy()
+async def test_default_position_order_filled_partially_then_cancel(hp_buying):
+    sim, _ = hp_buying
+    front = sim.front
 
     # Simulate first buy order fill
     strategy = await sim.simulate_partial_fill()  # Cancel partially bought position
@@ -269,18 +196,8 @@ async def test_default_position_order_filled_partially_then_cancel(
     logger.info("HP List after the update: %s", front.hp_list_data)
 
 
-async def test_default_position_order_filled(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-
-    assert len(back.strategies) == 0
-
-    # Simulate bought position (includes setup and order fill)
-    strategy = await sim.simulate_bought_position()
+async def test_default_position_order_filled(hp_bought):
+    sim, strategy = hp_bought
 
     # Comprehensive validation for first order filled
     sim.validate_parent(
@@ -305,20 +222,12 @@ async def test_default_position_order_filled(
 
 
 async def test_default_position_order_filled_partially_then_cancel_then_resend(
-    frontend_backend_setup,
+    hp_buying,
 ):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
+    sim, _ = hp_buying
+    front = sim.front
 
-    # Path 0: Default buy position
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
-
-    # Path 1: Send buy order
-    await sim.move_to_position_active_buy()
-    # Simulate partial fill    # Simulate partial fill
+    # Simulate partial fill
     strategy = await sim.simulate_partial_fill()
 
     # Cancel position
@@ -402,14 +311,9 @@ async def test_default_position_order_filled_partially_then_cancel_then_resend(
     )
 
 
-async def test_setup_sell_position_for_bought_position(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-    await sim.simulate_bought_position()
+async def test_setup_sell_position_for_bought_position(hp_bought):
+    sim, _ = hp_bought
+    back = sim.back
 
     await sim.setup_sell_position(
         hp_id="1000",
@@ -443,25 +347,9 @@ async def test_setup_sell_position_for_bought_position(
     sim.validate_strategy_state(strategy, "BOUGHT")
 
 
-async def test_send_sell_order_for_bought_position(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-    await sim.simulate_bought_position()
-    await sim.setup_sell_position(
-        hp_id="1000",
-        symbol="BTCUSDC",
-        quantity=0.71429,
-        buy_price=1400.0,
-        sell_price=4200.0,
-        end_currency="USDC",
-        coin="BTC",
-    )
-
-    strategy = back.strategies["1000"]
+async def test_send_sell_order_for_bought_position(hp_sell_configured):
+    sim, strategy = hp_sell_configured
+    front = sim.front
 
     strategy.client.create_order.side_effect = [
         get_new_order(order=strategy.sell.current_position.sell_order)
@@ -498,51 +386,15 @@ async def test_send_sell_order_for_bought_position(
     )
 
 
-async def test_cancel_unfilled_sell_order(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-    await sim.simulate_bought_position()
-
-    await sim.setup_sell_position(
-        hp_id="1000",
-        symbol="BTCUSDC",
-        quantity=0.71429,
-        buy_price=1400.0,
-        sell_price=4200.0,
-        end_currency="USDC",
-        coin="BTC",
-    )
-
-    await sim.send_sell_order_for_bought_position()
+async def test_cancel_unfilled_sell_order(hp_selling):
+    sim, strategy = hp_selling
 
     # Cancel unfilled sell order
     await sim.cancel_unfilled_sell_position()
 
 
-async def test_resend_unfilled_sell_order(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-    await sim.simulate_bought_position()
-
-    await sim.setup_sell_position(
-        hp_id="1000",
-        symbol="BTCUSDC",
-        quantity=0.71429,
-        buy_price=1400.0,
-        sell_price=4200.0,
-        end_currency="USDC",
-        coin="BTC",
-    )
-
-    await sim.send_sell_order_for_bought_position()
+async def test_resend_unfilled_sell_order(hp_selling):
+    sim, strategy = hp_selling
 
     # Cancel unfilled sell order
     await sim.cancel_unfilled_sell_position()
@@ -550,100 +402,28 @@ async def test_resend_unfilled_sell_order(
     await sim.send_sell_order_for_bought_position()
 
 
-async def test_sell_position_order_filled_partially(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-    await sim.simulate_bought_position()
-
-    await sim.setup_sell_position(
-        hp_id="1000",
-        symbol="BTCUSDC",
-        quantity=0.71429,
-        buy_price=1400.0,
-        sell_price=4200.0,
-        end_currency="USDC",
-        coin="BTC",
-    )
-
-    await sim.send_sell_order_for_bought_position()
+async def test_sell_position_order_filled_partially(hp_selling):
+    sim, strategy = hp_selling
 
     await sim.simulate_sell_order_partial_fill()
 
 
-async def test_sell_position_filled(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-    await sim.simulate_bought_position()
-
-    await sim.setup_sell_position(
-        hp_id="1000",
-        symbol="BTCUSDC",
-        quantity=0.71429,
-        buy_price=1400.0,
-        sell_price=4200.0,
-        end_currency="USDC",
-        coin="BTC",
-    )
-
-    await sim.send_sell_order_for_bought_position()
+async def test_sell_position_filled(hp_selling):
+    sim, strategy = hp_selling
 
     await sim.simulate_sell_order_fill()
 
 
-async def test_cancel_sell_position_first_order_filled_partially(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-    await sim.simulate_bought_position()
-
-    await sim.setup_sell_position(
-        hp_id="1000",
-        symbol="BTCUSDC",
-        quantity=0.71429,
-        buy_price=1400.0,
-        sell_price=4200.0,
-        end_currency="USDC",
-        coin="BTC",
-    )
-
-    await sim.send_sell_order_for_bought_position()
+async def test_cancel_sell_position_first_order_filled_partially(hp_selling):
+    sim, strategy = hp_selling
 
     await sim.simulate_sell_order_partial_fill()
 
     await sim.cancel_partially_sold_position()
 
 
-async def test_resend_sell_position_first_order_filled_partially(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-    await sim.simulate_bought_position()
-
-    await sim.setup_sell_position(
-        hp_id="1000",
-        symbol="BTCUSDC",
-        quantity=0.71429,
-        buy_price=1400.0,
-        sell_price=4200.0,
-        end_currency="USDC",
-        coin="BTC",
-    )
-
-    await sim.send_sell_order_for_bought_position()
+async def test_resend_sell_position_first_order_filled_partially(hp_selling):
+    sim, strategy = hp_selling
 
     await sim.simulate_sell_order_partial_fill()
 
@@ -653,35 +433,9 @@ async def test_resend_sell_position_first_order_filled_partially(
 
 
 async def test_send_sell_order_for_partially_bought_position(
-    frontend_backend_setup,
+    hp_partially_bought,
 ):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-
-    assert len(back.strategies) == 0
-
-    # Get default buy position
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
-
-    await sim.move_to_position_active_buy()
-
-    # Simulate first buy order fill
-    strategy = await sim.simulate_partial_fill()
-
-    assert strategy.buy.order_cancel_price == 1428.0
-    sim.new_price(price=1428.0)
-
-    assert strategy.buy.buy_order is not None
-
-    assert strategy.buy.buy_order.status == ORDER_STATUS_PARTIALLY_FILLED
-
-    # Wait for state transition to complete
-    await wait_for_condition(
-        condition_func=lambda: strategy.state == State.PARTIALLY_BOUGHT
-    )
+    sim, strategy = hp_partially_bought
 
     await sim.setup_sell_position(
         hp_id="1000",
@@ -697,93 +451,18 @@ async def test_send_sell_order_for_partially_bought_position(
 
 
 async def test_cancel_unfilled_sell_order_for_partially_bought_position(
-    frontend_backend_setup,
+    hp_partially_bought_selling,
 ):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-
-    assert len(back.strategies) == 0
-
-    # Get default buy position
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
-
-    await sim.move_to_position_active_buy()
-
-    # Simulate first buy order fill
-    strategy = await sim.simulate_partial_fill()
-
-    assert strategy.buy.order_cancel_price == 1428.0
-    sim.new_price(price=1428.0)
-
-    assert strategy.buy.buy_order is not None
-
-    assert strategy.buy.buy_order.status == ORDER_STATUS_PARTIALLY_FILLED
-
-    # Wait for state transition to complete
-    await wait_for_condition(
-        condition_func=lambda: strategy.state == State.PARTIALLY_BOUGHT
-    )
-
-    await sim.setup_sell_position_after_buy_order_filled_partially(
-        hp_id="1000",
-        symbol="BTCUSDC",
-        quantity=strategy.buy.calculate_realized_quantity(),
-        buy_price=strategy.buy.calculate_avg_buy_price(),
-        sell_price=4200.0,
-        end_currency="USDC",
-        coin="BTC",
-    )
-
-    await sim.send_sell_order_for_part_bought_position()
+    sim, strategy = hp_partially_bought_selling
 
     await sim.cancel_unfilled_sell_position_from_part_filled_buy()
 
 
 async def test_fill_order_for_previously_partially_bought_position(
-    frontend_backend_setup,
+    hp_partially_bought_selling,
 ):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-
-    assert len(back.strategies) == 0
-
-    # Get default buy position
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
-
-    await sim.move_to_position_active_buy()
-
-    # Simulate first buy order fill
-    strategy = await sim.simulate_partial_fill()
-
-    assert strategy.buy.order_cancel_price == 1428.0
-    sim.new_price(price=1428.0)
-
-    assert strategy.buy.buy_order is not None
-
-    assert strategy.buy.buy_order.status == ORDER_STATUS_PARTIALLY_FILLED
-
-    # Wait for state transition to complete
-    await wait_for_condition(
-        condition_func=lambda: strategy.state == State.PARTIALLY_BOUGHT
-    )
-
-    await sim.setup_sell_position_after_buy_order_filled_partially(
-        hp_id="1000",
-        symbol="BTCUSDC",
-        quantity=strategy.buy.calculate_realized_quantity(),
-        buy_price=strategy.buy.calculate_avg_buy_price(),
-        sell_price=4200.0,
-        end_currency="USDC",
-        coin="BTC",
-    )
-
-    await sim.send_sell_order_for_part_bought_position()
+    sim, strategy = hp_partially_bought_selling
+    front = sim.front
 
     await sim.cancel_unfilled_sell_position_from_part_filled_buy()
 
@@ -810,94 +489,15 @@ async def test_fill_order_for_previously_partially_bought_position(
     )
 
 
-async def test_sell_partially_partially_bought_position(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-
-    assert len(back.strategies) == 0
-
-    # Get default buy position
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
-
-    await sim.move_to_position_active_buy()
-
-    # Simulate first buy order fill
-    strategy = await sim.simulate_partial_fill()
-
-    assert strategy.buy.order_cancel_price == 1428.0
-    sim.new_price(price=1428.0)
-
-    assert strategy.buy.buy_order is not None
-
-    assert strategy.buy.buy_order.status == ORDER_STATUS_PARTIALLY_FILLED
-
-    # Wait for state transition to complete
-    await wait_for_condition(
-        condition_func=lambda: strategy.state == State.PARTIALLY_BOUGHT
-    )
-
-    await sim.setup_sell_position_after_buy_order_filled_partially(
-        hp_id="1000",
-        symbol="BTCUSDC",
-        quantity=strategy.buy.calculate_realized_quantity(),
-        buy_price=strategy.buy.calculate_avg_buy_price(),
-        sell_price=4200.0,
-        end_currency="USDC",
-        coin="BTC",
-    )
-
-    await sim.send_sell_order_for_part_bought_position()
+async def test_sell_partially_partially_bought_position(hp_partially_bought_selling):
+    sim, strategy = hp_partially_bought_selling
 
     await sim.simulate_sell_order_partial_fill_from_part_bought()
 
 
-async def test_buy_partially_partially_sold_position(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-
-    assert len(back.strategies) == 0
-
-    # Get default buy position
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
-
-    await sim.move_to_position_active_buy()
-
-    # Simulate first buy order partial fill
-    strategy = await sim.simulate_partial_fill()
-
-    assert strategy.buy.order_cancel_price == 1428.0
-    sim.new_price(price=1428.0)
-
-    assert strategy.buy.buy_order is not None
-
-    assert strategy.buy.buy_order.status == ORDER_STATUS_PARTIALLY_FILLED
-
-    # Wait for state transition to complete
-    await wait_for_condition(
-        condition_func=lambda: strategy.state == State.PARTIALLY_BOUGHT
-    )
-
-    await sim.setup_sell_position_after_buy_order_filled_partially(
-        hp_id="1000",
-        symbol="BTCUSDC",
-        quantity=strategy.buy.calculate_realized_quantity(),
-        buy_price=strategy.buy.calculate_avg_buy_price(),
-        sell_price=4200.0,
-        end_currency="USDC",
-        coin="BTC",
-    )
-
-    await sim.send_sell_order_for_part_bought_position()
+async def test_buy_partially_partially_sold_position(hp_partially_bought_selling):
+    sim, strategy = hp_partially_bought_selling
+    front = sim.front
 
     await sim.simulate_sell_order_partial_fill_from_part_bought()
 
@@ -919,49 +519,9 @@ async def test_buy_partially_partially_sold_position(
     )
 
 
-async def test_cancel_buy_to_part_sold_part_bought(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-
-    assert len(back.strategies) == 0
-
-    # Get default buy position
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
-
-    await sim.move_to_position_active_buy()
-
-    # Simulate first buy order fill
-    strategy = await sim.simulate_partial_fill()
-
-    assert strategy.buy.order_cancel_price == 1428.0
-    sim.new_price(price=1428.0)
-
-    assert strategy.buy.buy_order is not None
-
-    assert strategy.buy.buy_order.status == ORDER_STATUS_PARTIALLY_FILLED
-
-    # Wait for state transition to complete
-    await wait_for_condition(
-        condition_func=lambda: strategy.state == State.PARTIALLY_BOUGHT
-    )
-
-    await sim.setup_sell_position_after_buy_order_filled_partially(
-        hp_id="1000",
-        symbol="BTCUSDC",
-        quantity=strategy.buy.calculate_realized_quantity(),
-        buy_price=strategy.buy.calculate_avg_buy_price(),
-        sell_price=4200.0,
-        end_currency="USDC",
-        coin="BTC",
-    )
-    await sim.send_sell_order_for_part_bought_position()
-
-    await sim.simulate_sell_order_partial_fill_from_part_bought()
+async def test_cancel_buy_to_part_sold_part_bought(hp_partially_bought_part_sold):
+    sim, strategy = hp_partially_bought_part_sold
+    front = sim.front
 
     # Cancel Sell position
     await sim.cancel_sell_position_filled_partially()
@@ -981,50 +541,9 @@ async def test_cancel_buy_to_part_sold_part_bought(
     )
 
 
-async def test_buy_fully_partially_sold_position(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-
-    assert len(back.strategies) == 0
-
-    # Get default buy position
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
-
-    await sim.move_to_position_active_buy()
-
-    # Simulate first buy order fill
-    strategy = await sim.simulate_partial_fill()
-
-    assert strategy.buy.order_cancel_price == 1428.0
-    sim.new_price(price=1428.0)
-
-    assert strategy.buy.buy_order is not None
-
-    assert strategy.buy.buy_order.status == ORDER_STATUS_PARTIALLY_FILLED
-
-    # Wait for state transition to complete
-    await wait_for_condition(
-        condition_func=lambda: strategy.state == State.PARTIALLY_BOUGHT
-    )
-
-    await sim.setup_sell_position_after_buy_order_filled_partially(
-        hp_id="1000",
-        symbol="BTCUSDC",
-        quantity=strategy.buy.calculate_realized_quantity(),
-        buy_price=strategy.buy.calculate_avg_buy_price(),
-        sell_price=4200.0,
-        end_currency="USDC",
-        coin="BTC",
-    )
-
-    await sim.send_sell_order_for_part_bought_position()
-
-    await sim.simulate_sell_order_partial_fill_from_part_bought()
+async def test_buy_fully_partially_sold_position(hp_partially_bought_part_sold):
+    sim, strategy = hp_partially_bought_part_sold
+    front = sim.front
 
     # Cancel Sell position
     await sim.cancel_sell_position_filled_partially()
@@ -1044,94 +563,17 @@ async def test_buy_fully_partially_sold_position(
     )
 
 
-async def test_sell_fully_partially_bought_position(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-
-    assert len(back.strategies) == 0
-
-    # Get default buy position
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
-
-    await sim.move_to_position_active_buy()
-
-    # Simulate first buy order fill
-    strategy = await sim.simulate_partial_fill()
-
-    assert strategy.buy.order_cancel_price == 1428.0
-    sim.new_price(price=1428.0)
-
-    assert strategy.buy.buy_order is not None
-
-    assert strategy.buy.buy_order.status == ORDER_STATUS_PARTIALLY_FILLED
-
-    # Wait for state transition to complete
-    await wait_for_condition(
-        condition_func=lambda: strategy.state == State.PARTIALLY_BOUGHT
-    )
-
-    await sim.setup_sell_position_after_buy_order_filled_partially(
-        hp_id="1000",
-        symbol="BTCUSDC",
-        quantity=strategy.buy.calculate_realized_quantity(),
-        buy_price=strategy.buy.calculate_avg_buy_price(),
-        sell_price=4200.0,
-        end_currency="USDC",
-        coin="BTC",
-    )
-
-    await sim.send_sell_order_for_part_bought_position()
+async def test_sell_fully_partially_bought_position(hp_partially_bought_selling):
+    sim, strategy = hp_partially_bought_selling
 
     await sim.simulate_sell_order_fill_from_part_bought()
 
 
 async def test_buy_fully_partially_bought_position_when_sold_position(
-    frontend_backend_setup,
+    hp_partially_bought_selling,
 ):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-
-    assert len(back.strategies) == 0
-
-    # Get default buy position
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
-
-    await sim.move_to_position_active_buy()
-
-    # Simulate first buy order fill
-    strategy = await sim.simulate_partial_fill()
-
-    assert strategy.buy.order_cancel_price == 1428.0
-    sim.new_price(price=1428.0)
-
-    assert strategy.buy.buy_order is not None
-
-    assert strategy.buy.buy_order.status == ORDER_STATUS_PARTIALLY_FILLED
-
-    # Wait for state transition to complete
-    await wait_for_condition(
-        condition_func=lambda: strategy.state == State.PARTIALLY_BOUGHT
-    )
-
-    await sim.setup_sell_position_after_buy_order_filled_partially(
-        hp_id="1000",
-        symbol="BTCUSDC",
-        quantity=strategy.buy.calculate_realized_quantity(),
-        buy_price=strategy.buy.calculate_avg_buy_price(),
-        sell_price=4200.0,
-        end_currency="USDC",
-        coin="BTC",
-    )
-
-    await sim.send_sell_order_for_part_bought_position()
+    sim, strategy = hp_partially_bought_selling
+    front = sim.front
 
     await sim.simulate_sell_order_fill_from_part_bought()
 
@@ -1150,130 +592,69 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     )
 
 
-async def test_start_new_sell_position_for_two_hop_trade(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-
-    await sim.open_first_sell_position_from_two_hop_trade()
+async def test_start_new_sell_position_for_two_hop_trade(hp_sim):
+    await hp_sim.open_first_sell_position_from_two_hop_trade()
 
 
-async def test_send_order_for_first_sell_position_in_two_hop_trade(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
+async def test_send_order_for_first_sell_position_in_two_hop_trade(hp_sim):
+    await hp_sim.open_first_sell_position_from_two_hop_trade()
 
-    await sim.open_first_sell_position_from_two_hop_trade()
-
-    await sim.send_orders_for_first_position_from_two_hop_trade()
+    await hp_sim.send_orders_for_first_position_from_two_hop_trade()
 
 
-async def test_fill_partially_first_sell_position_in_two_hop_trade(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
+async def test_fill_partially_first_sell_position_in_two_hop_trade(hp_sim):
+    await hp_sim.open_first_sell_position_from_two_hop_trade()
 
-    await sim.open_first_sell_position_from_two_hop_trade()
+    await hp_sim.send_orders_for_first_position_from_two_hop_trade()
 
-    await sim.send_orders_for_first_position_from_two_hop_trade()
-
-    await sim.simulate_sell_order_partial_fill_in_first_hop()
+    await hp_sim.simulate_sell_order_partial_fill_in_first_hop()
 
 
-async def test_fill_first_sell_position_in_two_hop_trade(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
+async def test_fill_first_sell_position_in_two_hop_trade(hp_sim):
+    await hp_sim.open_first_sell_position_from_two_hop_trade()
 
-    await sim.open_first_sell_position_from_two_hop_trade()
+    await hp_sim.send_orders_for_first_position_from_two_hop_trade()
 
-    await sim.send_orders_for_first_position_from_two_hop_trade()
-
-    await sim.simulate_sell_order_fill_in_first_hop()
+    await hp_sim.simulate_sell_order_fill_in_first_hop()
 
 
-async def test_start_second_sell_position_in_two_hop_trade(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
+async def test_start_second_sell_position_in_two_hop_trade(hp_sim):
+    await hp_sim.open_first_sell_position_from_two_hop_trade()
 
-    await sim.open_first_sell_position_from_two_hop_trade()
+    await hp_sim.send_orders_for_first_position_from_two_hop_trade()
 
-    await sim.send_orders_for_first_position_from_two_hop_trade()
+    await hp_sim.simulate_sell_order_fill_in_first_hop()
 
-    await sim.simulate_sell_order_fill_in_first_hop()
-
-    await sim.open_second_sell_position_from_two_hop_trade()
+    await hp_sim.open_second_sell_position_from_two_hop_trade()
 
 
-async def test_partial_fill_second_sell_position_in_two_hop_trade(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
+async def test_partial_fill_second_sell_position_in_two_hop_trade(hp_sim):
+    await hp_sim.open_first_sell_position_from_two_hop_trade()
 
-    await sim.open_first_sell_position_from_two_hop_trade()
+    await hp_sim.send_orders_for_first_position_from_two_hop_trade()
 
-    await sim.send_orders_for_first_position_from_two_hop_trade()
+    await hp_sim.simulate_sell_order_fill_in_first_hop()
 
-    await sim.simulate_sell_order_fill_in_first_hop()
+    await hp_sim.open_second_sell_position_from_two_hop_trade()
 
-    await sim.open_second_sell_position_from_two_hop_trade()
-
-    await sim.simulate_sell_order_partial_fill_in_second_hop()
+    await hp_sim.simulate_sell_order_partial_fill_in_second_hop()
 
 
-async def test_fill_second_sell_position_in_two_hop_trade(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
+async def test_fill_second_sell_position_in_two_hop_trade(hp_sim):
+    await hp_sim.open_first_sell_position_from_two_hop_trade()
 
-    await sim.open_first_sell_position_from_two_hop_trade()
+    await hp_sim.send_orders_for_first_position_from_two_hop_trade()
 
-    await sim.send_orders_for_first_position_from_two_hop_trade()
+    await hp_sim.simulate_sell_order_fill_in_first_hop()
 
-    await sim.simulate_sell_order_fill_in_first_hop()
+    await hp_sim.open_second_sell_position_from_two_hop_trade()
 
-    await sim.open_second_sell_position_from_two_hop_trade()
-
-    await sim.simulate_sell_order_fill_in_second_hop()
+    await hp_sim.simulate_sell_order_fill_in_second_hop()
 
 
-async def test_no_sell_order_send_if_buy_position_not_realized(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-
-    assert len(back.strategies) == 0
-
-    # Get default buy position
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
-
-    strategy = back.strategies["1000"]
+async def test_no_sell_order_send_if_buy_position_not_realized(hp_idle):
+    sim, strategy = hp_idle
+    front, back = sim.front, sim.back
     sell_config = HPSell(
         config=HPSellConfig(
             hp_id="1000",
@@ -1327,21 +708,9 @@ async def test_no_sell_order_send_if_buy_position_not_realized(
     assert item["state"] == "NEW"
 
 
-async def test_sell_order_send_if_buy_position_realized_partially(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-
-    assert len(back.strategies) == 0
-
-    # Get default buy position
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
-
-    strategy = back.strategies["1000"]
+async def test_sell_order_send_if_buy_position_realized_partially(hp_idle):
+    sim, strategy = hp_idle
+    front, back = sim.front, sim.back
     sell_config = HPSell(
         config=HPSellConfig(
             hp_id="1000",
@@ -1437,9 +806,9 @@ async def test_sell_order_send_if_buy_position_realized_partially(
     assert item["state"] == "SELLING"
 
 
-async def test_default_convert_position(frontend_backend_setup):
-    front, back = frontend_backend_setup
-    sim = HPSimulator(front=front, back=back)
+async def test_default_convert_position(hp_sim):
+    sim = hp_sim
+    front, back = sim.front, sim.back
 
     buy_price = 10.0
     sell_price = 12.0
@@ -1523,9 +892,9 @@ async def test_default_convert_position(frontend_backend_setup):
     assert item["expected_return"] == "200.0"
 
 
-async def test_convert_position_spread_too_high(frontend_backend_setup):
-    front, back = frontend_backend_setup
-    sim = HPSimulator(front=front, back=back)
+async def test_convert_position_spread_too_high(hp_sim):
+    sim = hp_sim
+    front, back = sim.front, sim.back
 
     buy_price = 10.0
     sell_price = 12.0
@@ -1569,7 +938,7 @@ async def test_convert_position_spread_too_high(frontend_backend_setup):
     assert item["quantity_usd"] == str(round(quantity * buy_price, 2))
 
 
-async def test_multihop_sell_price_recalculation_on_trigger(frontend_backend_setup):
+async def test_multihop_sell_price_recalculation_on_trigger(hp_sim):
     """
     Test that multihop sell prices are recalculated based on current market prices
     when the trigger condition is met, not using stale prices from position creation.
@@ -1583,12 +952,8 @@ async def test_multihop_sell_price_recalculation_on_trigger(frontend_backend_set
        - AXLBTC order price * BTCUSDC price ≈ 14.0 USD
        - NOT using the old BTC price (95000.0)
     """
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-
-    assert len(back.strategies) == 0
+    sim = hp_sim
+    front, back = sim.front, sim.back
 
     # Step 1: Set initial market prices
     # BTC/USDC = 95000.0 (this will change later to test recalculation)
@@ -1755,9 +1120,7 @@ async def test_multihop_sell_price_recalculation_on_trigger(frontend_backend_set
     logger.info(f"✓ Multihop sell price recalculation works correctly!")
 
 
-async def test_multihop_sell_uses_trigger_price_not_early_trigger(
-    frontend_backend_setup,
-):
+async def test_multihop_sell_uses_trigger_price_not_early_trigger(hp_sim):
     """
     Test that multihop sells trigger at the exact target price (not 0.96x like regular sells).
 
@@ -1768,12 +1131,8 @@ async def test_multihop_sell_uses_trigger_price_not_early_trigger(
     Why? Because multihop prices MUST be calculated at the exact moment when
     the target price is reached to ensure proper price alignment across legs.
     """
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-
-    assert len(back.strategies) == 0
+    sim = hp_sim
+    front, back = sim.front, sim.back
 
     # Setup market prices
     btc_price = 95000.0
@@ -1845,7 +1204,7 @@ async def test_multihop_sell_uses_trigger_price_not_early_trigger(
     logger.info(f"✓ Multihop sell trigger mechanism works correctly!")
 
 
-async def test_regular_sell_uses_early_trigger_96_percent(frontend_backend_setup):
+async def test_regular_sell_uses_early_trigger_96_percent(hp_sim):
     """
     Test that regular (direct) sells trigger at 0.96 * sell_price (4% early).
     This is the opposite of multihop and serves as a comparison test.
@@ -1853,12 +1212,8 @@ async def test_regular_sell_uses_early_trigger_96_percent(frontend_backend_setup
     For regular sells with order_trigger = 2%, the actual trigger is:
     0.96 * sell_price (which represents a 4% buffer)
     """
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-
-    assert len(back.strategies) == 0
+    sim = hp_sim
+    front, back = sim.front, sim.back
 
     # Setup direct sell (not multihop) - BTCUSDC is a direct pair
     target_price = 100000.0
