@@ -191,9 +191,7 @@ class WebSocketManager:
         )
 
         # User data stream (listen key managed inside _run_user_stream)
-        self._user_socket_task = self.loop.create_task(
-            self._run_user_stream()
-        )
+        self._user_socket_task = self.loop.create_task(self._run_user_stream())
 
         # Kline streams for subscribed symbols
         if self._kline_message_handler:
@@ -366,6 +364,7 @@ class WebSocketManager:
                     try:
                         event = await asyncio.wait_for(queue.get(), timeout=30.0)
                         self._update_message_timestamp(stream_name)
+                        assert self._user_message_handler is not None
                         self._user_message_handler(event)
                     except asyncio.TimeoutError:
                         pass
@@ -507,11 +506,11 @@ class WebSocketManager:
                         "m": f"CRITICAL: Ticker silent for {time_since_ticker:.1f} seconds (threshold: {self._force_restart_threshold}s)",
                     }
                     await self._handle_websocket_error(timeout_error)
-                    
+
                     # Reset last ticker time after restart to avoid immediate re-trigger
                     # The restart should restore ticker flow; if not, we'll detect again
                     self._last_ticker_time = time.time()
-                    
+
                     # Continue monitoring instead of exiting - the dead-man switch
                     # must keep running to handle future connection failures
                     continue
