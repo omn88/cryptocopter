@@ -37,8 +37,7 @@ from src.common.identifiers import (
     AccountPosition,
     Balance,
 )
-from tests.strategies.hp.hp_simulator import HPSimulator, wait_for_condition
-from tests.portfolio.inventory_simulator import InventorySellSimulator
+from tests.strategies.hp.hp_simulator import wait_for_condition
 
 import logging
 
@@ -80,11 +79,10 @@ async def test_inventory_sell_setup_inventory_items(
 
 
 async def test_inventory_sell_portfolio_hp_connection(
-    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
+    inv_sim: tuple,
 ):
     """Test that portfolio and HP manager are properly connected."""
-    portfolio, hp_manager, strategy_executor = portfolio_hp_backend_setup
-    sim = InventorySellSimulator(portfolio, hp_manager, strategy_executor)
+    sim, hp_sim, portfolio, hp_front, hp_back = inv_sim
 
     # Use the simulator to verify all connections
     sim.verify_connections()
@@ -94,12 +92,10 @@ async def test_inventory_sell_portfolio_hp_connection(
 
 # Test Suite 3: Sell Configuration and HP Creation
 async def test_inventory_sell_configure_direct_sell_btc_to_usdc(
-    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
+    inv_sim: tuple,
 ):
     """Test configuring direct sell from BTC to USDC."""
-    portfolio, hp_front, hp_back = portfolio_hp_backend_setup
-    sim = InventorySellSimulator(portfolio, hp_front, hp_back)
-    hp_sim = HPSimulator(front=hp_front, back=hp_back)
+    sim, hp_sim, portfolio, hp_front, hp_back = inv_sim
 
     # Submit configuration and get the generated HP ID
     hp_id = await sim.submit_sell_configuration("BTC", sell_price=100000.0)
@@ -154,15 +150,15 @@ async def test_inventory_sell_configure_direct_sell_btc_to_usdc(
 
 
 async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
-    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
+    inv_sim: tuple,
 ):
     """
     Test configuring a multihop sell from AXL to PLN.
     This should trigger multihop strategy: AXL → BTC → PLN
     """
-    portfolio, hp_front, hp_back = portfolio_hp_backend_setup
-    simulator = InventorySellSimulator(portfolio, hp_front, hp_back)
-    hp_simulator = HPSimulator(front=hp_front, back=hp_back)
+    sim, hp_sim, portfolio, hp_front, hp_back = inv_sim
+    simulator = sim
+    hp_simulator = hp_sim
 
     # Submit sell configuration for AXL with PLN as end currency
     hp_id = await simulator.submit_sell_configuration(
@@ -238,12 +234,12 @@ async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
 
 
 async def test_inventory_sell_configure_convert_only_usdc_to_pln(
-    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
+    inv_sim: tuple,
 ):
     """Test configuring convert-only sell from USDC to PLN."""
-    portfolio, hp_front, hp_back = portfolio_hp_backend_setup
-    simulator = InventorySellSimulator(portfolio, hp_front, hp_back)
-    hp_simulator = HPSimulator(front=hp_front, back=hp_back)
+    sim, hp_sim, portfolio, hp_front, hp_back = inv_sim
+    simulator = sim
+    hp_simulator = hp_sim
 
     # Start with configuration phase - submit convert sell for DYM to PLN
     hp_id = await simulator.submit_sell_configuration(
@@ -273,12 +269,12 @@ async def test_inventory_sell_configure_convert_only_usdc_to_pln(
 
 # Test Suite 4: Sell Execution and State Validation
 async def test_inventory_sell_execute_direct_sell_to_completion(
-    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
+    inv_sim: tuple,
 ):
     """Test executing direct sell from inventory to completion."""
-    portfolio, hp_front, hp_back = portfolio_hp_backend_setup
-    simulator = InventorySellSimulator(portfolio, hp_front, hp_back)
-    hp_simulator = HPSimulator(front=hp_front, back=hp_back)
+    sim, hp_sim, portfolio, hp_front, hp_back = inv_sim
+    simulator = sim
+    hp_simulator = hp_sim
 
     # Validate initial inventory before any sell operations
     await simulator.validate_inventory_quantities(
@@ -402,7 +398,7 @@ async def test_inventory_sell_execute_direct_sell_to_completion(
 
 
 async def test_inventory_sell_execute_partial_fill_exchange_driven_locking(
-    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
+    inv_sim: tuple,
 ):
     """
     Test executing partial sell with exchange-driven proportional locking.
@@ -425,9 +421,9 @@ async def test_inventory_sell_execute_partial_fill_exchange_driven_locking(
     3. Exchange unlocks filled 0.3 BTC → 0.2 BTC still locked for remaining order
     4. System redistributes 0.2 locked proportionally across 2 remaining lots
     """
-    portfolio, hp_front, hp_back = portfolio_hp_backend_setup
-    simulator = InventorySellSimulator(portfolio, hp_front, hp_back)
-    hp_simulator = HPSimulator(front=hp_front, back=hp_back)
+    sim, hp_sim, portfolio, hp_front, hp_back = inv_sim
+    simulator = sim
+    hp_simulator = hp_sim
 
     logger.info("=== PHASE 1: Initial State ===")
     btc_lots = simulator.get_coin_lots("BTC")
@@ -711,12 +707,12 @@ async def test_inventory_sell_execute_partial_fill_exchange_driven_locking(
 
 
 async def test_inventory_sell_execute_multihop_sell_to_completion(
-    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
+    inv_sim: tuple,
 ):
     """Test executing multi-hop sell from inventory to completion."""
-    portfolio, hp_front, hp_back = portfolio_hp_backend_setup
-    simulator = InventorySellSimulator(portfolio, hp_front, hp_back)
-    hp_simulator = HPSimulator(front=hp_front, back=hp_back)
+    sim, hp_sim, portfolio, hp_front, hp_back = inv_sim
+    simulator = sim
+    hp_simulator = hp_sim
 
     assert isinstance(hp_front, HpFront), "hp_front should be an instance of HpFront"
     assert isinstance(
@@ -793,12 +789,12 @@ async def test_inventory_sell_execute_multihop_sell_to_completion(
 
 
 async def test_inventory_sell_execute_convert_sell_to_completion(
-    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
+    inv_sim: tuple,
 ):
     """Test executing convert-only sell from inventory to completion."""
-    portfolio, hp_front, hp_back = portfolio_hp_backend_setup
-    simulator = InventorySellSimulator(portfolio, hp_front, hp_back)
-    hp_simulator = HPSimulator(front=hp_front, back=hp_back)
+    sim, hp_sim, portfolio, hp_front, hp_back = inv_sim
+    simulator = sim
+    hp_simulator = hp_sim
 
     # Validate initial inventory before convert sell operations
     await simulator.validate_inventory_quantities(
@@ -927,7 +923,7 @@ async def test_inventory_sell_execute_convert_sell_to_completion(
 
 # Test Suite 5: Cancellation Tests
 async def test_sell_direct_cancel_inventory(
-    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
+    inv_sim: tuple,
 ):
     """
     Test cancelling a direct sell position (BTC to USDC) and verify inventory unlock.
@@ -938,9 +934,7 @@ async def test_sell_direct_cancel_inventory(
     3. Cancel position via parent HP
     4. Verify inventory is unlocked and quantities are restored
     """
-    portfolio, hp_front, hp_back = portfolio_hp_backend_setup
-    sim = InventorySellSimulator(portfolio, hp_front, hp_back)
-    hp_simulator = HPSimulator(front=hp_front, back=hp_back)
+    sim, hp_simulator, portfolio, hp_front, hp_back = inv_sim
 
     # Initial inventory check
     initial_btc = sim.get_inventory_quantity("BTC")
@@ -1005,7 +999,7 @@ async def test_sell_direct_cancel_inventory(
 
 
 async def test_sell_multihop_cancel_inventory(
-    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
+    inv_sim: tuple,
 ):
     """
     Test cancelling a multihop sell position (AXL to PLN) and verify inventory unlock.
@@ -1016,9 +1010,7 @@ async def test_sell_multihop_cancel_inventory(
     3. Cancel position via parent HP
     4. Verify inventory is unlocked and quantities are restored
     """
-    portfolio, hp_front, hp_back = portfolio_hp_backend_setup
-    sim = InventorySellSimulator(portfolio, hp_front, hp_back)
-    hp_simulator = HPSimulator(front=hp_front, back=hp_back)
+    sim, hp_simulator, portfolio, hp_front, hp_back = inv_sim
 
     # Initial inventory check
     initial_axl = sim.get_inventory_quantity("AXL")
@@ -1060,7 +1052,7 @@ async def test_sell_multihop_cancel_inventory(
 
 
 async def test_sell_convert_cancel_inventory(
-    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
+    inv_sim: tuple,
 ):
     """
     Test cancelling a convert sell position (DYM convert) and verify inventory unlock.
@@ -1071,9 +1063,7 @@ async def test_sell_convert_cancel_inventory(
     3. Cancel position via parent HP
     4. Verify inventory is unlocked and quantities are restored
     """
-    portfolio, hp_front, hp_back = portfolio_hp_backend_setup
-    sim = InventorySellSimulator(portfolio, hp_front, hp_back)
-    hp_simulator = HPSimulator(front=hp_front, back=hp_back)
+    sim, hp_simulator, portfolio, hp_front, hp_back = inv_sim
 
     # Initial inventory check
     initial_dym = sim.get_inventory_quantity("DYM")
@@ -1127,7 +1117,7 @@ async def test_sell_convert_cancel_inventory(
 
 
 async def test_axl_multihop_sell_cancellation_inventory_unlock(
-    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
+    inv_sim: tuple,
 ):
     """
     Test the specific issue with AXL multihop sell position cancellation not unlocking inventory.
@@ -1141,9 +1131,7 @@ async def test_axl_multihop_sell_cancellation_inventory_unlock(
 
     The bug is that cancellation sends wrong HP ID or side, so inventory doesn't get unlocked.
     """
-    portfolio, hp_front, hp_back = portfolio_hp_backend_setup
-    sim = InventorySellSimulator(portfolio, hp_front, hp_back)
-    hp_simulator = HPSimulator(front=hp_front, back=hp_back)
+    sim, hp_simulator, portfolio, hp_front, hp_back = inv_sim
 
     logger.info("=== Starting AXL Multihop Sell Cancellation Test ===")
 
@@ -1283,7 +1271,7 @@ async def test_axl_multihop_sell_cancellation_inventory_unlock(
 
 
 async def test_axl_multihop_sell_cancellation_fix_validation(
-    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
+    inv_sim: tuple,
 ):
     """
     Test the fix for AXL multihop sell position cancellation with automatic side detection.
@@ -1291,9 +1279,7 @@ async def test_axl_multihop_sell_cancellation_fix_validation(
     This test validates that the frontend properly determines the position side (SHORT)
     for multihop sell positions and unlocks inventory correctly during cancellation.
     """
-    portfolio, hp_front, hp_back = portfolio_hp_backend_setup
-    sim = InventorySellSimulator(portfolio, hp_front, hp_back)
-    hp_simulator = HPSimulator(front=hp_front, back=hp_back)
+    sim, hp_simulator, portfolio, hp_front, hp_back = inv_sim
 
     logger.info("=== Testing AXL Multihop Sell Cancellation Fix ===")
 

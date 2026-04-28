@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.asyncio
-async def test_comprehensive_portfolio_crash_recovery(portfolio_crash_recovery_factory):
+async def test_comprehensive_portfolio_crash_recovery(portfolio_initialized):
     """
     Test comprehensive crash recovery for portfolio inventory locking system.
 
@@ -29,31 +29,16 @@ async def test_comprehensive_portfolio_crash_recovery(portfolio_crash_recovery_f
     4. Recovery setup restores inventory locking state
     5. Full system continues to work after recovery
     """
-    create_portfolio_hp_setup, simulate_crash = portfolio_crash_recovery_factory
+    (
+        portfolio_ui_orig,
+        hp_frontend_orig,
+        backend_orig,
+        create_portfolio_hp_setup,
+        simulate_crash,
+    ) = portfolio_initialized
 
     # === Phase 1: Original setup and operations ===
     logger.info("Phase 1: Creating original setup")
-
-    portfolio_ui_orig, hp_frontend_orig, backend_orig = create_portfolio_hp_setup(
-        "original"
-    )
-
-    # Initialize exchange balances (simulates WebSocket initial sync)
-    coin_totals = {}
-    for item in portfolio_ui_orig.inventory:
-        coin_totals[item.coin] = coin_totals.get(item.coin, 0.0) + item.quantity
-
-    balances = [
-        Balance(coin=coin, free=total, locked=0.0)
-        for coin, total in coin_totals.items()
-    ]
-    account_position = AccountPosition(
-        event_time=0, last_update_time=0, balances=balances
-    )
-    portfolio_ui_orig.ui_queue.put(
-        Event(name=EventName.ACCOUNT_POSITION, content=account_position)
-    )
-    await portfolio_ui_orig.process_test_events()
 
     # Create sell events that will lock inventory
     btc_sell_event = HPSellPositionCreated(
@@ -253,7 +238,7 @@ async def test_comprehensive_portfolio_crash_recovery(portfolio_crash_recovery_f
 
 
 @pytest.mark.asyncio
-async def test_selective_component_crash_recovery(portfolio_crash_recovery_factory):
+async def test_selective_component_crash_recovery(portfolio_initialized):
     """
     Example test showing selective crash recovery - crash only specific components.
 
@@ -262,27 +247,12 @@ async def test_selective_component_crash_recovery(portfolio_crash_recovery_facto
     - Can test partial system failures and recovery
     - Useful for testing different failure scenarios
     """
-    create_portfolio_hp_setup, simulate_crash = portfolio_crash_recovery_factory
+    portfolio_ui, hp_frontend, backend, create_portfolio_hp_setup, simulate_crash = (
+        portfolio_initialized
+    )
 
     logger.info("Creating setup for selective crash testing")
-    portfolio_ui, hp_frontend, backend = create_portfolio_hp_setup("selective_test")
-
-    # Initialize exchange balances
-    coin_totals = {}
-    for item in portfolio_ui.inventory:
-        coin_totals[item.coin] = coin_totals.get(item.coin, 0.0) + item.quantity
-
-    balances = [
-        Balance(coin=coin, free=total, locked=0.0)
-        for coin, total in coin_totals.items()
-    ]
-    account_position = AccountPosition(
-        event_time=0, last_update_time=0, balances=balances
-    )
-    portfolio_ui.ui_queue.put(
-        Event(name=EventName.ACCOUNT_POSITION, content=account_position)
-    )
-    await portfolio_ui.process_test_events()  # Create a sell position to establish some state
+    # Create a sell position to establish some state
     sell_event = HPSellPositionCreated(
         hp_id="2001",
         coin="AXL",
@@ -362,7 +332,7 @@ async def test_selective_component_crash_recovery(portfolio_crash_recovery_facto
 
 
 async def test_multihop_inventory_locking_crash_recovery(
-    portfolio_crash_recovery_factory,
+    portfolio_initialized,
 ):
     """
     End-to-end test for multihop position inventory locking with crash recovery.
@@ -373,29 +343,14 @@ async def test_multihop_inventory_locking_crash_recovery(
     3. Simulating system crash
     4. Recovering and validating inventory doesn't get double-locked
     """
-    create_portfolio_hp_setup, simulate_crash = portfolio_crash_recovery_factory
+    portfolio_ui, hp_frontend, backend, create_portfolio_hp_setup, simulate_crash = (
+        portfolio_initialized
+    )
 
     # === Phase 1: Create original setup with multihop position ===
     logger.info("Phase 1: Creating original setup with multihop sell position")
 
-    portfolio_ui, hp_frontend, backend = create_portfolio_hp_setup("multihop_original")
-
-    # Initialize exchange balances
-    coin_totals = {}
-    for item in portfolio_ui.inventory:
-        coin_totals[item.coin] = coin_totals.get(item.coin, 0.0) + item.quantity
-
-    balances = [
-        Balance(coin=coin, free=total, locked=0.0)
-        for coin, total in coin_totals.items()
-    ]
-    account_position = AccountPosition(
-        event_time=0, last_update_time=0, balances=balances
-    )
-    portfolio_ui.ui_queue.put(
-        Event(name=EventName.ACCOUNT_POSITION, content=account_position)
-    )
-    await portfolio_ui.process_test_events()  # Create simulator for multihop operations
+    # Create simulator for multihop operations
     sim = HPSimulator(front=hp_frontend, back=backend)
 
     # Get initial AXL inventory state
