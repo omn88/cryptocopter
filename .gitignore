@@ -15,5 +15,6 @@ windows_venv
 .vscode/
 *.db
 .venv
+.venv_new
 .coverage
 *.xml

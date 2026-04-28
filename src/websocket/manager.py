@@ -11,7 +11,7 @@ import time
 import threading
 from typing import Dict, List, Optional, Callable, Any, Union
 
-from binance import BinanceSocketManager
+import websockets
 
 from src.common.client import BinanceClient
 from src.common.identifiers import SubscriptionInfo
@@ -88,6 +88,10 @@ class WebSocketManager:
         self._ticker_message_handler: Optional[Callable] = None
         self._kline_message_handler: Optional[Callable] = None
 
+        # Direct WebSocket connection state
+        self._base_ws_url: str = "wss://stream.binance.com:9443"
+        self._listen_key: Optional[str] = None
+
         logger.info("WebSocketManager initialized with ultra-robust configuration")
         self._ws_config.log_config()
 
@@ -163,11 +167,8 @@ class WebSocketManager:
         logger.info("WebSocket manager stopped")
 
     async def _start_websocket_tasks(self) -> None:
-        """Start or restart websocket connection tasks with fresh socket manager."""
-        logger.info("Starting websocket tasks with fresh BinanceSocketManager")
-
-        # Create new socket manager
-        socket_manager = BinanceSocketManager(client=self.client)
+        """Start websocket connection tasks using direct websockets connections."""
+        logger.info("Starting websocket tasks with direct WebSocket connections")
 
         # Ensure message handlers are set before creating tasks
         assert (
@@ -177,45 +178,41 @@ class WebSocketManager:
             self._user_message_handler is not None
         ), "User message handler must be set before starting"
 
-        # Create websocket tasks
+        # Derive base URL from client TLD (default: com)
+        tld = getattr(self.client, "tld", "com")
+        self._base_ws_url = f"wss://stream.binance.{tld}:9443"
+
+        # Ticker stream — 24hr mini-tickers for all symbols
+        # NOTE: !ticker@arr is deprecated/non-functional; !miniTicker@arr is the working
+        # equivalent. Mini ticker provides: symbol (s), close/last price (c), open (o),
+        # high (h), low (l), volume (v). Bid/ask fields (b, a) are absent and default to 0.
+        ticker_url = f"{self._base_ws_url}/ws/!miniTicker@arr"
         self._ticker_socket_task = self.loop.create_task(
-            self._handle_socket(
-                socket_manager.ticker_socket(),
-                self._ticker_message_handler,
-                reconnect_attempts=self._ws_config.max_reconnect_attempts,
-            )
+            self._run_stream(ticker_url, self._ticker_message_handler, "ticker")
         )
 
+        # User data stream (listen key managed inside _run_user_stream)
         self._user_socket_task = self.loop.create_task(
-            self._handle_socket(
-                socket_manager.user_socket(),
-                self._user_message_handler,
-                reconnect_attempts=self._ws_config.max_reconnect_attempts,
-            )
+            self._run_user_stream()
         )
 
-        # Create kline socket tasks for each subscribed symbol
+        # Kline streams for subscribed symbols
         if self._kline_message_handler:
             from src.common.identifiers import SubscriptionType
 
-            # Collect unique symbols that need kline streams
             kline_symbols = set()
             for _, subscription_list in self.subscriptions.items():
                 for sub_info in subscription_list:
                     if sub_info.data_type == SubscriptionType.KLINE:
                         kline_symbols.add(sub_info.symbol)
 
-            # Create a kline socket task for each symbol
             for symbol in kline_symbols:
+                kline_url = f"{self._base_ws_url}/ws/{symbol.lower()}@kline_15m"
                 task_key = f"kline_{symbol}"
                 self._kline_socket_tasks[task_key] = self.loop.create_task(
-                    self._handle_socket(
-                        socket_manager.kline_socket(symbol=symbol, interval="15m"),
-                        self._kline_message_handler,
-                        reconnect_attempts=self._ws_config.max_reconnect_attempts,
-                    )
+                    self._run_stream(kline_url, self._kline_message_handler, task_key)
                 )
-                logger.info(f"Created kline socket task for {symbol} (15m)")
+                logger.info("Created kline stream task for %s (15m)", symbol)
 
         logger.info("Websocket tasks started successfully")
 
@@ -286,6 +283,110 @@ class WebSocketManager:
                 break
 
         logger.info("Gracefully exiting handle_socket for socket: %s", socket)
+
+    async def _run_stream(
+        self, url: str, message_handler: Callable, stream_name: str
+    ) -> None:
+        """Connect directly to a Binance WebSocket stream URL and dispatch messages.
+
+        Replaces BinanceSocketManager socket objects to avoid the broken
+        call_soon_threadsafe(create_task, _read_loop) pattern in python-binance
+        that is incompatible with websockets >= 14 / Python 3.12.
+
+        Args:
+            url: Full WebSocket URL to connect to
+            message_handler: Callback to invoke for each received message
+            stream_name: Human-readable name used in logs and health tracking
+        """
+        logger.info("Starting %s stream task", stream_name)
+        while not self.stop_event.is_set():
+            try:
+                logger.info("Connecting %s stream...", stream_name)
+                async with websockets.connect(
+                    url, ping_interval=20, ping_timeout=10, close_timeout=5
+                ) as ws:
+                    logger.info("WebSocket connected (%s).", stream_name)
+                    while not self.stop_event.is_set():
+                        try:
+                            raw_msg = await asyncio.wait_for(ws.recv(), timeout=30.0)
+                            self._update_message_timestamp(stream_name)
+                            msg = self._parse_message(raw_msg)
+                            if msg:
+                                message_handler(msg)
+                        except asyncio.TimeoutError:
+                            continue
+                        except asyncio.CancelledError:
+                            raise
+                        except Exception as e:
+                            logger.error(
+                                "Error receiving from %s stream: %s", stream_name, e
+                            )
+                            break
+            except asyncio.CancelledError:
+                logger.info("%s stream task cancelled", stream_name)
+                return
+            except Exception as e:
+                logger.error(
+                    "%s stream connection error: %s. Reconnecting in 5s...",
+                    stream_name,
+                    e,
+                )
+                try:
+                    await asyncio.sleep(5)
+                except asyncio.CancelledError:
+                    return
+        logger.info("%s stream task exiting", stream_name)
+
+    async def _run_user_stream(self) -> None:
+        """Connect to the Binance user data stream via the WebSocket API.
+
+        Delegates to python-binance's _ws_api_request() which handles signing
+        (apiKey, timestamp, HMAC-SHA256 signature) internally. Events are routed
+        to a local asyncio.Queue via WebsocketAPI.register_subscription_queue().
+        """
+        stream_name = "user"
+        logger.info("Starting user data stream task (WebSocket API)")
+
+        while not self.stop_event.is_set():
+            subscription_id: Optional[str] = None
+            queue: asyncio.Queue = asyncio.Queue()
+            try:
+                # Subscribe — python-binance handles all signing internally
+                result = await self.client._ws_api_request(
+                    "userDataStream.subscribe.signature",
+                    signed=True,
+                    params={},
+                )
+                subscription_id = str(result.get("subscriptionId"))
+                self.client.ws_api.register_subscription_queue(subscription_id, queue)
+                logger.info(
+                    "User data stream subscribed (subscriptionId=%s)", subscription_id
+                )
+
+                while not self.stop_event.is_set():
+                    try:
+                        event = await asyncio.wait_for(queue.get(), timeout=30.0)
+                        self._update_message_timestamp(stream_name)
+                        self._user_message_handler(event)
+                    except asyncio.TimeoutError:
+                        pass
+                    except asyncio.CancelledError:
+                        raise
+
+            except asyncio.CancelledError:
+                logger.info("User data stream task cancelled")
+                if subscription_id:
+                    self.client.ws_api.unregister_subscription_queue(subscription_id)
+                return
+            except Exception as e:
+                logger.error("User stream error: %s. Reconnecting in 5s...", e)
+                if subscription_id:
+                    self.client.ws_api.unregister_subscription_queue(subscription_id)
+                try:
+                    await asyncio.sleep(5)
+                except asyncio.CancelledError:
+                    return
+        logger.info("User data stream task exiting")
 
     def _parse_message(self, raw_msg: Any) -> Optional[Union[Dict, List]]:
         """Parse raw WebSocket message.
