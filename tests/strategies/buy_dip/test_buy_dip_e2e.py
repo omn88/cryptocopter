@@ -28,7 +28,7 @@ logger = logging.getLogger("TEST")
 # ============================================================================
 
 
-async def test_perfect_position_lifecycle(buy_dip_simulator: BuyDipSimulator) -> None:
+async def test_perfect_position_lifecycle(bd_potential_top) -> None:
     """
     Test complete position lifecycle with perfect fills.
 
@@ -46,25 +46,8 @@ async def test_perfect_position_lifecycle(buy_dip_simulator: BuyDipSimulator) ->
     9. Sell fills at top → position CLOSED
     10. No pending orders remain
     """
-    sim = buy_dip_simulator
-
-    logger.info("Starting test_perfect_position_lifecycle")
-    # Rising pattern to top
-    top_price_opt = await sim.simulate_rising_to_top(
-        start_price=67000, end_price=67890, num_candles=3
-    )
-    assert top_price_opt is not None
-    top_price: float = top_price_opt
-    logger.info("Simulated top at %.2f", top_price)
-
-    # Wait for potential top detection
-    await sim.wait_for_potential_top(timeout=2.0)
-
-    positions = sim.get_active_positions()
-    assert len(positions) == 1
-    position = positions[0]
-    assert position.state == PositionState.POTENTIAL_TOP
-    assert position.top_price == Decimal(str(top_price))
+    sim, position = bd_potential_top
+    top_price: float = float(position.top_price)
 
     # Order 1 should be placed BELOW top at φ distance
     # CRITICAL: Only ONE pending order!
@@ -151,7 +134,7 @@ async def test_perfect_position_lifecycle(buy_dip_simulator: BuyDipSimulator) ->
 
 
 async def test_top_invalidation_before_confirmation(
-    buy_dip_simulator: BuyDipSimulator,
+    bd_potential_top,
 ) -> None:
     """
     Test top invalidation when new high detected before first order fills.
@@ -163,22 +146,14 @@ async def test_top_invalidation_before_confirmation(
     4. New Order 1 placed at $66,998.22 (φ below new top)
     5. Position continues with new top
     """
+    sim, position = bd_potential_top
+    first_top: float = float(position.top_price)
 
-    sim = buy_dip_simulator
-
-    # First top
-    first_top = await sim.simulate_rising_to_top(67000, 67890)
-    assert first_top is not None
-    await sim.wait_for_potential_top()
-
-    position = sim.get_active_positions()[0]
     assert position.pending_order is not None
     first_order = position.pending_order
     first_order_id = first_order.order_id
 
     expected_first_price = first_top * (1 - 0.01618)
-
-    assert position.state == PositionState.POTENTIAL_TOP
     assert abs(float(first_order.price) - expected_first_price) < 1.0
 
     # New higher top (invalidation!)
@@ -200,7 +175,7 @@ async def test_top_invalidation_before_confirmation(
 
 
 async def test_sell_cancels_all_remaining_orders(
-    buy_dip_simulator: BuyDipSimulator,
+    bd_active,
 ) -> None:
     """
     Test that selling cancels remaining buy order (if any).
@@ -212,26 +187,13 @@ async def test_sell_cancels_all_remaining_orders(
     4. Order 3 CANCELLED immediately
     5. Position CLOSED
     """
-    sim = buy_dip_simulator
+    sim, position = bd_active
 
-    # Create active position
-    top_price = await sim.simulate_rising_to_top(67000, 67890)
-    assert top_price is not None
-    await sim.wait_for_potential_top()
-
-    position = sim.get_active_positions()[0]
-
-    # Fill Order 1
-    order_1 = position.pending_order
-    assert order_1 is not None, "Should have exactly ONE pending order"
-    await sim.fill_order(order_1.order_id, float(order_1.price))
-    await sim.wait_for_active_position()
-
-    # Order 2 should be placed
-    await sim.wait_for_order_placed(position.position_id)
+    # Fill Order 2
     order_2 = position.pending_order
     assert order_2 is not None, "Should have exactly ONE pending order"
-    await sim.fill_order(order_2.order_id, float(order_2.price))
+    order_2_price = float(order_2.price)
+    await sim.fill_order(order_2.order_id, order_2_price)
 
     # Order 3 should be placed
     await sim.wait_for_order_placed(position.position_id, timeout=2.0)
@@ -239,7 +201,8 @@ async def test_sell_cancels_all_remaining_orders(
     assert order_3 is not None, "Should have exactly ONE pending order (Order 3)"
 
     # Simulate recovery and sell
-    await sim.simulate_recovery(float(order_2.price), top_price)
+    top_price = float(position.top_price)
+    await sim.simulate_recovery(order_2_price, top_price)
 
     # Wait for position closure
     await sim.wait_for_position_closed(position.position_id, timeout=2.0)
@@ -256,7 +219,7 @@ async def test_sell_cancels_all_remaining_orders(
 
 
 async def test_only_one_pending_order_at_a_time(
-    buy_dip_simulator: BuyDipSimulator,
+    bd_potential_top,
 ) -> None:
     """
     Test CRITICAL constraint: Never have multiple pending buy orders.
@@ -267,13 +230,7 @@ async def test_only_one_pending_order_at_a_time(
     3. Order 2 fills → Order 3 placed (1 pending)
     4. At NO point should we have 2+ pending buy orders
     """
-    sim = buy_dip_simulator
-
-    top_price = await sim.simulate_rising_to_top(67000, 67890)
-    assert top_price is not None
-    await sim.wait_for_potential_top()
-
-    position = sim.get_active_positions()[0]
+    sim, position = bd_potential_top
 
     # Check Order 1 is only pending order
     assert position.pending_order is not None, "Step 1: Should have exactly 1 pending"
@@ -498,7 +455,7 @@ async def test_cancelled_orders_release_funds_immediately(
 
 
 async def test_multiple_concurrent_positions(
-    buy_dip_simulator: BuyDipSimulator,
+    bd_active,
 ) -> None:
     """
     Test multiple positions running simultaneously with shared budget.
@@ -510,34 +467,19 @@ async def test_multiple_concurrent_positions(
     4. Budget shared across both
     5. Both close successfully
     """
-    sim = buy_dip_simulator
+    sim, position_a = bd_active
 
     initial_budget = sim.get_available_budget()
 
-    # Start Position A (BTC)
-    await sim.simulate_rising_to_top(67000, 67890, num_candles=3)
-    await sim.wait_for_potential_top()
-
-    positions = sim.get_active_positions()
-    assert len(positions) == 1
-    position_a = positions[0]
-
-    # Fill Order 1 for Position A
-    order_a1 = position_a.pending_order
-    assert order_a1 is not None
-    await sim.fill_order(order_a1.order_id, float(order_a1.price))
-
-    # DCA order 2 is placed immediately when order 1 fills (no wait needed)
-    await asyncio.sleep(0.05)  # Brief pause for async processing
-
-    # Complete Position A
+    # Fill Order 2 for Position A
     assert position_a.pending_order is not None
     order_a2 = position_a.pending_order
-    await sim.fill_order(order_a2.order_id, float(order_a2.price))
+    order_a2_price = float(order_a2.price)
+    await sim.fill_order(order_a2.order_id, order_a2_price)
 
     # Recovery target must be >= position top_price to trigger sell
     assert position_a.top_price is not None
-    await sim.simulate_recovery(float(order_a2.price), float(position_a.top_price))
+    await sim.simulate_recovery(order_a2_price, float(position_a.top_price))
     await sim.wait_for_position_closed(position_a.position_id)
 
     # Position A is now closed, budget released
@@ -664,7 +606,7 @@ async def test_rapid_invalidations(buy_dip_simulator: BuyDipSimulator) -> None:
 
 
 async def test_sell_crosses_top_not_invalidation(
-    buy_dip_simulator: BuyDipSimulator,
+    bd_active,
 ) -> None:
     """
     Test that sell crossing top doesn't trigger new top detection.
@@ -676,23 +618,10 @@ async def test_sell_crosses_top_not_invalidation(
     4. Should NOT treat recovery as new top for invalidation
     5. Should close position cleanly
     """
-    sim = buy_dip_simulator
-
-    # Create active position
-    top_price = await sim.simulate_rising_to_top(67000, 67890)
-    await sim.wait_for_potential_top()
-
-    position = sim.get_active_positions()[0]
+    sim, position = bd_active
     position_id = position.position_id
 
-    # Fill first order (confirmation)
-    assert position.pending_order is not None
-    order_1 = position.pending_order
-    await sim.fill_order(order_1.order_id, float(order_1.price))
-    await sim.wait_for_active_position()
-
     # Fill second order
-    await sim.wait_for_order_placed(position_id)
     pos = sim.get_position_by_id(position_id)
     assert pos and pos.pending_order
     order_2 = pos.pending_order
@@ -705,7 +634,8 @@ async def test_sell_crosses_top_not_invalidation(
 
     # Price recovers to top (sell executes)
     # This should close the position, not create a new top or trigger invalidation
-    confirmed_top = pos.confirmed_top if pos.confirmed_top is not None else top_price
+    original_top = float(position.top_price)
+    confirmed_top = pos.confirmed_top if pos.confirmed_top is not None else original_top
     await sim.simulate_recovery(
         float(order_2.price), float(confirmed_top), num_candles=3
     )
