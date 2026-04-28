@@ -90,7 +90,6 @@ class WebSocketManager:
 
         # Direct WebSocket connection state
         self._base_ws_url: str = "wss://stream.binance.com:9443"
-        self._listen_key: Optional[str] = None
 
         logger.info("WebSocketManager initialized with ultra-robust configuration")
         self._ws_config.log_config()

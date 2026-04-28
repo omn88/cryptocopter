@@ -14,30 +14,6 @@ class BinanceClient(AsyncClient):
         self.logger = logging.getLogger(__name__)
         # asyncio.create_task(self.time_sync_loop())
 
-    async def stream_get_listen_key(self):
-        """Override to use correct API endpoint for user data stream.
-
-        The python-binance library has a bug where it uses v1 endpoint which
-        returns 404. This override uses the correct v3 endpoint.
-        """
-        # Use v3 endpoint instead of v1
-        res = await self._post("userDataStream", signed=False, version="v3", data={})
-        return res["listenKey"]
-
-    async def stream_keepalive(self, listenKey):
-        """Override to use correct v3 endpoint for keepalive."""
-        params = {"listenKey": listenKey}
-        return await self._put(
-            "userDataStream", signed=False, version="v3", data=params
-        )
-
-    async def stream_close(self, listenKey):
-        """Override to use correct v3 endpoint for closing stream."""
-        params = {"listenKey": listenKey}
-        return await self._delete(
-            "userDataStream", signed=False, version="v3", data=params
-        )
-
     async def time_sync_loop(self):
         while True:
             try:
