@@ -379,6 +379,16 @@ class StrategyExecutor:
                 "Current position in standard setup sell: %s",
                 strategy.sell.current_position,
             )
+
+            strategy.portfolio_event_helper.send_sell_creation_event(
+                hp_id=strategy_data.config.hp_id,
+                coin=strategy_data.config.coin,
+                quantity=strategy_data.config.quantity,
+                buy_price=strategy_data.config.buy_price,
+                sell_price=strategy_data.config.sell_price,
+                end_currency=strategy_data.config.end_currency,
+            )
+
         if strategy_data.state_info.state == State.CLOSED:
             logger.info("Closing sell position")
             if strategy.state == State.SELLING:
@@ -405,9 +415,13 @@ class StrategyExecutor:
         # For restoration, preserve existing HP ID; for new positions, generate new one
         parent_hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
         strategy_data.config.hp_id = parent_hp_id
-        logger.info(
-            "Setting up NEW SELL position with config: %s", strategy_data.config
-        )
+        logger.info("[EXECUTOR] === Setting up NEW SELL position ===")
+        logger.info("[EXECUTOR] HP ID: %s", parent_hp_id)
+        logger.info("[EXECUTOR] Coin: %s", strategy_data.config.coin)
+        logger.info("[EXECUTOR] Symbol: %s", strategy_data.config.symbol.name)
+        logger.info("[EXECUTOR] Quantity: %.8f", strategy_data.config.quantity)
+        logger.info("[EXECUTOR] Sell price: %.8f", strategy_data.config.sell_price)
+        logger.info("[EXECUTOR] Strategy type: %s", type(sell_strategy).__name__)
 
         assert self.client is not None
         assert self.recovery_service is not None
@@ -612,7 +626,9 @@ class StrategyExecutor:
                 if hasattr(sell, "sell_positions") and len(sell.sell_positions) > 1:
                     await self._cancel_multihop_sell(strategy, hp_id, base_hp_id)
                 else:
-                    # Single sell position cancellation
+                    # Single sell position cancellation - cancel exchange order first
+                    await sell.cancel_remaining_order()
+
                     strategy.portfolio_event_helper.send_cancellation_event(
                         hp_id,
                         sell.current_position.config.coin,

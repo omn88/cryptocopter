@@ -8,6 +8,10 @@ from src.common.identifiers import (
     HPSellPositionCompleted,
     HPSellPositionPartiallyFilled,
     HPBuyPositionFilled,
+    AccountPosition,
+    Balance,
+    Event,
+    EventName,
 )
 from src.portfolio.portfolio_gui import PortfolioUI
 
@@ -150,6 +154,9 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
     )
 
     await portfolio_ui.handle_hp_sell_created(hp_sell_created)
+
+    # Note: handle_hp_sell_created now immediately locks quantities proportionally
+    # No need to simulate AccountPosition event - locking happens instantly
 
     # Verify total inventory unchanged but locked quantities updated
     btc_balance = get_inventory_balance(portfolio_ui, "BTC")

@@ -120,9 +120,15 @@ class Database:
             await conn.commit()
 
     async def fetch_all_inventory_items(self):
+        """Fetch all inventory items from database.
+
+        Note: available_quantity and locked_quantity are initialized to 0 and will be
+        populated at runtime from Binance WebSocket account position updates.
+        Only the 'quantity' field represents the persisted total portfolio value.
+        """
         async with aiosqlite.connect(self.db_path) as conn:
             cursor = await conn.execute(
-                "SELECT id, coin, buy_price, quantity, available_quantity, locked_quantity, source, timestamp, notes FROM inventory"
+                "SELECT id, coin, buy_price, quantity, source, timestamp, notes FROM inventory"
             )
             rows = await cursor.fetchall()
             items = []
@@ -133,11 +139,11 @@ class Database:
                         "coin": row[1],
                         "buy_price": row[2],
                         "quantity": row[3],
-                        "available_quantity": row[4],
-                        "locked_quantity": row[5],
-                        "source": row[6],
-                        "timestamp": row[7],
-                        "notes": row[8],
+                        "available_quantity": 0.0,  # Runtime-only: populated from exchange
+                        "locked_quantity": 0.0,  # Runtime-only: populated from exchange
+                        "source": row[4],
+                        "timestamp": row[5],
+                        "notes": row[6],
                     }
                 )
             return items
@@ -225,6 +231,9 @@ class Database:
         )
 
         # Inventory table
+        # NOTE: available_quantity and locked_quantity columns exist for backward compatibility
+        # but are not written to during normal operations. These fields are populated at runtime
+        # from Binance WebSocket account position updates. Only 'quantity' is persisted.
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS inventory (

@@ -1,10 +1,12 @@
+.idea/
 __pycache__/
 artifacts
-docs
 data
 sample_data.txt
 .pytest_cache/
 .env
+.claude
+.coverage
 *.txt
 *.csv
 venv
@@ -13,3 +15,7 @@ linux_venv
 windows_venv
 .vscode/
 *.db
+.venv
+.venv_new
+.coverage
+*.xml

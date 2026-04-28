@@ -21,6 +21,10 @@ from src.common.identifiers import (
     PositionSide,
     State,
     StateInfo,
+    AccountPosition,
+    Balance,
+    Event,
+    EventName,
 )
 from tests.strategies.hp.hp_simulator import wait_for_condition
 
@@ -202,6 +206,35 @@ class InventorySellSimulator:
         if self.strategy_executor.strategies:
             generated_hp_id = list(self.strategy_executor.strategies.keys())[0]
             logger.info(f"HP position created with ID: {generated_hp_id}")
+
+            # Simulate exchange locking the quantity after order placement
+            logger.info(f"Simulating exchange lock for {sell_quantity} {coin}")
+            coin_available = sum(
+                item.available_quantity
+                for item in self.portfolio.inventory
+                if item.coin == coin
+            )
+            coin_locked = sum(
+                item.locked_quantity
+                for item in self.portfolio.inventory
+                if item.coin == coin
+            )
+            account_position = AccountPosition(
+                event_time=0,
+                last_update_time=0,
+                balances=[
+                    Balance(
+                        coin=coin,
+                        free=coin_available - sell_quantity,
+                        locked=coin_locked + sell_quantity,
+                    )
+                ],
+            )
+            self.portfolio.ui_queue.put(
+                Event(name=EventName.ACCOUNT_POSITION, content=account_position)
+            )
+            await self.portfolio.process_test_events()
+
             return generated_hp_id
         else:
             raise RuntimeError(

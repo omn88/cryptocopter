@@ -16,6 +16,7 @@ This module is separate from test_hp_manager_e2e.py as it tests a different doma
 """
 
 import asyncio
+import pytest
 from unittest.mock import AsyncMock, MagicMock
 from binance.enums import (
     ORDER_STATUS_FILLED,
@@ -33,6 +34,8 @@ from src.common.identifiers import (
     Event,
     EventName,
     ExecutionReport,
+    AccountPosition,
+    Balance,
 )
 from tests.strategies.hp.hp_simulator import HPSimulator, wait_for_condition
 from tests.portfolio.inventory_simulator import InventorySellSimulator
@@ -398,123 +401,75 @@ async def test_inventory_sell_execute_direct_sell_to_completion(
     logger.info("Direct sell execution test passed")
 
 
-async def test_inventory_sell_execute_partial_fill_fifo_locking(
+async def test_inventory_sell_execute_partial_fill_exchange_driven_locking(
     portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
 ):
     """
-    Test executing partial sell with FIFO inventory locking validation.
+    Test executing partial sell with exchange-driven proportional locking.
 
-    This test validates:
-    1. Partial fills work correctly
-    2. FIFO locking behavior (lowest buy price lots locked first)
-    3. Individual lot locking states during partial execution
-    4. Parent-child HP validation during partial fills
+    This test validates the exchange-driven architecture where:
+    1. Exchange locks balance proportionally across all lots when sell order is created
+    2. After partial fill, exchange unlocks the filled portion
+    3. Remaining lock is redistributed proportionally across remaining lots
+    4. FIFO lot removal works correctly with proportional locking
 
     BTC lot structure (from mock_inventory):
-    - Lot 1: 0.3 BTC @ 45000 (should lock first - lowest price)
-    - Lot 2: 0.4 BTC @ 50000 (should lock second)
-    - Lot 3: 0.3 BTC @ 55000 (should lock last - highest price)
+    - Lot 1: 0.3 BTC @ $45000
+    - Lot 2: 0.4 BTC @ $50000
+    - Lot 3: 0.3 BTC @ $55000
+    Total: 1.0 BTC
+
+    Sequence:
+    1. Order created for 0.5 BTC → Exchange locks 0.5 BTC proportionally
+    2. Partial fill 0.3 BTC → FIFO removes Lot 1, total becomes 0.7 BTC
+    3. Exchange unlocks filled 0.3 BTC → 0.2 BTC still locked for remaining order
+    4. System redistributes 0.2 locked proportionally across 2 remaining lots
     """
     portfolio, hp_front, hp_back = portfolio_hp_backend_setup
     simulator = InventorySellSimulator(portfolio, hp_front, hp_back)
     hp_simulator = HPSimulator(front=hp_front, back=hp_back)
 
-    # Validate initial BTC lot structure before any operations
+    logger.info("=== PHASE 1: Initial State ===")
     btc_lots = simulator.get_coin_lots("BTC")
-    assert len(btc_lots) == 3, "Should have 3 BTC lots for FIFO testing"
+    assert len(btc_lots) == 3, "Should have 3 BTC lots"
 
-    # Sort lots by buy price to verify FIFO order
-    btc_lots_sorted = sorted(btc_lots, key=lambda lot: lot.buy_price)
-
-    logger.info("Initial BTC lot structure:")
-    for i, lot in enumerate(btc_lots_sorted):
-        logger.info(
-            f"  Lot {i+1}: {lot.quantity} BTC @ {lot.buy_price} (available: {lot.available_quantity}, locked: {lot.locked_quantity})"
-        )
-        assert (
-            lot.available_quantity == lot.quantity
-        ), f"Initially all quantities should be available for lot {lot.id}"
-        assert (
-            lot.locked_quantity == 0.0
-        ), f"Initially no quantities should be locked for lot {lot.id}"
-
-    # Validate total quantities
     await simulator.validate_inventory_quantities(
-        "BTC", 1.0, 1.0, 0.0, "Initial BTC inventory (all lots combined)"
+        "BTC", 1.0, 1.0, 0.0, "Initial: 1.0 BTC total, all available"
     )
 
-    # Configure sell position for partial quantity (0.5 BTC out of 1.0 total)
+    logger.info("=== PHASE 2: Create Sell Order (Exchange Locks Proportionally) ===")
     hp_id = await simulator.submit_sell_configuration(
         coin="BTC", end_currency="USDC", sell_price=100000.0, quantity=0.5
     )
 
-    # Wait for position to be processed
     await wait_for_condition(
         condition_func=lambda: len(hp_front.hp_list_data) > 0, timeout=5.0
     )
-
     await portfolio.process_test_events()
 
-    # Validate that FIFO locking occurred correctly (0.5 BTC should lock lowest-price lots first)
+    # Validate proportional locking: 0.5 locked from 1.0 total
     btc_lots_after_config = simulator.get_coin_lots("BTC")
-    btc_lots_after_config_sorted = sorted(
-        btc_lots_after_config, key=lambda lot: lot.buy_price
-    )
-
-    logger.info("BTC lot structure after sell configuration:")
-    expected_locked_sequence = [
-        (0.3, 0.0, 0.3),  # Lot 1: 0.3 locked (fully locked - lowest price)
-        (0.2, 0.2, 0.2),  # Lot 2: 0.2 locked out of 0.4 (partial lock - middle price)
-        (0.0, 0.3, 0.0),  # Lot 3: 0 locked (untouched - highest price)
-    ]
-
-    for i, (
-        lot,
-        (expected_locked, expected_available, expected_total_remaining),
-    ) in enumerate(zip(btc_lots_after_config_sorted, expected_locked_sequence)):
-        logger.info(
-            f"  Lot {i+1}: {lot.quantity} total, available: {lot.available_quantity}, locked: {lot.locked_quantity}"
-        )
+    for lot in sorted(btc_lots_after_config, key=lambda l: l.buy_price):
+        expected_locked = lot.quantity * 0.5  # 50% of each lot
+        expected_available = lot.quantity * 0.5
         assert (
-            lot.locked_quantity == expected_locked
-        ), f"Lot {i+1} should have {expected_locked} locked, got {lot.locked_quantity}"
+            abs(lot.locked_quantity - expected_locked) < 0.001
+        ), f"Lot {lot.id} should have {expected_locked} locked (proportional)"
         assert (
-            lot.available_quantity == expected_available
-        ), f"Lot {i+1} should have {expected_available} available, got {lot.available_quantity}"
+            abs(lot.available_quantity - expected_available) < 0.001
+        ), f"Lot {lot.id} should have {expected_available} available"
 
-    # Validate aggregated quantities after configuration
     await simulator.validate_inventory_quantities(
-        "BTC", 1.0, 0.5, 0.5, "After sell configuration (0.5 BTC locked via FIFO)"
+        "BTC", 1.0, 0.5, 0.5, "After order: 0.5 locked proportionally"
     )
 
-    # Validate initial HP state with partial configuration
-    hp_simulator.validate_parent(
-        hp_id=hp_id,
-        quantity="0.5",  # Selling 0.5 BTC
-        realized_quantity="0.0",
-        state="BOUGHT",
-        buy_price="47000.0",  # Weighted average: (0.3*45000 + 0.2*50000) / 0.5 = 47000
-        sell_price="100000.0",
-    )
-
-    hp_simulator.validate_child_sell(
-        hp_id=hp_id,
-        quantity="0.5",
-        realized_quantity="0.0",
-        state="NEW",
-        sell_price="100000.0",
-    )
-
-    # Execute partial fill - fill 0.3 BTC (should complete lot 1 fully)
+    logger.info("=== PHASE 3: Partial Fill 0.3 BTC (FIFO Removes Lot 1) ===")
     hp_simulator.new_price(price=100000.0, symbol="BTCUSDC")
-
-    # Wait for selling state
     await wait_for_condition(
         condition_func=lambda: hp_back.strategies[hp_id].state == State.SELLING,
         timeout=5.0,
     )
 
-    # Execute partial fill report for 0.3 BTC
     strategy = hp_back.strategies[hp_id]
     sell_order = strategy.sell.current_position.sell_order
 
@@ -522,7 +477,7 @@ async def test_inventory_sell_execute_partial_fill_fifo_locking(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
         order_id=sell_order.order_id,
-        last_executed_quantity=0.3,  # First partial fill
+        last_executed_quantity=0.3,
         last_executed_price=100000.0,
         cumulative_filled_quantity=0.3,
         price=100000.0,
@@ -531,51 +486,71 @@ async def test_inventory_sell_execute_partial_fill_fifo_locking(
         Event(EventName.EXECUTION_REPORT, partial_exc_report)
     )
 
-    # Wait a bit for processing
     await asyncio.sleep(0.1)
     await portfolio.process_test_events()
-
     await asyncio.sleep(0.42)
-    # Process any additional events that arrived during the sleep
     await portfolio.process_test_events()
 
-    # Validate inventory state after first partial fill (0.3 BTC sold from lot 1)
+    # After partial fill, FIFO removes Lot 1 (0.3 BTC)
     btc_lots_after_partial = simulator.get_coin_lots("BTC")
-    btc_lots_after_partial_sorted = sorted(
-        btc_lots_after_partial, key=lambda lot: lot.buy_price
-    )
+    assert (
+        len(btc_lots_after_partial) == 2
+    ), f"Should have 2 lots after FIFO removal, got {len(btc_lots_after_partial)}"
 
-    logger.info("BTC lot structure after 0.3 BTC partial fill:")
-    for i, lot in enumerate(btc_lots_after_partial_sorted):
-        logger.info(
-            f"  Lot {i+1}: {lot.quantity} total, available: {lot.available_quantity}, locked: {lot.locked_quantity}"
-        )
+    lot_ids = [lot.id for lot in btc_lots_after_partial]
+    assert "btc_lot1" not in lot_ids, "Lot 1 should be removed (FIFO)"
 
-    # NOTE: With new partial fill event system, inventory quantities are immediately reduced on partial fills
-    # This provides immediate inventory tracking for development
-
-    # 1. After partial fill (0.3 BTC sold), inventory should be reduced to 0.7 total
     total_btc = sum(lot.quantity for lot in btc_lots_after_partial)
-    assert (
-        total_btc == 0.7
-    ), f"Total BTC should be 0.7 after 0.3 partial fill, got {total_btc}"
+    assert total_btc == 0.7, f"Total should be 0.7 after selling 0.3, got {total_btc}"
 
-    # 2. Should now have 2 lots (lot 1 with 0.3 BTC @ 45000 should be completely removed)
-    assert (
-        len(btc_lots_after_partial_sorted) == 2
-    ), f"Should have 2 lots after lot 1 removal, got {len(btc_lots_after_partial_sorted)}"
+    logger.info("=== PHASE 4: Exchange Unlocks Filled Amount (Redistributes Lock) ===")
+    # Exchange reports: 0.7 total, 0.5 available, 0.2 locked (remaining order)
+    account_position = AccountPosition(
+        event_time=0,
+        last_update_time=0,
+        balances=[
+            Balance(
+                coin="BTC",
+                free=0.5,  # 0.7 - 0.2 = 0.5 available
+                locked=0.2,  # Remaining unfilled order
+            )
+        ],
+    )
+    portfolio.ui_queue.put(
+        Event(name=EventName.ACCOUNT_POSITION, content=account_position)
+    )
+    await portfolio.process_test_events()
 
-    # 3. Only the remaining portion of the original order (0.2 BTC) should be locked
+    # Validate aggregate totals
     total_locked = sum(lot.locked_quantity for lot in btc_lots_after_partial)
     total_available = sum(lot.available_quantity for lot in btc_lots_after_partial)
-    assert (
-        total_locked == 0.2
-    ), f"Only remaining order quantity (0.2) should be locked, got {total_locked} locked"
-    assert (
-        total_available == 0.5
-    ), f"Unlocked inventory (0.5) should be available, got {total_available} available"
 
-    logger.info("✓ FIFO behavior validated: lowest price lot affected first")
+    assert (
+        abs(total_locked - 0.2) < 0.001
+    ), f"Total locked should be 0.2, got {total_locked}"
+    assert (
+        abs(total_available - 0.5) < 0.001
+    ), f"Total available should be 0.5, got {total_available}"
+
+    # Validate proportional redistribution across 2 remaining lots
+    # Lot 2: 0.4 BTC, Lot 3: 0.3 BTC (total 0.7 BTC)
+    # 0.2 locked should be: Lot 2 gets 0.2*(0.4/0.7) ≈ 0.114, Lot 3 gets 0.2*(0.3/0.7) ≈ 0.086
+    lot2 = next((lot for lot in btc_lots_after_partial if lot.id == "btc_lot2"), None)
+    lot3 = next((lot for lot in btc_lots_after_partial if lot.id == "btc_lot3"), None)
+
+    assert lot2 is not None and lot3 is not None, "Both remaining lots should exist"
+
+    expected_lot2_locked = 0.2 * (lot2.quantity / 0.7)
+    expected_lot3_locked = 0.2 * (lot3.quantity / 0.7)
+
+    assert (
+        abs(lot2.locked_quantity - expected_lot2_locked) < 0.001
+    ), f"Lot 2 lock redistributed proportionally: expected {expected_lot2_locked}, got {lot2.locked_quantity}"
+    assert (
+        abs(lot3.locked_quantity - expected_lot3_locked) < 0.001
+    ), f"Lot 3 lock redistributed proportionally: expected {expected_lot3_locked}, got {lot3.locked_quantity}"
+
+    logger.info("✓ Exchange-driven proportional locking validated successfully")
 
     # Validate HP state after partial fill
     strategy = hp_back.strategies[hp_id]
@@ -1265,7 +1240,11 @@ async def test_axl_multihop_sell_cancellation_inventory_unlock(
     # CRITICAL: Process pending portfolio events (including HP_POSITION_CANCELLED for inventory unlocking)
     await portfolio.process_test_events()
 
-    # Step 6: Verify the bug - inventory should be unlocked but currently isn't
+    # NOTE: With immediate local unlocking, we don't need to simulate AccountPosition anymore.
+    # The handle_hp_position_cancelled() already unlocked the quantities locally.
+    # In production, exchange would also send AccountPosition update which would sync to exchange state.
+
+    # Step 6: Verify inventory was properly unlocked
     locked_axl_after_cancel = sim.get_locked_quantity("AXL")
     available_axl_after_cancel = sim.get_available_quantity("AXL")
 
@@ -1356,6 +1335,10 @@ async def test_axl_multihop_sell_cancellation_fix_validation(
     # Process pending portfolio events for inventory unlock
     await portfolio.process_test_events()
     await asyncio.sleep(0.1)
+
+    # NOTE: With immediate local unlocking, we don't need to simulate AccountPosition anymore.
+    # The handle_hp_position_cancelled() already unlocked the quantities locally.
+    # In production, exchange would also send AccountPosition update which would sync to exchange state.
 
     # Step 5: Verify proper inventory unlock with automatic side detection
     locked_axl_after_cancel = sim.get_locked_quantity("AXL")

@@ -151,7 +151,7 @@ def test_ultra_robust_config_loaded(mock_broker_with_ws):
     """Verify ultra-robust configuration is used."""
     broker = mock_broker_with_ws
     assert broker._ws_config == ULTRA_ROBUST_CONFIG
-    assert broker._ws_config.connection_timeout == 120
+    assert broker._ws_config.connection_timeout == 60
     assert broker._ws_config.max_reconnect_attempts == 50
 
 

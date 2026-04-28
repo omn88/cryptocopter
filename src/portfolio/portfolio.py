@@ -176,6 +176,9 @@ class PortfolioManager:
                     f"Portfolio loaded from database with {len(self.inventory)} items."
                 )
 
+                # Fetch current account balances from Binance to sync available/locked quantities
+                await self._sync_account_balances_on_init()
+
                 # DEBUG: Validate database inventory
                 assert (
                     len(self.inventory) > 0
@@ -192,6 +195,10 @@ class PortfolioManager:
                 logger.info("Database empty, checking for inventory.csv file.")
                 if await self._try_load_inventory_csv():
                     logger.info("Portfolio loaded from inventory.csv file.")
+
+                    # Fetch current account balances from Binance to sync available/locked quantities
+                    await self._sync_account_balances_on_init()
+
                     assert (
                         len(self.inventory) > 0
                     ), f"CSV inventory should not be empty but got {len(self.inventory)} items"
@@ -218,6 +225,79 @@ class PortfolioManager:
         # Signal that initialization is complete
         self.initialization_complete.set()
         logger.info("Portfolio initialization completed - signaling readiness")
+
+    async def _sync_account_balances_on_init(self) -> None:
+        """Fetch account balances from Binance and sync with inventory on startup."""
+        try:
+            if self.client is None:
+                logger.error("Cannot sync account balances: client not initialized")
+                return
+
+            logger.info("Fetching account balances from Binance for initial sync...")
+            account_info = await self.client.get_account()
+
+            # Extract balances from account info
+            balances = account_info.get("balances", [])
+            exchange_balances = {}
+
+            for balance in balances:
+                coin = balance["asset"]
+                free = float(balance["free"])
+                locked = float(balance["locked"])
+
+                # Only track coins with non-zero balance
+                if free > 0 or locked > 0:
+                    exchange_balances[coin] = {"free": free, "locked": locked}
+
+            logger.info(
+                f"Fetched balances for {len(exchange_balances)} coins from exchange"
+            )
+
+            # Group inventory items by coin to calculate total quantities
+            coin_lots: dict[str, list[InventoryItem]] = {}
+            for item in self.inventory:
+                if item.coin not in coin_lots:
+                    coin_lots[item.coin] = []
+                coin_lots[item.coin].append(item)
+
+            # Update each coin's lots proportionally based on exchange balances
+            for coin, lots in coin_lots.items():
+                if coin in exchange_balances:
+                    exchange_free = exchange_balances[coin]["free"]
+                    exchange_locked = exchange_balances[coin]["locked"]
+                    total_qty = sum(lot.quantity for lot in lots)
+
+                    if total_qty > 0:
+                        # Distribute available and locked proportionally across lots
+                        for lot in lots:
+                            proportion = lot.quantity / total_qty
+                            lot.available_quantity = exchange_free * proportion
+                            lot.locked_quantity = exchange_locked * proportion
+                            logger.debug(
+                                f"[INIT SYNC] {coin} lot (qty={lot.quantity}): "
+                                f"available={lot.available_quantity:.8f}, locked={lot.locked_quantity:.8f}"
+                            )
+                    else:
+                        logger.warning(
+                            f"[INIT SYNC] {coin} has zero total quantity in inventory"
+                        )
+                else:
+                    # Coin in inventory but not on exchange - zero out quantities
+                    logger.warning(
+                        f"[INIT SYNC] {coin} exists in inventory but not on exchange - "
+                        f"zeroing available/locked quantities"
+                    )
+                    for lot in lots:
+                        lot.available_quantity = 0.0
+                        lot.locked_quantity = 0.0
+
+            logger.info("Initial account balance sync completed")
+
+        except Exception as e:
+            logger.error(f"Failed to sync account balances on init: {e}")
+            logger.warning(
+                "Inventory available/locked quantities may be incorrect until first WebSocket update"
+            )
 
     async def _try_load_inventory_csv(self) -> bool:
         """Try to load inventory from CSV file. Returns True if successful, False otherwise."""
@@ -329,11 +409,81 @@ class PortfolioManager:
             return False
 
     async def handle_account_position(self, account_position: AccountPosition) -> None:
-        """Handle account position updates (forward to UI only - inventory is managed separately)."""
-        logger.info("Handling account position update - forwarding to UI.")
+        """Handle account position updates - sync exchange data to inventory."""
+        logger.info("Syncing exchange balances to inventory")
 
-        # Simply forward the account position to UI
-        # The inventory is managed separately through database operations
+        # Create a map of exchange balances for quick lookup
+        exchange_balances = {
+            balance.coin: balance for balance in account_position.balances
+        }
+
+        # Group inventory items by coin to calculate total quantities
+        coin_lots: dict[str, list[InventoryItem]] = {}
+        for item in self.inventory:
+            if item.coin not in coin_lots:
+                coin_lots[item.coin] = []
+            coin_lots[item.coin].append(item)
+
+        # Update each coin's lots proportionally based on exchange balances
+        for coin, lots in coin_lots.items():
+            if coin in exchange_balances:
+                balance = exchange_balances[coin]
+                total_qty = sum(lot.quantity for lot in lots)
+
+                if total_qty > 0:
+                    # Distribute available and locked proportionally across lots
+                    for lot in lots:
+                        old_available = lot.available_quantity
+                        old_locked = lot.locked_quantity
+
+                        proportion = lot.quantity / total_qty
+                        lot.available_quantity = balance.free * proportion
+                        lot.locked_quantity = balance.locked * proportion
+
+                        # Log significant changes for debugging
+                        if abs(old_available - lot.available_quantity) > 0.00001:
+                            logger.debug(
+                                "[EXCHANGE SYNC] %s lot (qty=%.8f) available: %.8f -> %.8f",
+                                coin,
+                                lot.quantity,
+                                old_available,
+                                lot.available_quantity,
+                            )
+                        if abs(old_locked - lot.locked_quantity) > 0.00001:
+                            logger.debug(
+                                "[EXCHANGE SYNC] %s lot (qty=%.8f) locked: %.8f -> %.8f",
+                                coin,
+                                lot.quantity,
+                                old_locked,
+                                lot.locked_quantity,
+                            )
+                else:
+                    logger.warning(
+                        f"[EXCHANGE SYNC] {coin} has zero total quantity in inventory"
+                    )
+            # Note: If coin is not in exchange_balances, we leave it unchanged
+            # The AccountPosition message may only contain coins that changed,
+            # not all coins, so we shouldn't zero out missing coins
+
+        # Check for coins on exchange not in DB (optional warning for validation)
+        for coin, balance in exchange_balances.items():
+            total_on_exchange = balance.free + balance.locked
+            if total_on_exchange > 0.001:  # Ignore dust amounts
+                if not any(item.coin == coin for item in self.inventory):
+                    logger.warning(
+                        "[EXCHANGE SYNC] %s exists on exchange (free=%.8f, locked=%.8f) "
+                        "but not in inventory DB - consider adding to inventory",
+                        coin,
+                        balance.free,
+                        balance.locked,
+                    )
+
+        # Notify UI of updated inventory with exchange data
+        self.ui_queue.put_nowait(
+            Event(name=EventName.PORTFOLIO_INVENTORY, content=self.inventory)
+        )
+
+        # Also forward account position for other potential uses
         self.ui_queue.put_nowait(
             Event(name=EventName.ACCOUNT_POSITION, content=account_position)
         )

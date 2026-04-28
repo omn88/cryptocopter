@@ -11,7 +11,7 @@ import time
 import threading
 from typing import Dict, List, Optional, Callable, Any, Union
 
-from binance import BinanceSocketManager
+import websockets
 
 from src.common.client import BinanceClient
 from src.common.identifiers import SubscriptionInfo
@@ -64,10 +64,21 @@ class WebSocketManager:
         # Configuration
         self._ws_config = ULTRA_ROBUST_CONFIG
         self._connection_timeout = ULTRA_ROBUST_CONFIG.message_timeout_threshold
-        self._max_ticker_silence_duration = 300  # 5 minutes
-        self._ticker_timeout_check_interval = 60  # Check every minute
+        self._max_ticker_silence_duration = 180  # 3 minutes - more aggressive
+        self._ticker_timeout_check_interval = 30  # Check every 30 seconds
+        self._force_restart_threshold = 600  # Force full restart after 10 min silence
         self._restart_base_delay = 60
-        self._max_restart_delay = 3600
+        self._max_restart_delay = 300  # 5 minutes max instead of 1 hour
+
+        # Network fallback configuration
+        self._use_fallback_connection = False
+        self._proxy_failed_count = 0
+        self._max_proxy_failures_before_fallback = (
+            3  # Switch to direct after 3 failures
+        )
+
+        # Health reporting
+        self._health_report_interval = 300  # Report every 5 minutes
 
         # Subscription registry for resubscription after restart
         self._subscription_registry: Dict[str, SubscriptionInfo] = {}
@@ -76,6 +87,9 @@ class WebSocketManager:
         self._user_message_handler: Optional[Callable] = None
         self._ticker_message_handler: Optional[Callable] = None
         self._kline_message_handler: Optional[Callable] = None
+
+        # Direct WebSocket connection state
+        self._base_ws_url: str = "wss://stream.binance.com:9443"
 
         logger.info("WebSocketManager initialized with ultra-robust configuration")
         self._ws_config.log_config()
@@ -115,6 +129,9 @@ class WebSocketManager:
             self._monitor_ticker_timeout()
         )
 
+        # Start health reporting
+        self._health_report_task = self.loop.create_task(self._report_system_health())
+
         # Start websocket streams
         await self._start_websocket_tasks()
 
@@ -149,11 +166,8 @@ class WebSocketManager:
         logger.info("WebSocket manager stopped")
 
     async def _start_websocket_tasks(self) -> None:
-        """Start or restart websocket connection tasks with fresh socket manager."""
-        logger.info("Starting websocket tasks with fresh BinanceSocketManager")
-
-        # Create new socket manager
-        socket_manager = BinanceSocketManager(client=self.client)
+        """Start websocket connection tasks using direct websockets connections."""
+        logger.info("Starting websocket tasks with direct WebSocket connections")
 
         # Ensure message handlers are set before creating tasks
         assert (
@@ -163,45 +177,41 @@ class WebSocketManager:
             self._user_message_handler is not None
         ), "User message handler must be set before starting"
 
-        # Create websocket tasks
+        # Derive base URL from client TLD (default: com)
+        tld = getattr(self.client, "tld", "com")
+        self._base_ws_url = f"wss://stream.binance.{tld}:9443"
+
+        # Ticker stream — 24hr mini-tickers for all symbols
+        # NOTE: !ticker@arr is deprecated/non-functional; !miniTicker@arr is the working
+        # equivalent. Mini ticker provides: symbol (s), close/last price (c), open (o),
+        # high (h), low (l), volume (v). Bid/ask fields (b, a) are absent and default to 0.
+        ticker_url = f"{self._base_ws_url}/ws/!miniTicker@arr"
         self._ticker_socket_task = self.loop.create_task(
-            self._handle_socket(
-                socket_manager.ticker_socket(),
-                self._ticker_message_handler,
-                reconnect_attempts=self._ws_config.max_reconnect_attempts,
-            )
+            self._run_stream(ticker_url, self._ticker_message_handler, "ticker")
         )
 
+        # User data stream (listen key managed inside _run_user_stream)
         self._user_socket_task = self.loop.create_task(
-            self._handle_socket(
-                socket_manager.user_socket(),
-                self._user_message_handler,
-                reconnect_attempts=self._ws_config.max_reconnect_attempts,
-            )
+            self._run_user_stream()
         )
 
-        # Create kline socket tasks for each subscribed symbol
+        # Kline streams for subscribed symbols
         if self._kline_message_handler:
             from src.common.identifiers import SubscriptionType
 
-            # Collect unique symbols that need kline streams
             kline_symbols = set()
             for _, subscription_list in self.subscriptions.items():
                 for sub_info in subscription_list:
                     if sub_info.data_type == SubscriptionType.KLINE:
                         kline_symbols.add(sub_info.symbol)
 
-            # Create a kline socket task for each symbol
             for symbol in kline_symbols:
+                kline_url = f"{self._base_ws_url}/ws/{symbol.lower()}@kline_15m"
                 task_key = f"kline_{symbol}"
                 self._kline_socket_tasks[task_key] = self.loop.create_task(
-                    self._handle_socket(
-                        socket_manager.kline_socket(symbol=symbol, interval="15m"),
-                        self._kline_message_handler,
-                        reconnect_attempts=self._ws_config.max_reconnect_attempts,
-                    )
+                    self._run_stream(kline_url, self._kline_message_handler, task_key)
                 )
-                logger.info(f"Created kline socket task for {symbol} (15m)")
+                logger.info("Created kline stream task for %s (15m)", symbol)
 
         logger.info("Websocket tasks started successfully")
 
@@ -272,6 +282,110 @@ class WebSocketManager:
                 break
 
         logger.info("Gracefully exiting handle_socket for socket: %s", socket)
+
+    async def _run_stream(
+        self, url: str, message_handler: Callable, stream_name: str
+    ) -> None:
+        """Connect directly to a Binance WebSocket stream URL and dispatch messages.
+
+        Replaces BinanceSocketManager socket objects to avoid the broken
+        call_soon_threadsafe(create_task, _read_loop) pattern in python-binance
+        that is incompatible with websockets >= 14 / Python 3.12.
+
+        Args:
+            url: Full WebSocket URL to connect to
+            message_handler: Callback to invoke for each received message
+            stream_name: Human-readable name used in logs and health tracking
+        """
+        logger.info("Starting %s stream task", stream_name)
+        while not self.stop_event.is_set():
+            try:
+                logger.info("Connecting %s stream...", stream_name)
+                async with websockets.connect(
+                    url, ping_interval=20, ping_timeout=10, close_timeout=5
+                ) as ws:
+                    logger.info("WebSocket connected (%s).", stream_name)
+                    while not self.stop_event.is_set():
+                        try:
+                            raw_msg = await asyncio.wait_for(ws.recv(), timeout=30.0)
+                            self._update_message_timestamp(stream_name)
+                            msg = self._parse_message(raw_msg)
+                            if msg:
+                                message_handler(msg)
+                        except asyncio.TimeoutError:
+                            continue
+                        except asyncio.CancelledError:
+                            raise
+                        except Exception as e:
+                            logger.error(
+                                "Error receiving from %s stream: %s", stream_name, e
+                            )
+                            break
+            except asyncio.CancelledError:
+                logger.info("%s stream task cancelled", stream_name)
+                return
+            except Exception as e:
+                logger.error(
+                    "%s stream connection error: %s. Reconnecting in 5s...",
+                    stream_name,
+                    e,
+                )
+                try:
+                    await asyncio.sleep(5)
+                except asyncio.CancelledError:
+                    return
+        logger.info("%s stream task exiting", stream_name)
+
+    async def _run_user_stream(self) -> None:
+        """Connect to the Binance user data stream via the WebSocket API.
+
+        Delegates to python-binance's _ws_api_request() which handles signing
+        (apiKey, timestamp, HMAC-SHA256 signature) internally. Events are routed
+        to a local asyncio.Queue via WebsocketAPI.register_subscription_queue().
+        """
+        stream_name = "user"
+        logger.info("Starting user data stream task (WebSocket API)")
+
+        while not self.stop_event.is_set():
+            subscription_id: Optional[str] = None
+            queue: asyncio.Queue = asyncio.Queue()
+            try:
+                # Subscribe — python-binance handles all signing internally
+                result = await self.client._ws_api_request(
+                    "userDataStream.subscribe.signature",
+                    signed=True,
+                    params={},
+                )
+                subscription_id = str(result.get("subscriptionId"))
+                self.client.ws_api.register_subscription_queue(subscription_id, queue)
+                logger.info(
+                    "User data stream subscribed (subscriptionId=%s)", subscription_id
+                )
+
+                while not self.stop_event.is_set():
+                    try:
+                        event = await asyncio.wait_for(queue.get(), timeout=30.0)
+                        self._update_message_timestamp(stream_name)
+                        self._user_message_handler(event)
+                    except asyncio.TimeoutError:
+                        pass
+                    except asyncio.CancelledError:
+                        raise
+
+            except asyncio.CancelledError:
+                logger.info("User data stream task cancelled")
+                if subscription_id:
+                    self.client.ws_api.unregister_subscription_queue(subscription_id)
+                return
+            except Exception as e:
+                logger.error("User stream error: %s. Reconnecting in 5s...", e)
+                if subscription_id:
+                    self.client.ws_api.unregister_subscription_queue(subscription_id)
+                try:
+                    await asyncio.sleep(5)
+                except asyncio.CancelledError:
+                    return
+        logger.info("User data stream task exiting")
 
     def _parse_message(self, raw_msg: Any) -> Optional[Union[Dict, List]]:
         """Parse raw WebSocket message.
@@ -359,10 +473,14 @@ class WebSocketManager:
         logger.info("Connection health monitor stopped")
 
     async def _monitor_ticker_timeout(self) -> None:
-        """Monitor ticker timeout and trigger restart if silent too long."""
+        """Monitor ticker timeout and trigger restart if silent too long.
+
+        This is the DEAD-MAN SWITCH that forces restart if no ticker data received.
+        """
         logger.info(
-            "Starting ticker timeout monitoring (max silence: %d seconds)",
+            "Starting ticker timeout monitoring (warning: %d seconds, force restart: %d seconds)",
             self._max_ticker_silence_duration,
+            self._force_restart_threshold,
         )
 
         while not self.stop_event.is_set():
@@ -374,20 +492,36 @@ class WebSocketManager:
 
                 # Check for ticker timeout
                 time_since_ticker = time.time() - self._last_ticker_time
-                if time_since_ticker > self._max_ticker_silence_duration:
-                    logger.error(
-                        "Ticker silent for %.1f seconds (max: %d). Forcing restart...",
+
+                # CRITICAL: Force complete restart if silent too long
+                if time_since_ticker > self._force_restart_threshold:
+                    logger.critical(
+                        "DEAD-MAN SWITCH ACTIVATED: No ticker data for %.1f seconds. "
+                        "Forcing complete WebSocket restart...",
                         time_since_ticker,
-                        self._max_ticker_silence_duration,
                     )
 
                     # Trigger restart
                     timeout_error = {
                         "type": "TickerTimeoutError",
-                        "m": f"Ticker silent for {time_since_ticker:.1f} seconds",
+                        "m": f"CRITICAL: Ticker silent for {time_since_ticker:.1f} seconds (threshold: {self._force_restart_threshold}s)",
                     }
                     await self._handle_websocket_error(timeout_error)
-                    return
+                    
+                    # Reset last ticker time after restart to avoid immediate re-trigger
+                    # The restart should restore ticker flow; if not, we'll detect again
+                    self._last_ticker_time = time.time()
+                    
+                    # Continue monitoring instead of exiting - the dead-man switch
+                    # must keep running to handle future connection failures
+                    continue
+
+                elif time_since_ticker > self._max_ticker_silence_duration:
+                    logger.warning(
+                        "Ticker timeout: ticker silent for %.1f seconds (warning threshold: %d seconds)",
+                        time_since_ticker,
+                        self._max_ticker_silence_duration,
+                    )
 
             except asyncio.CancelledError:
                 logger.info("Ticker timeout monitoring cancelled")
@@ -397,6 +531,57 @@ class WebSocketManager:
                 await asyncio.sleep(10)
 
         logger.info("Ticker timeout monitoring stopped")
+
+    async def _report_system_health(self) -> None:
+        """Periodically report system health status for monitoring.
+
+        This provides visibility into system state and helps detect issues early.
+        """
+        logger.info(
+            "Starting system health reporter (interval: %d seconds)",
+            self._health_report_interval,
+        )
+
+        while not self.stop_event.is_set():
+            try:
+                await asyncio.sleep(self._health_report_interval)
+
+                if self.stop_event.is_set():
+                    break
+
+                ticker_silence = time.time() - self._last_ticker_time
+
+                # Determine health status
+                if ticker_silence > self._force_restart_threshold:
+                    health_status = "CRITICAL"
+                    message = (
+                        f"SYSTEM CRITICAL: No ticker data for {ticker_silence:.0f}s"
+                    )
+                elif ticker_silence > self._max_ticker_silence_duration:
+                    health_status = "DEGRADED"
+                    message = (
+                        f"SYSTEM DEGRADED: No ticker data for {ticker_silence:.0f}s"
+                    )
+                elif self._restart_count > 0:
+                    health_status = "RECOVERING"
+                    message = f"RECOVERING: {self._restart_count} restarts, fallback={self._use_fallback_connection}"
+                else:
+                    health_status = "HEALTHY"
+                    num_subscriptions = sum(
+                        len(subs) for subs in self.subscriptions.values()
+                    )
+                    message = f"SYSTEM HEALTHY: Ticker active, {num_subscriptions} subscriptions"
+
+                logger.info("[HEALTH CHECK] %s - %s", health_status, message)
+
+            except asyncio.CancelledError:
+                logger.info("System health reporter cancelled")
+                break
+            except Exception as e:
+                logger.error("Error in health reporter: %s", e)
+                await asyncio.sleep(30)
+
+        logger.info("System health reporter stopped")
 
     async def _handle_websocket_error(
         self, error_msg: Union[str, Dict[str, Any]]
@@ -440,21 +625,28 @@ class WebSocketManager:
             self._restart_count += 1
             time_since_last = current_time - self._last_restart_time
 
-            # Reset counter if it's been a while
-            if time_since_last > 600:
+            # Reset counter if it's been stable for 30 minutes
+            if time_since_last > 1800:
+                logger.info(
+                    "System has been stable for 30+ minutes. Resetting restart counter."
+                )
                 self._restart_count = 1
+                self._use_fallback_connection = False  # Can try proxy again
+                self._proxy_failed_count = 0
 
-            # Calculate progressive delay
+            # Calculate progressive delay with gentler progression
             restart_delay = min(
-                self._restart_base_delay * (self._restart_count**1.5),
+                self._restart_base_delay
+                * (self._restart_count**1.2),  # Gentler than 1.5
                 self._max_restart_delay,
             )
 
             logger.error(
-                "Unrecoverable error: %s. Restart #%d in %.1f seconds...",
+                "Unrecoverable error: %s. Restart #%d in %.1f seconds... (fallback mode: %s)",
                 error_msg,
                 self._restart_count,
                 restart_delay,
+                self._use_fallback_connection,
             )
 
             await asyncio.sleep(restart_delay)
@@ -465,11 +657,35 @@ class WebSocketManager:
             logger.error("WebSocket error: %s", error_msg)
 
     async def _restart_websocket_client(self) -> None:
-        """Restart WebSocket streams by recreating socket manager."""
+        """Restart WebSocket streams by recreating socket manager.
+
+        Will switch to direct Binance connection as fallback if proxy fails repeatedly.
+        """
         retry_count = 0
+
+        # Check if we should enable fallback mode
+        if (
+            self._restart_count >= self._max_proxy_failures_before_fallback
+            and not self._use_fallback_connection
+        ):
+            logger.warning(
+                "Proxy connection failed %d times (threshold: %d). "
+                "Switching to DIRECT Binance connection as fallback...",
+                self._restart_count,
+                self._max_proxy_failures_before_fallback,
+            )
+            self._use_fallback_connection = True
+            # Note: Actual proxy removal would require recreating BinanceClient
+            # For now, this flag can be used by client initialization code
+            # TODO: Implement client recreation without proxy
+
         while True:
             try:
-                logger.info("Attempting WebSocket restart #%d...", self._restart_count)
+                logger.info(
+                    "Attempting WebSocket restart #%d... (fallback mode: %s)",
+                    self._restart_count,
+                    self._use_fallback_connection,
+                )
 
                 # Cancel existing tasks
                 logger.info("Cancelling existing websocket tasks...")
@@ -502,7 +718,10 @@ class WebSocketManager:
                 logger.info("Resubscription complete")
 
                 if retry_count == 0:
-                    logger.info("WebSocket restart successful")
+                    logger.info(
+                        "WebSocket restart successful on attempt #%d",
+                        self._restart_count,
+                    )
                 break
 
             except Exception as e:
