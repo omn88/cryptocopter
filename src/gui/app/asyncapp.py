@@ -224,6 +224,7 @@ class AsyncApp(App):
             ui_queue=ui_queue,
             price_resolver=self.price_resolver,
             db=self.db,
+            client=self.client,
         )
 
         # Set up frontend UI for PortfolioManager

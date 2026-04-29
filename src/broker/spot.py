@@ -8,7 +8,7 @@ import asyncio
 import threading
 import queue
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from src.common.client import BinanceClient
 from src.domain.enums import SubscriptionTarget, SubscriptionType
@@ -44,58 +44,20 @@ class BrokerSpot:
         logger.info("BrokerSpot initialized")
         self.thread.start()
 
-    def __getattr__(self, name: str):
-        """Delegate WebSocket-related attributes to WebSocketManager for backward compatibility.
+    @property
+    def _ticker_timeout_task(self) -> Optional[asyncio.Task]:
+        """Task handle for ticker timeout monitoring (delegated to WebSocketManager)."""
+        return self._ws_manager._ticker_timeout_task if self._ws_manager else None
 
-        This allows tests and external code to access internal WebSocketManager attributes
-        through BrokerSpot without explicitly forwarding each one.
-        """
-        # Deprecated attributes from old architecture (return defaults)
-        deprecated_defaults = {
-            "_last_keepalive_error_log": 0,
-            "_websocket_error_count": 0,
-            "_last_websocket_error_time": 0.0,
-            "_websocket_error_suppression_time": 600,
-            "_ticker_timeout_threshold": 300.0,
-        }
+    @property
+    def _connection_health_task(self) -> Optional[asyncio.Task]:
+        """Task handle for connection health monitoring (delegated to WebSocketManager)."""
+        return self._ws_manager._connection_health_task if self._ws_manager else None
 
-        if name in deprecated_defaults:
-            return deprecated_defaults[name]
-
-        # Delegate to WebSocketManager if it exists and has the attribute
-        if self._ws_manager and hasattr(self._ws_manager, name):
-            attr = getattr(self._ws_manager, name)
-            # If it's a coroutine method, wrap it to handle None case
-            if asyncio.iscoroutinefunction(attr):
-                return attr
-            return attr
-
-        # Default values for common attributes when _ws_manager is None
-        defaults: Dict[str, Any] = {
-            "_restart_lock": None,
-            "_connection_health_task": None,
-            "_last_message_time": {},
-            "_connection_timeout": 0,
-            "_restart_count": 0,
-            "_last_restart_time": 0.0,
-            "_restart_base_delay": 60,
-            "_max_restart_delay": 3600,
-            "_last_ticker_time": 0.0,
-            "_max_ticker_silence_duration": 300,
-            "_ticker_timeout_check_interval": 60,
-            "_ticker_timeout_task": None,
-            "_subscription_registry": {},
-            "_ticker_socket_task": None,
-            "_user_socket_task": None,
-            "_ws_config": None,
-        }
-
-        if name in defaults:
-            return defaults[name]
-
-        raise AttributeError(
-            f"'{type(self).__name__}' object has no attribute '{name}'"
-        )
+    @property
+    def _ws_config(self):
+        """WebSocket configuration (delegated to WebSocketManager)."""
+        return self._ws_manager._ws_config if self._ws_manager else None
 
     def start_loop(self) -> None:
         """Start the asyncio loop in a new thread."""
