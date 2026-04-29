@@ -7,15 +7,10 @@ import logging
 from typing import List, Optional, Dict
 from datetime import datetime
 
-from src.common.identifiers import (
-    HPBuy,
-    HPSell,
-    Order as TradingOrder,
-    ExecutionReport,
-    State,
-    PositionSide,
-    SellPosition,
-)
+from src.domain.enums import PositionSide, State
+from src.domain.orders import ExecutionReport
+from src.domain.orders import Order as TradingOrder
+from src.domain.positions import HPBuy, HPSell, SellPosition
 
 from .trading_database import Database
 from .models import (

@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Callable, Any, Union
 import websockets
 
 from src.common.client import BinanceClient
-from src.common.identifiers import SubscriptionInfo
+from src.domain.subscriptions import SubscriptionInfo
 from src.websocket.config import ULTRA_ROBUST_CONFIG
 
 logger = logging.getLogger(__name__)
@@ -197,7 +197,7 @@ class WebSocketManager:
 
         # Kline streams for subscribed symbols
         if self._kline_message_handler:
-            from src.common.identifiers import SubscriptionType
+            from src.domain.enums import SubscriptionType
 
             kline_symbols = set()
             for _, subscription_list in self.subscriptions.items():

@@ -8,7 +8,8 @@ from binance.enums import (
     ORDER_STATUS_CANCELED,
     ORDER_STATUS_PARTIALLY_FILLED,
 )
-from src.common.identifiers import Order, State
+from src.domain.enums import State
+from src.domain.orders import Order
 from tests.helpers import get_new_order
 from tests.strategies.hp.hp_simulator import HPSimulator, wait_for_condition
 

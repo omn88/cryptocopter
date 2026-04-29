@@ -14,20 +14,15 @@ from kivy.uix.widget import Widget
 from src.database import Database
 from src.gui.hp_manager.modal_configurators import BuyHPModal
 from src.common.client import BinanceClient
-from src.common.identifiers import (
-    HPBuyConfig,
+from src.domain.enums import EventName, Mode, PositionSide, State, UiState
+from src.domain.orders import AllTickers, Event
+from src.domain.positions import (
     HPBuy,
-    HPSellConfig,
-    AllTickers,
-    Event,
-    EventName,
+    HPBuyConfig,
     HPSell,
+    HPSellConfig,
     RemoveRecord,
-    State,
     StateInfo,
-    UiState,
-    Mode,
-    PositionSide,
 )
 from src.gui.identifiers import (
     HPGuiDataBuy,

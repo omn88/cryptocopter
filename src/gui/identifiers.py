@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 from typing import Optional
 from src.common.symbol import Symbol
-from src.common.identifiers import HPBuy, HPSellConfig, HPSell, State, StateInfo
+from src.domain.enums import State
+from src.domain.positions import HPBuy, HPSell, HPSellConfig, StateInfo
 
 
 @dataclass

@@ -14,18 +14,10 @@ from typing import List, Optional
 from src.gui.hp_manager.hpfront import HpFront
 from src.strategy_executor import StrategyExecutor
 from src.portfolio.portfolio_gui import PortfolioUI
-from src.common.identifiers import (
-    HPSellConfig,
-    HPSell,
-    InventoryItem,
-    PositionSide,
-    State,
-    StateInfo,
-    AccountPosition,
-    Balance,
-    Event,
-    EventName,
-)
+from src.domain.enums import EventName, PositionSide, State
+from src.domain.inventory import InventoryItem
+from src.domain.orders import AccountPosition, Balance, Event
+from src.domain.positions import HPSell, HPSellConfig, StateInfo
 from tests.strategies.hp.hp_simulator import wait_for_condition
 
 logger = logging.getLogger(__name__)
@@ -253,14 +245,8 @@ class InventorySellSimulator:
     async def simulate_sell_order_execution(self, hp_id: str):
         """Simulate the execution of the sell order to complete the sell flow."""
         from binance.enums import ORDER_TYPE_LIMIT, ORDER_STATUS_FILLED
-        from src.common.identifiers import (
-            Event,
-            EventName,
-            ExecutionReport,
-            TickerUpdate,
-            SignalUpdate,
-            Signal,
-        )
+        from src.domain.enums import EventName, Signal, SignalUpdate
+        from src.domain.orders import Event, ExecutionReport, TickerUpdate
 
         strategy = self.strategy_executor.strategies[hp_id]
 

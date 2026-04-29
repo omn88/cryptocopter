@@ -5,14 +5,8 @@ from typing import Any, Dict, List
 
 from binance.enums import ORDER_STATUS_FILLED
 
-from src.common.identifiers import (
-    HPSellConfig,
-    PositionSide,
-    SellPosition,
-    SellType,
-    State,
-    StateInfo,
-)
+from src.domain.enums import PositionSide, SellType, State
+from src.domain.positions import HPSellConfig, SellPosition, StateInfo
 from .base import BaseSellStrategy
 
 

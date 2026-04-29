@@ -3,13 +3,8 @@
 import logging
 from typing import Any, Dict, List
 
-from src.common.identifiers import (
-    HPSellConfig,
-    PositionSide,
-    SellPosition,
-    SellType,
-    StateInfo,
-)
+from src.domain.enums import PositionSide, SellType
+from src.domain.positions import HPSellConfig, SellPosition, StateInfo
 from .base import BaseSellStrategy
 
 

@@ -4,13 +4,9 @@ import asyncio
 import pytest
 import logging
 
-from src.common.identifiers import (
-    HPSellPositionCreated,
-    AccountPosition,
-    Balance,
-    Event,
-    EventName,
-)
+from src.domain.enums import EventName
+from src.domain.events import HPSellPositionCreated
+from src.domain.orders import AccountPosition, Balance, Event
 from tests.strategies.hp.hp_simulator import HPSimulator, wait_for_condition
 
 

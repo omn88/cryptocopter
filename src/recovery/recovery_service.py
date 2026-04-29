@@ -16,18 +16,15 @@ from src.broker import BrokerSpot
 from src.database.trading_database import Database
 from src.strategies.hp_manager.sell_strategies.factory import SellStrategyFactory
 from src.common.client import BinanceClient
-from src.common.identifiers import (
-    HPBuyConfig,
+from src.domain.enums import PositionSide, SellType, State, UiState
+from src.domain.orders import Order
+from src.domain.positions import (
     HPBuy,
-    HPSellConfig,
+    HPBuyConfig,
     HPSell,
-    Order,
+    HPSellConfig,
     SellPosition,
-    SellType,
     StateInfo,
-    State,
-    PositionSide,
-    UiState,
 )
 from src.common.symbol import Symbol
 from src.strategies.hp_manager.position_buy import HPPositionBuy

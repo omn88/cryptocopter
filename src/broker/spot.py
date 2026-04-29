@@ -11,11 +11,8 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from src.common.client import BinanceClient
-from src.common.identifiers import (
-    SubscriptionInfo,
-    SubscriptionType,
-    SubscriptionTarget,
-)
+from src.domain.enums import SubscriptionTarget, SubscriptionType
+from src.domain.subscriptions import SubscriptionInfo
 from src.websocket import WebSocketManager
 from src.broker.message_handlers import (
     handle_kline_message,

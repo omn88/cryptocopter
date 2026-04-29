@@ -13,15 +13,9 @@ from typing import List, Optional
 from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED, ORDER_STATUS_NEW
 
 from src.common.client import BinanceClient
-from src.common.identifiers import (
-    Event,
-    EventName,
-    ExecutionReport,
-    HPBuyConfig,
-    HPSellConfig,
-    Order,
-    PositionSide,
-)
+from src.domain.enums import EventName, PositionSide
+from src.domain.orders import Event, ExecutionReport, Order
+from src.domain.positions import HPBuyConfig, HPSellConfig
 from src.strategies.hp_manager.position_buy import HPPositionBuy
 from src.database.trading_database import Database
 

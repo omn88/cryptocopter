@@ -36,16 +36,15 @@ from pytest_mock import MockerFixture
 from src.common.helpers import generate_hp_id
 from src.common.symbol import Symbol
 from src.database.trading_database import Database
-from src.common.identifiers import (
-    HPBuyConfig,
+from src.domain.enums import PositionSide, State
+from src.domain.inventory import InventoryItem
+from src.domain.orders import Order
+from src.domain.positions import (
     HPBuy,
+    HPBuyConfig,
     HPSellConfig,
-    Order,
-    PositionSide,
     SellPosition,
-    State,
     StateInfo,
-    InventoryItem,
 )
 from src.strategies.hp_manager.hp_manager import HpStrategy
 from src.portfolio.portfolio_gui import PortfolioUI
@@ -882,7 +881,8 @@ async def portfolio_hp_backend_setup(
     # It only has portfolio_queue for communication
 
     # Initialize exchange balances to match inventory (simulates initial WebSocket sync)
-    from src.common.identifiers import AccountPosition, Balance, Event, EventName
+    from src.domain.enums import EventName
+    from src.domain.orders import AccountPosition, Balance, Event
 
     coin_totals: dict[str, float] = {}
     for item in portfolio_ui.inventory:

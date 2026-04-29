@@ -13,24 +13,19 @@ from kivy.uix.popup import Popup
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.label import Label
-from src.common.identifiers import (
-    AccountPosition,
-    Event,
-    EventName,
-    InventoryItem,
-    PriceUpdates,
-    HPSellPositionCreated,
-    HPSellPositionCompleted,
-    HPSellPositionPartiallyFilled,
+from src.domain.enums import EventName, PositionSide
+from src.domain.events import (
+    HPBuyOrdersPlaced,
     HPBuyPositionFilled,
     HPBuyPositionPartiallyFilled,
-    HPBuyOrdersPlaced,
     HPPositionCancelled,
-    HPSell,
-    HPSellConfig,
-    StateInfo,
-    PositionSide,
+    HPSellPositionCompleted,
+    HPSellPositionCreated,
+    HPSellPositionPartiallyFilled,
 )
+from src.domain.inventory import InventoryItem
+from src.domain.orders import AccountPosition, Event, PriceUpdates
+from src.domain.positions import HPSell, HPSellConfig, StateInfo
 from src.database import Database
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 

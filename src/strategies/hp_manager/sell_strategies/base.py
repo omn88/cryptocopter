@@ -3,7 +3,8 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List
 
-from src.common.identifiers import Order, SellPosition
+from src.domain.orders import Order
+from src.domain.positions import SellPosition
 from src.common.symbol import Symbol
 
 

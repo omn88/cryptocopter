@@ -8,19 +8,17 @@ This module contains functions to handle different types of WebSocket messages:
 import logging
 from typing import Dict, List
 
-from src.common.identifiers import (
-    Event,
-    EventName,
-    ErrorMessage,
-    ExecutionReport,
-    AllTickers,
-    TickerUpdate,
-    SubscriptionInfo,
-    SubscriptionTarget,
-    SubscriptionType,
+from src.domain.enums import EventName, SubscriptionTarget, SubscriptionType
+from src.domain.orders import (
     AccountPosition,
+    AllTickers,
     Balance,
+    ErrorMessage,
+    Event,
+    ExecutionReport,
+    TickerUpdate,
 )
+from src.domain.subscriptions import SubscriptionInfo
 
 logger = logging.getLogger(__name__)
 

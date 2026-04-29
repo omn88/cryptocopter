@@ -141,7 +141,7 @@ async def hp_partially_bought(hp_buying):
     """
     from binance.enums import ORDER_STATUS_PARTIALLY_FILLED
     from tests.strategies.hp.hp_simulator import wait_for_condition
-    from src.common.identifiers import State
+    from src.domain.enums import State
 
     sim, strategy = hp_buying
     strategy = await sim.simulate_partial_fill()

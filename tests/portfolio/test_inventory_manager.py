@@ -1,7 +1,7 @@
 """Unit tests for src.portfolio.inventory_manager.InventoryManager."""
 
 import pytest
-from src.common.identifiers import InventoryItem
+from src.domain.inventory import InventoryItem
 from src.portfolio.inventory_manager import InventoryManager
 
 

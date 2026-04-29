@@ -11,18 +11,9 @@ from enum import Enum
 from typing import Optional, List, Dict, Any
 import uuid
 
-
-@dataclass
-class InventoryItem:
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    coin: str = ""
-    buy_price: float = 0.0
-    quantity: float = 0.0
-    available_quantity: float = 0.0
-    locked_quantity: float = 0.0
-    source: str = ""
-    timestamp: datetime = field(default_factory=datetime.now)
-    notes: Optional[str] = None
+from src.domain.inventory import (
+    InventoryItem,
+)  # noqa: F401  # re-exported for convenience
 
 
 class PositionType(Enum):

@@ -21,19 +21,16 @@ from src.common.symbol import Symbol
 
 from src.database import Database
 from src.common.client import BinanceClient
-from src.common.identifiers import (
-    ExecutionReport,
-    HPSellConfig,
-    Order,
-    SellPosition,
+from src.domain.enums import (
+    PositionSide,
     SellType,
-    StateInfo,
-    SubscriptionInfo,
     SubscriptionTarget,
     SubscriptionType,
     UiState,
-    PositionSide,
 )
+from src.domain.orders import ExecutionReport, Order
+from src.domain.positions import HPSellConfig, SellPosition, StateInfo
+from src.domain.subscriptions import SubscriptionInfo
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.strategies.hp_manager.sell_strategies.base import BaseSellStrategy
 

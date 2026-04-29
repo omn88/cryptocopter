@@ -3,16 +3,14 @@
 import logging
 import pytest
 
-from src.common.identifiers import (
-    HPSellPositionCreated,
-    HPSellPositionCompleted,
-    HPSellPositionPartiallyFilled,
+from src.domain.enums import EventName
+from src.domain.events import (
     HPBuyPositionFilled,
-    AccountPosition,
-    Balance,
-    Event,
-    EventName,
+    HPSellPositionCompleted,
+    HPSellPositionCreated,
+    HPSellPositionPartiallyFilled,
 )
+from src.domain.orders import AccountPosition, Balance, Event
 from src.portfolio.portfolio_gui import PortfolioUI
 
 logger = logging.getLogger("test_hp_portfolio_lifecycle")

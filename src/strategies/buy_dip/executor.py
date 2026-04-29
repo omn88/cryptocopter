@@ -19,14 +19,9 @@ from typing import Dict, Optional, Any
 
 from src.broker import BrokerSpot
 from src.common.client import BinanceClient
-from src.common.identifiers import (
-    SubscriptionInfo,
-    SubscriptionType,
-    SubscriptionTarget,
-    EventName,
-    Event,
-    TickerUpdate,
-)
+from src.domain.enums import EventName, SubscriptionTarget, SubscriptionType
+from src.domain.orders import Event, TickerUpdate
+from src.domain.subscriptions import SubscriptionInfo
 from src.common.symbol import Symbol
 from src.database import Database
 from src.strategies.buy_dip.broker_adapter import BuyDipBrokerAdapter
