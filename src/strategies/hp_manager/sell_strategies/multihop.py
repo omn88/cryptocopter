@@ -16,7 +16,7 @@ from src.common.identifiers import (
 from .base import BaseSellStrategy
 
 
-logger = logging.getLogger("multihop_sell_strategy")
+logger = logging.getLogger(__name__)
 
 
 class MultihopSellStrategy(BaseSellStrategy):

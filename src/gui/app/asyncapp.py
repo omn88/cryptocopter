@@ -294,7 +294,8 @@ class AsyncApp(App):
                 queue=ui_queue,
             ),
         )
-        assert self.portfolio is not None
+        if self.portfolio is None:
+            raise RuntimeError("Portfolio not initialized")
         back_end = StrategyExecutor(
             db=self.db,
             broker=self.broker,

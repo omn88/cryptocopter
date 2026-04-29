@@ -38,7 +38,7 @@ from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.strategies.hp_manager.sell_strategies.base import BaseSellStrategy
 
 
-logger = logging.getLogger("pos_handler")
+logger = logging.getLogger(__name__)
 
 
 class HPPositionSell:
@@ -184,7 +184,10 @@ class HPPositionSell:
         await self.sell_strategy.recalculate_prices(self.sell_positions)
 
     async def cancel_position(self) -> None:
-        assert isinstance(self.current_position, SellPosition)
+        if not isinstance(self.current_position, SellPosition):
+            raise TypeError(
+                f"Expected SellPosition, got {type(self.current_position).__name__}"
+            )
 
         logger.info(
             "Start canceling position: %s %s, hp id: %s",
@@ -347,7 +350,8 @@ class HPPositionSell:
 
                 return order
 
-        assert last_exception is not None
+        if last_exception is None:
+            raise RuntimeError("Retry loop exhausted without capturing an exception")
         raise last_exception
 
     async def _cancel_order(self, order_id: int, symbol: str) -> None:

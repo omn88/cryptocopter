@@ -57,7 +57,7 @@ else:
     }
 
 
-logger = logging.getLogger("strategy_executor")
+logger = logging.getLogger(__name__)
 
 
 class StrategyExecutor:
@@ -194,7 +194,8 @@ class StrategyExecutor:
         new_hp.config.hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
         new_hp.state_info.generate_open_time()
         worker_queue: queue.Queue = queue.Queue()
-        assert self.client is not None
+        if self.client is None:
+            raise RuntimeError("BinanceClient not initialized")
 
         # Create temporary portfolio event helper (will be updated after strategy creation)
         portfolio_event_helper = PortfolioEventHelper(None)
@@ -233,7 +234,10 @@ class StrategyExecutor:
             ),
         )
 
-        assert isinstance(strategy.buy.data.config, HPBuyConfig)
+        if not isinstance(strategy.buy.data.config, HPBuyConfig):
+            raise TypeError(
+                f"Expected HPBuyConfig, got {type(strategy.buy.data.config).__name__}"
+            )
         logger.info("HpStrategy created successfully for HP %s", new_hp.config.hp_id)
 
         # Update portfolio event helper with the strategy's callback
@@ -360,7 +364,8 @@ class StrategyExecutor:
             "Setting up sell position for existing HP: %s", strategy_data.config.hp_id
         )
         strategy: HpStrategy = self.strategies[strategy_data.config.hp_id]
-        assert self.client
+        if not self.client:
+            raise RuntimeError("BinanceClient not initialized")
         if strategy_data.state_info.state == State.NEW:
             strategy.sell = HPPositionSell(
                 client=self.client,
@@ -423,8 +428,10 @@ class StrategyExecutor:
         logger.info("[EXECUTOR] Sell price: %.8f", strategy_data.config.sell_price)
         logger.info("[EXECUTOR] Strategy type: %s", type(sell_strategy).__name__)
 
-        assert self.client is not None
-        assert self.recovery_service is not None
+        if self.client is None:
+            raise RuntimeError("BinanceClient not initialized")
+        if self.recovery_service is None:
+            raise RuntimeError("RecoveryService not initialized")
         worker_queue: queue.Queue = queue.Queue()
 
         # Create temporary portfolio event helper (will be updated after strategy creation)
@@ -480,9 +487,10 @@ class StrategyExecutor:
 
         self.strategies[parent_hp_id] = strategy
 
-        assert config.symbol.name.endswith(
-            tuple(self.supported_quotes)
-        ), f"Symbol must end with one of {self.supported_quotes}"
+        if not config.symbol.name.endswith(tuple(self.supported_quotes)):
+            raise ValueError(
+                f"Symbol '{config.symbol.name}' must end with one of {self.supported_quotes}"
+            )
         self.send_sell_position_to_ui(
             config=strategy.sell.original_position.config,
             state_info=strategy.sell.original_position.state_info,
@@ -705,8 +713,10 @@ class StrategyExecutor:
         logger.info("Starting crash recovery process...")
 
         try:
-            assert self.recovery_service is not None
-            assert self.client is not None
+            if self.recovery_service is None:
+                raise RuntimeError("RecoveryService not initialized")
+            if self.client is None:
+                raise RuntimeError("BinanceClient not initialized")
 
             (
                 buy_positions,

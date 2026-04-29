@@ -41,7 +41,7 @@ from .order_restorer import OrderRestorer
 from .multihop_recovery_handler import MultihopRecoveryHandler
 from .position_verifier import PositionVerifier
 
-logger = logging.getLogger("recovery_service")
+logger = logging.getLogger(__name__)
 
 
 class RecoveryService:
@@ -133,7 +133,8 @@ class RecoveryService:
         logger.info("Restoring buy position: %s", buy_data.config.hp_id)
 
         worker_queue: queue.Queue = queue.Queue()
-        assert client is not None
+        if client is None:
+            raise RuntimeError("BinanceClient must not be None")
 
         # Create temporary portfolio event helper (will be updated after strategy creation)
         portfolio_event_helper = PortfolioEventHelper(None)
@@ -173,7 +174,10 @@ class RecoveryService:
             portfolio_ui_queue=portfolio_ui_queue,
         )
 
-        assert isinstance(strategy.buy.data.config, HPBuyConfig)
+        if not isinstance(strategy.buy.data.config, HPBuyConfig):
+            raise TypeError(
+                f"Expected HPBuyConfig, got {type(strategy.buy.data.config).__name__}"
+            )
         logger.info("HpStrategy created successfully for HP %s", buy_data.config.hp_id)
 
         # Update portfolio event helper with the strategy's callback

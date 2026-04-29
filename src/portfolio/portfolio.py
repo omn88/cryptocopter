@@ -30,7 +30,7 @@ from src.portfolio.inventory_manager import InventoryManager
 DOTENV_FILE = "config/.env"
 config_env = Config(RepositoryEnv(DOTENV_FILE))
 
-logger = logging.getLogger("portfolio")
+logger = logging.getLogger(__name__)
 
 
 class PortfolioManager:
@@ -179,14 +179,15 @@ class PortfolioManager:
                 # Fetch current account balances from Binance to sync available/locked quantities
                 await self._sync_account_balances_on_init()
 
-                # DEBUG: Validate database inventory
-                assert (
-                    len(self.inventory) > 0
-                ), f"Database inventory should not be empty but got {len(self.inventory)} items"
+                if len(self.inventory) == 0:
+                    raise RuntimeError(
+                        f"Database inventory should not be empty but got {len(self.inventory)} items"
+                    )
                 coin_summary = self.inventory_manager.get_coin_summary()
-                assert (
-                    len(coin_summary) > 0
-                ), f"Database coin_summary should not be empty but got {len(coin_summary)} coins"
+                if len(coin_summary) == 0:
+                    raise RuntimeError(
+                        f"Database coin_summary should not be empty but got {len(coin_summary)} coins"
+                    )
                 logger.debug(
                     f"[PORTFOLIO DEBUG] Database loaded coin_summary: {list(coin_summary.keys())}"
                 )
@@ -199,15 +200,17 @@ class PortfolioManager:
                     # Fetch current account balances from Binance to sync available/locked quantities
                     await self._sync_account_balances_on_init()
 
-                    assert (
-                        len(self.inventory) > 0
-                    ), f"CSV inventory should not be empty but got {len(self.inventory)} items"
+                    if len(self.inventory) == 0:
+                        raise RuntimeError(
+                            f"CSV inventory should not be empty but got {len(self.inventory)} items"
+                        )
 
                     # Validate InventoryManager state
                     coin_summary = self.inventory_manager.get_coin_summary()
-                    assert (
-                        len(coin_summary) > 0
-                    ), f"CSV coin_summary should not be empty but got {len(coin_summary)} coins"
+                    if len(coin_summary) == 0:
+                        raise RuntimeError(
+                            f"CSV coin_summary should not be empty but got {len(coin_summary)} coins"
+                        )
                     logger.info(
                         f"[PORTFOLIO DEBUG] Final coin_summary after CSV load: {list(coin_summary.keys())}"
                     )
@@ -358,10 +361,10 @@ class PortfolioManager:
                     f"[PORTFOLIO DEBUG] Total inventory items loaded: {len(inventory_items)}"
                 )
 
-                # Assert that inventory is not empty
-                assert (
-                    len(inventory_items) > 0
-                ), f"Inventory should not be empty but got {len(inventory_items)} items"
+                if len(inventory_items) == 0:
+                    raise RuntimeError(
+                        f"Inventory should not be empty but got {len(inventory_items)} items"
+                    )
 
                 # Debug first few items structure
                 for i, item in enumerate(inventory_items[:5]):
@@ -375,10 +378,10 @@ class PortfolioManager:
                     f"[PORTFOLIO DEBUG] InventoryManager coin_summary: {coin_summary}"
                 )
 
-                # Assert that coin_summary is not empty
-                assert (
-                    len(coin_summary) > 0
-                ), f"InventoryManager coin_summary should not be empty but got {len(coin_summary)} coins"
+                if len(coin_summary) == 0:
+                    raise RuntimeError(
+                        f"InventoryManager coin_summary should not be empty but got {len(coin_summary)} coins"
+                    )
 
                 # Test specific coin aggregation
                 for coin in list(coin_summary.keys())[:3]:  # Test first 3 coins
@@ -388,13 +391,14 @@ class PortfolioManager:
                         f"[PORTFOLIO DEBUG] Coin {coin}: total_qty={total_qty}, avg_price={avg_price}"
                     )
 
-                    # Assert aggregation results are valid
-                    assert (
-                        total_qty > 0
-                    ), f"Total quantity for {coin} should be > 0 but got {total_qty}"
-                    assert (
-                        avg_price > 0
-                    ), f"Average price for {coin} should be > 0 but got {avg_price}"
+                    if total_qty <= 0:
+                        raise RuntimeError(
+                            f"Total quantity for {coin} should be > 0 but got {total_qty}"
+                        )
+                    if avg_price <= 0:
+                        raise RuntimeError(
+                            f"Average price for {coin} should be > 0 but got {avg_price}"
+                        )
 
                 logger.info(
                     "[PORTFOLIO DEBUG] All inventory validations passed successfully"
@@ -503,7 +507,8 @@ class PortfolioManager:
 
         for ticker in tickers_update.msg:
             symbol = ticker.get("s")
-            assert symbol
+            if not symbol:
+                raise ValueError(f"Ticker dict missing required 's' key: {ticker}")
             price = float(ticker.get("c", 0))
             # Update price map
             self.price_resolver.update_price(symbol, price)

@@ -11,7 +11,7 @@ from .convert import ConvertSellStrategy
 from .multihop import MultihopSellStrategy
 
 
-logger = logging.getLogger("sell_strategy_factory")
+logger = logging.getLogger(__name__)
 
 
 class SellStrategyFactory:

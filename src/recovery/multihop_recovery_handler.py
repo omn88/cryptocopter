@@ -13,7 +13,7 @@ from src.strategies.hp_manager.hp_manager import HpStrategy
 from src.database.trading_database import Database
 
 
-logger = logging.getLogger("MultihopRecoveryHandler")
+logger = logging.getLogger(__name__)
 
 
 class MultihopRecoveryHandler:

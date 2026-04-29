@@ -484,7 +484,10 @@ Side: {side}"""
                             update=data.hp_update, hp_list=self.hp_list_data
                         )
                     elif isinstance(data, Event) and data.name == EventName.ALL_TICKERS:
-                        assert isinstance(data.content, AllTickers)
+                        if not isinstance(data.content, AllTickers):
+                            raise TypeError(
+                                f"Expected AllTickers, got {type(data.content).__name__}"
+                            )
                         self._process_all_tickers(data.content)
                     else:
                         # Check for data types that might need processing

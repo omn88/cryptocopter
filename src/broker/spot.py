@@ -26,7 +26,7 @@ from src.broker.message_handlers import (
     handle_ticker_message,
 )
 
-logger = logging.getLogger("broker")
+logger = logging.getLogger(__name__)
 
 # Specify the path to the .env file
 DOTENV_FILE = "config/.env"
@@ -140,7 +140,10 @@ class BrokerSpot:
         )
 
         # Create WebSocket manager
-        assert self.loop is not None
+        if self.loop is None:
+            raise RuntimeError(
+                "Event loop not initialized before creating WebSocket manager"
+            )
         self._ws_manager = WebSocketManager(
             client=self.client,
             subscriptions=self.subscriptions,

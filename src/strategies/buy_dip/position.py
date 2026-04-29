@@ -114,8 +114,11 @@ class BuyDipPosition:
             RuntimeError: If there's already a pending order
         """
         if not self.can_place_order():
-            # Assert for type checker - we know pending_order is not None here
-            assert self.pending_order is not None
+            # Type narrowing: we know pending_order is not None here
+            if self.pending_order is None:
+                raise RuntimeError(
+                    "pending_order unexpectedly None in can_place_order=False branch"
+                )
             raise RuntimeError(
                 f"Cannot place order: pending order {self.pending_order.order_id} exists"
             )

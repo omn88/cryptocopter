@@ -17,7 +17,7 @@ from src.common.client import BinanceClient
 from src.common.identifiers import SubscriptionInfo
 from src.websocket.config import ULTRA_ROBUST_CONFIG
 
-logger = logging.getLogger("broker.websocket_manager")
+logger = logging.getLogger(__name__)
 
 
 class WebSocketManager:
@@ -136,10 +136,14 @@ class WebSocketManager:
         await self._start_websocket_tasks()
 
         # Return all tasks - mypy: all are guaranteed to be not None after start
-        assert self._connection_health_task is not None
-        assert self._ticker_timeout_task is not None
-        assert self._ticker_socket_task is not None
-        assert self._user_socket_task is not None
+        if self._connection_health_task is None:
+            raise RuntimeError("_connection_health_task not initialized")
+        if self._ticker_timeout_task is None:
+            raise RuntimeError("_ticker_timeout_task not initialized")
+        if self._ticker_socket_task is None:
+            raise RuntimeError("_ticker_socket_task not initialized")
+        if self._user_socket_task is None:
+            raise RuntimeError("_user_socket_task not initialized")
 
         tasks: List[asyncio.Task] = [
             self._connection_health_task,
@@ -170,12 +174,10 @@ class WebSocketManager:
         logger.info("Starting websocket tasks with direct WebSocket connections")
 
         # Ensure message handlers are set before creating tasks
-        assert (
-            self._ticker_message_handler is not None
-        ), "Ticker message handler must be set before starting"
-        assert (
-            self._user_message_handler is not None
-        ), "User message handler must be set before starting"
+        if self._ticker_message_handler is None:
+            raise RuntimeError("Ticker message handler must be set before starting")
+        if self._user_message_handler is None:
+            raise RuntimeError("User message handler must be set before starting")
 
         # Derive base URL from client TLD (default: com)
         tld = getattr(self.client, "tld", "com")
@@ -364,7 +366,8 @@ class WebSocketManager:
                     try:
                         event = await asyncio.wait_for(queue.get(), timeout=30.0)
                         self._update_message_timestamp(stream_name)
-                        assert self._user_message_handler is not None
+                        if self._user_message_handler is None:
+                            raise RuntimeError("User message handler not set")
                         self._user_message_handler(event)
                     except asyncio.TimeoutError:
                         pass
