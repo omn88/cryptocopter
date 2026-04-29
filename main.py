@@ -17,7 +17,7 @@ import warnings
 import kivy_config  # noinspection PyUnresolvedReferences
 import logging_config  # noinspection PyUnresolvedReferences
 import logging
-from decouple import Config, RepositoryEnv
+from src.config import API_KEY, API_SECRET
 from src.common.client import BinanceClient
 from src.common.symbol import fetch_symbols
 from src.portfolio.usd_price_resolver import UsdPriceResolver
@@ -32,10 +32,6 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 
 logger = logging.getLogger("main")
 
-
-# Specify the path to the .env file
-DOTENV_FILE = "config/.env"
-config_env = Config(RepositoryEnv(DOTENV_FILE))
 
 window_width = 1200  # Set your desired width
 window_height = 640  # Set your desired height
@@ -56,9 +52,7 @@ async def main() -> None:
     # Initialize SQLite database
     db = Database()  # Uses default "trading.db" file
 
-    client = BinanceClient(
-        api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
-    )
+    client = BinanceClient(api_key=API_KEY, api_secret=API_SECRET)
 
     price_resolver = UsdPriceResolver(
         client=client, symbols=await fetch_symbols(client=client)

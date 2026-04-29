@@ -1,10 +1,8 @@
 import asyncio
 import logging
-import os
 import queue
 import threading
 from typing import Dict, List, Optional
-from decouple import Config, RepositoryEnv
 from binance.enums import (
     ORDER_STATUS_CANCELED,
     ORDER_STATUS_FILLED,
@@ -44,18 +42,7 @@ from src.broker import BrokerSpot
 from src.recovery import RecoveryService
 from src.database.exceptions import RecoveryError
 from src.portfolio.portfolio_event_helper import PortfolioEventHelper
-
-# Specify the path to the .env file
-DOTENV_FILE = "config/.env"
-if os.path.exists(DOTENV_FILE):
-    config_env = Config(RepositoryEnv(DOTENV_FILE))
-else:
-    print("Warning: .env file not found! Using default values.")
-    config_env = {
-        "API_KEY": "key",
-        "API_SECRET": "secret",
-    }
-
+from src.config import API_KEY, API_SECRET
 
 logger = logging.getLogger(__name__)
 
@@ -100,9 +87,7 @@ class StrategyExecutor:
 
         # Create client if not in test mode and not already set
         if not self.test_mode and self.client is None:
-            self.client = BinanceClient(
-                api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
-            )
+            self.client = BinanceClient(api_key=API_KEY, api_secret=API_SECRET)
 
         self.recovery_service = RecoveryService(
             symbols=self.price_resolver.symbols,
