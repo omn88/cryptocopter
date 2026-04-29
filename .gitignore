@@ -17,5 +17,7 @@ windows_venv
 *.db
 .venv
 .venv_new
+ASSESSMENT.md
 .coverage
+htmlcov/
 *.xml
