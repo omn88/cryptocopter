@@ -152,7 +152,9 @@ class TestQuantityAggregates:
 
 class TestWeightedAveragePrice:
     def test_single_item(self):
-        mgr = InventoryManager(inventory=[make_item("1", "ETH", buy_price=150.0, quantity=2.0)])
+        mgr = InventoryManager(
+            inventory=[make_item("1", "ETH", buy_price=150.0, quantity=2.0)]
+        )
         assert mgr.get_weighted_average_price("ETH") == pytest.approx(150.0)
 
     def test_two_lots_different_prices(self):
@@ -183,9 +185,7 @@ class TestWeightedAveragePrice:
 
 class TestGetCoinSummary:
     def test_summary_contains_all_coins(self):
-        mgr = InventoryManager(
-            inventory=[make_item("1", "ETH"), make_item("2", "BTC")]
-        )
+        mgr = InventoryManager(inventory=[make_item("1", "ETH"), make_item("2", "BTC")])
         summary = mgr.get_coin_summary()
         assert set(summary.keys()) == {"ETH", "BTC"}
 
@@ -227,7 +227,9 @@ class TestGetTotalPortfolioValue:
 
 class TestGetItem_DunderGetitem:
     def test_known_coin_returns_filled_dict(self):
-        mgr = InventoryManager(inventory=[make_item("1", "ETH", buy_price=100.0, quantity=2.0)])
+        mgr = InventoryManager(
+            inventory=[make_item("1", "ETH", buy_price=100.0, quantity=2.0)]
+        )
         result = mgr["ETH"]
         assert result["total_quantity"] == pytest.approx(2.0)
 

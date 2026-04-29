@@ -63,12 +63,16 @@ class TestCreate:
         with pytest.raises(ValueError, match="empty"):
             SellStrategyFactory.create(original_position, [], price_resolver)
 
-    def test_single_normal_symbol_returns_direct(self, original_position, price_resolver):
+    def test_single_normal_symbol_returns_direct(
+        self, original_position, price_resolver
+    ):
         path = [make_symbol("ETHUSDC")]
         result = SellStrategyFactory.create(original_position, path, price_resolver)
         assert isinstance(result, DirectSellStrategy)
 
-    def test_single_convert_only_symbol_returns_convert(self, original_position, price_resolver):
+    def test_single_convert_only_symbol_returns_convert(
+        self, original_position, price_resolver
+    ):
         path = [make_symbol("ETHUSDT", is_convert_only=True)]
         result = SellStrategyFactory.create(original_position, path, price_resolver)
         assert isinstance(result, ConvertSellStrategy)
