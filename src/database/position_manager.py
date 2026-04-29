@@ -28,7 +28,7 @@ from .models import (
 )
 from .exceptions import DatabaseError
 
-logger = logging.getLogger("position_manager")
+logger = logging.getLogger(__name__)
 
 
 class PositionManager:

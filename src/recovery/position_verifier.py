@@ -19,7 +19,7 @@ from src.database.models import (
 from .position_converter import PositionConverter
 
 
-logger = logging.getLogger("PositionVerifier")
+logger = logging.getLogger(__name__)
 
 
 class PositionVerifier:

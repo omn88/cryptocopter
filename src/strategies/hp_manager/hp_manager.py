@@ -45,7 +45,7 @@ from src.strategies.hp_manager.position_buy import HPPositionBuy
 from src.strategies.hp_manager.position_sell import HPPositionSell
 from src.portfolio.portfolio_event_helper import PortfolioEventHelper
 
-logger = logging.getLogger("HPStrategy")
+logger = logging.getLogger(__name__)
 
 # pylint: disable=unused-argument
 
@@ -387,7 +387,8 @@ class HpStrategy:
         return self._calculate_from_buy_and_sell()
 
     def _calculate_from_buy_and_sell(self) -> float:
-        assert self.buy.buy_order is not None, "Buy order must exist"
+        if self.buy.buy_order is None:
+            raise RuntimeError("Buy order must exist")
         total_bought = self.buy.buy_order.realized_quantity
 
         logger.info("Number of sell positions: %s", len(self.sell.sell_positions))
@@ -1113,8 +1114,14 @@ class HpStrategy:
         """Check if conditions are met for sending sell orders."""
         trig_ord_price: float = self.calculate_trigger_send_orders_price_sell()
 
-        assert isinstance(self.buy.data.config, HPBuyConfig)
-        assert isinstance(self.sell.current_position.config, HPSellConfig)
+        if not isinstance(self.buy.data.config, HPBuyConfig):
+            raise TypeError(
+                f"Expected HPBuyConfig, got {type(self.buy.data.config).__name__}"
+            )
+        if not isinstance(self.sell.current_position.config, HPSellConfig):
+            raise TypeError(
+                f"Expected HPSellConfig, got {type(self.sell.current_position.config).__name__}"
+            )
         price = self.sell.current_position.config.sell_price
         condition = (
             self.sell.current_position.state_info.state == State.NEW
@@ -1183,15 +1190,23 @@ class HpStrategy:
             and self.ticker_update.symbol
             == self.sell.current_position.config.symbol.name
         )
-        assert (
-            self.sell.current_position.state_info.state == State.PARTIALLY_SOLD
-        ), "sell state is wrong"
-        assert self.buy.data.state_info.state == State.BOUGHT, "buy state is wrong"
-        assert self.ticker_update.last_price >= trigger_send_orders_price, (
-            f"price condition is wrong, last price: {self.ticker_update.last_price}, "
-            f"trigger: {trigger_send_orders_price}"
-        )
-        assert condition
+        if self.sell.current_position.state_info.state != State.PARTIALLY_SOLD:
+            raise ValueError(
+                f"sell state is wrong: expected PARTIALLY_SOLD, got {self.sell.current_position.state_info.state}"
+            )
+        if self.buy.data.state_info.state != State.BOUGHT:
+            raise ValueError(
+                f"buy state is wrong: expected BOUGHT, got {self.buy.data.state_info.state}"
+            )
+        if self.ticker_update.last_price < trigger_send_orders_price:
+            raise ValueError(
+                f"price condition is wrong, last price: {self.ticker_update.last_price}, "
+                f"trigger: {trigger_send_orders_price}"
+            )
+        if not condition:
+            raise ValueError(
+                "conditions_for_resending_partially_sold_orders evaluated to False"
+            )
         if condition:
             logger.info(
                 "[Resend sell] %s, sell state: %s, state: %s, balance: %s, "
@@ -1387,7 +1402,10 @@ class HpStrategy:
                 "assigning second one as current one."
             )
             self.sell.current_position = self.sell.sell_positions[1]
-            assert isinstance(self.sell.current_position, SellPosition)
+            if not isinstance(self.sell.current_position, SellPosition):
+                raise TypeError(
+                    f"Expected SellPosition, got {type(self.sell.current_position).__name__}"
+                )
             self.buy.buy_order = None
             logger.info(
                 "crnt pos coin: %s, sell order: %s",
@@ -1699,7 +1717,8 @@ class HpStrategy:
         self.send_buy_position_to_ui()
 
     def conditions_for_order_filled_sell(self, *args, **kwargs) -> bool:
-        assert self.sell
+        if not self.sell:
+            raise RuntimeError("Sell position not initialized")
         condition = (
             self.execution_report.order_type == ORDER_TYPE_LIMIT
             and self.execution_report.current_order_status == ORDER_STATUS_FILLED
@@ -1916,25 +1935,38 @@ class HpStrategy:
         while not self.stop_event.is_set():
             try:
                 event = self.worker_queue.get_nowait()
-                assert isinstance(event, Event)
+                if not isinstance(event, Event):
+                    raise TypeError(f"Expected Event, got {type(event).__name__}")
 
                 if EventName.TICKER == event.name:
-                    assert isinstance(event.content, TickerUpdate)
+                    if not isinstance(event.content, TickerUpdate):
+                        raise TypeError(
+                            f"Expected TickerUpdate, got {type(event.content).__name__}"
+                        )
                     self.ticker_update = event.content
                     await self.process_ticker()  # pylint: disable=no-member
 
                 elif EventName.EXECUTION_REPORT == event.name:
-                    assert isinstance(event.content, ExecutionReport)
+                    if not isinstance(event.content, ExecutionReport):
+                        raise TypeError(
+                            f"Expected ExecutionReport, got {type(event.content).__name__}"
+                        )
                     self.execution_report = event.content
                     await self.process_order()  # pylint: disable=no-member
 
                 elif EventName.ACCOUNT_POSITION == event.name:
-                    assert isinstance(event.content, AccountPosition)
+                    if not isinstance(event.content, AccountPosition):
+                        raise TypeError(
+                            f"Expected AccountPosition, got {type(event.content).__name__}"
+                        )
                     self.account_position = event.content
                     await self.process_account()  # pylint: disable=no-member
 
                 elif EventName.SIGNAL == event.name:
-                    assert isinstance(event.content, SignalUpdate)
+                    if not isinstance(event.content, SignalUpdate):
+                        raise TypeError(
+                            f"Expected SignalUpdate, got {type(event.content).__name__}"
+                        )
                     self.signal_update = event.content
                     logger.info(
                         "[WORKER QUEUE] Processing signal: %s", self.signal_update

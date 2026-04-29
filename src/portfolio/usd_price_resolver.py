@@ -4,7 +4,7 @@ import logging
 from src.common.symbol import Symbol
 from src.common.client import BinanceClient
 
-logger = logging.getLogger("price_resolver")
+logger = logging.getLogger(__name__)
 
 
 class UsdPriceResolver:

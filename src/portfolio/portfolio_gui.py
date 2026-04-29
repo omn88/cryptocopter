@@ -34,10 +34,7 @@ from src.common.identifiers import (
 from src.database import Database
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 
-logger = logging.getLogger("portfolio_gui_handler")
-
-
-logger = logging.getLogger("portfolio_ui")
+logger = logging.getLogger(__name__)
 
 
 class PortfolioUI(BoxLayout):
@@ -970,10 +967,11 @@ class PortfolioUI(BoxLayout):
             f"[PORTFOLIO GUI DEBUG] set_inventory completed: coin_list_data has {len(self.coin_list_data)} coins"
         )
 
-        # Assert final state
-        assert (
-            len(self.coin_list_data) > 0
-        ), f"coin_list_data should not be empty after processing {len(inventory)} inventory items"
+        # Validate final state
+        if len(self.coin_list_data) == 0:
+            raise RuntimeError(
+                f"coin_list_data should not be empty after processing {len(inventory)} inventory items"
+            )
 
     def _calculate_weighted_average_buy_price(
         self, lots: List[InventoryItem], coin_symbol: str
@@ -1140,7 +1138,8 @@ class PortfolioUI(BoxLayout):
 
     async def _process_ui_event(self, data: Event) -> None:
         """Process a single UI event."""
-        assert isinstance(data, Event)
+        if not isinstance(data, Event):
+            raise TypeError(f"Expected Event, got {type(data).__name__}")
 
         if data.name == EventName.PORTFOLIO_INVENTORY:
             logger.debug(
@@ -1150,37 +1149,67 @@ class PortfolioUI(BoxLayout):
                 logger.debug(
                     f"[PORTFOLIO GUI DEBUG] PORTFOLIO_INVENTORY content is list with {len(data.content)} items"
                 )
-            assert isinstance(data.content, List)
+            if not isinstance(data.content, List):
+                raise TypeError(
+                    f"Expected List for PORTFOLIO_INVENTORY, got {type(data.content).__name__}"
+                )
             self.set_inventory(data.content)
         if data.name == EventName.ACCOUNT_POSITION:
-            assert isinstance(data.content, AccountPosition)
+            if not isinstance(data.content, AccountPosition):
+                raise TypeError(
+                    f"Expected AccountPosition, got {type(data.content).__name__}"
+                )
             await self.handle_account_position(data.content)
         if data.name == EventName.PRICE_UPDATES:
-            assert isinstance(data.content, PriceUpdates)
+            if not isinstance(data.content, PriceUpdates):
+                raise TypeError(
+                    f"Expected PriceUpdates, got {type(data.content).__name__}"
+                )
             # Update saldo in USD and BTC
             await self.update_coin_prices(data.content)
 
         # Handle HP Manager events for quantity management
         if data.name == EventName.HP_SELL_POSITION_CREATED:
-            assert isinstance(data.content, HPSellPositionCreated)
+            if not isinstance(data.content, HPSellPositionCreated):
+                raise TypeError(
+                    f"Expected HPSellPositionCreated, got {type(data.content).__name__}"
+                )
             await self.handle_hp_sell_created(data.content)
         if data.name == EventName.HP_SELL_POSITION_PARTIALLY_FILLED:
-            assert isinstance(data.content, HPSellPositionPartiallyFilled)
+            if not isinstance(data.content, HPSellPositionPartiallyFilled):
+                raise TypeError(
+                    f"Expected HPSellPositionPartiallyFilled, got {type(data.content).__name__}"
+                )
             await self.handle_hp_sell_partially_filled(data.content)
         if data.name == EventName.HP_SELL_POSITION_COMPLETED:
-            assert isinstance(data.content, HPSellPositionCompleted)
+            if not isinstance(data.content, HPSellPositionCompleted):
+                raise TypeError(
+                    f"Expected HPSellPositionCompleted, got {type(data.content).__name__}"
+                )
             await self.handle_hp_sell_completed(data.content)
         if data.name == EventName.HP_BUY_ORDERS_PLACED:
-            assert isinstance(data.content, HPBuyOrdersPlaced)
+            if not isinstance(data.content, HPBuyOrdersPlaced):
+                raise TypeError(
+                    f"Expected HPBuyOrdersPlaced, got {type(data.content).__name__}"
+                )
             await self.handle_hp_buy_orders_placed(data.content)
         if data.name == EventName.HP_BUY_POSITION_FILLED:
-            assert isinstance(data.content, HPBuyPositionFilled)
+            if not isinstance(data.content, HPBuyPositionFilled):
+                raise TypeError(
+                    f"Expected HPBuyPositionFilled, got {type(data.content).__name__}"
+                )
             await self.handle_hp_buy_filled(data.content)
         if data.name == EventName.HP_BUY_POSITION_PARTIALLY_FILLED:
-            assert isinstance(data.content, HPBuyPositionPartiallyFilled)
+            if not isinstance(data.content, HPBuyPositionPartiallyFilled):
+                raise TypeError(
+                    f"Expected HPBuyPositionPartiallyFilled, got {type(data.content).__name__}"
+                )
             await self.handle_hp_buy_partially_filled(data.content)
         if data.name == EventName.HP_POSITION_CANCELLED:
-            assert isinstance(data.content, HPPositionCancelled)
+            if not isinstance(data.content, HPPositionCancelled):
+                raise TypeError(
+                    f"Expected HPPositionCancelled, got {type(data.content).__name__}"
+                )
             await self.handle_hp_position_cancelled(data.content)
 
     async def update_coin_prices(self, price_updates: PriceUpdates) -> None:

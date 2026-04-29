@@ -26,7 +26,7 @@ from src.strategies.hp_manager.position_buy import HPPositionBuy
 from src.database.trading_database import Database
 
 
-logger = logging.getLogger("OrderRestorer")
+logger = logging.getLogger(__name__)
 
 
 class OrderRestorer:

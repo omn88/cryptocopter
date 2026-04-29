@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import List
 from zoneinfo import ZoneInfo
 
-logger = logging.getLogger("common")
+logger = logging.getLogger(__name__)
 
 
 def generate_hp_id(hp_list: List[str]) -> str:

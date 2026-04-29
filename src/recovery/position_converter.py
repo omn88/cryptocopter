@@ -22,7 +22,7 @@ from src.common.symbol import Symbol
 from src.database.models import Position, PositionStatus, OrderStatus
 
 
-logger = logging.getLogger("PositionConverter")
+logger = logging.getLogger(__name__)
 
 
 class PositionConverter:

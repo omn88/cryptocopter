@@ -29,7 +29,7 @@ from src.common.identifiers import (
 )
 
 
-logger = logging.getLogger("buy_handler")
+logger = logging.getLogger(__name__)
 
 
 class HPPositionBuy:
@@ -51,7 +51,8 @@ class HPPositionBuy:
         Returns:
             A list of `Order` objects with updated order IDs and statuses.
         """
-        assert self.buy_order is not None, "Buy order not prepared"
+        if self.buy_order is None:
+            raise RuntimeError("Buy order not prepared")
         self.order_cancel_price = self.calculate_trigger_cancel_order_price()
         logger.info(
             "Order cancel price set to: %s for position: %s",
@@ -72,7 +73,8 @@ class HPPositionBuy:
         )
 
     async def cancel_position(self) -> None:
-        assert self.buy_order is not None, "Buy order not prepared"
+        if self.buy_order is None:
+            raise RuntimeError("Buy order not prepared")
         logger.info(
             "Start canceling position: %s %s, hp id: %s",
             self.data.config.symbol.name,
@@ -144,7 +146,8 @@ class HPPositionBuy:
     async def handle_order_partially_filled(
         self, execution_report: ExecutionReport
     ) -> None:
-        assert self.buy_order is not None, "Buy order not prepared"
+        if self.buy_order is None:
+            raise RuntimeError("Buy order not prepared")
         if execution_report.order_id == self.buy_order.order_id:
             self.buy_order.status = execution_report.current_order_status
             self.buy_order.realized_quantity = (
@@ -167,7 +170,8 @@ class HPPositionBuy:
         self.data.state_info.ui_state = UiState.OPEN
 
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
-        assert self.buy_order is not None, "Buy order not prepared"
+        if self.buy_order is None:
+            raise RuntimeError("Buy order not prepared")
         if execution_report.order_id == self.buy_order.order_id:
             self.buy_order.status = execution_report.current_order_status
             self.buy_order.price = execution_report.last_executed_price
@@ -197,9 +201,8 @@ class HPPositionBuy:
         config = self.data.config
 
         # buy_price should already be set in the config
-        assert (
-            config.buy_price > 0
-        ), "buy_price must be set before calling prepare_order"
+        if config.buy_price <= 0:
+            raise ValueError("buy_price must be set before calling prepare_order")
 
         order = Order(
             quantity=config.symbol.adjust_quantity(config.budget / config.buy_price),
@@ -217,7 +220,8 @@ class HPPositionBuy:
         self.buy_order = order
 
     def calculate_trigger_cancel_order_price(self):
-        assert self.buy_order is not None, "Buy order not prepared"
+        if self.buy_order is None:
+            raise RuntimeError("Buy order not prepared")
         if self.buy_order.status == ORDER_STATUS_FILLED:
             return 0.0
         return self.data.config.symbol.adjust_price(
@@ -234,7 +238,8 @@ class HPPositionBuy:
         Returns:
             float: Weighted average buy price or 0.0 if no realized quantity
         """
-        assert self.buy_order is not None, "Buy order not prepared"
+        if self.buy_order is None:
+            raise RuntimeError("Buy order not prepared")
         total_realized_quantity = self.buy_order.realized_quantity
         total_cost = self.buy_order.realized_quantity * self.buy_order.price
 
@@ -255,7 +260,8 @@ class HPPositionBuy:
         Returns:
             float: Weighted average buy price or 0.0 if no realized quantity
         """
-        assert self.buy_order is not None, "Buy order not prepared"
+        if self.buy_order is None:
+            raise RuntimeError("Buy order not prepared")
         total_realized_quantity = self.buy_order.realized_quantity
 
         if total_realized_quantity == 0:
@@ -264,7 +270,8 @@ class HPPositionBuy:
         return self.data.config.symbol.adjust_quantity(total_realized_quantity)
 
     async def _create_order(self) -> Order:
-        assert self.buy_order is not None, "Buy order not prepared"
+        if self.buy_order is None:
+            raise RuntimeError("Buy order not prepared")
         max_retries = 10
         last_exception = None
         for _ in range(max_retries):
@@ -303,7 +310,8 @@ class HPPositionBuy:
                 self.buy_order.status = resp["status"]
                 return self.buy_order
 
-        assert last_exception is not None
+        if last_exception is None:
+            raise RuntimeError("Retry loop exhausted without capturing an exception")
         raise last_exception
 
     async def _cancel_order(self, order_id: int, symbol: str) -> None:

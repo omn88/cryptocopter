@@ -22,7 +22,7 @@ from src.common.identifiers import (
     Balance,
 )
 
-logger = logging.getLogger("broker.message_handlers")
+logger = logging.getLogger(__name__)
 
 
 def handle_user_message(

@@ -36,7 +36,7 @@ from .models import (
 )
 from .exceptions import DatabaseError, RecoveryError, DatabaseConnectionError
 
-logger = logging.getLogger("trading_database")
+logger = logging.getLogger(__name__)
 
 
 class Database:
