@@ -2,15 +2,12 @@ from decimal import Decimal
 import os
 
 # Import kivy configuration first (must be before any Kivy imports)
-import sys
-
 from src.strategies.buy_dip.broker_adapter import BuyDipBrokerAdapter
 from src.strategies.buy_dip.config import BuyDipConfig
 from src.strategies.buy_dip.strategy import BuyDipStrategy
 from tests.strategies.buy_dip.buy_dip_simulator import BuyDipSimulator
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import kivy_config
+import src.kivy_config  # noqa: E402
 
 # Suppress aiosqlite debug logging in tests
 import logging

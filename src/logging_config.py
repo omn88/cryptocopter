@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 import os
+from pathlib import Path
 
 # Get the environment variable
 env = os.getenv("ENVIRONMENT")
@@ -10,7 +11,7 @@ env = os.getenv("ENVIRONMENT")
 if env == "GITLAB":
     LOG_DIR = "/builds/omn88/rsi_based_futures/artifacts"
 else:
-    LOG_DIR = os.path.join(os.getcwd(), "artifacts")
+    LOG_DIR = str(Path(__file__).parent.parent / "artifacts")
 
 os.makedirs(LOG_DIR, exist_ok=True)
 

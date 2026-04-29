@@ -14,8 +14,8 @@ Functions:
 import os
 import asyncio
 import warnings
-import kivy_config  # noinspection PyUnresolvedReferences
-import logging_config  # noinspection PyUnresolvedReferences
+import src.kivy_config  # noinspection PyUnresolvedReferences
+import src.logging_config  # noinspection PyUnresolvedReferences
 import logging
 from src.config import API_KEY, API_SECRET
 from src.common.client import BinanceClient
