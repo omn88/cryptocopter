@@ -27,16 +27,9 @@ from binance.enums import (
 from src.gui.hp_manager.hpfront import HpFront
 from src.portfolio.portfolio_gui import PortfolioUI
 from src.strategy_executor import StrategyExecutor
-from src.common.identifiers import (
-    PositionSide,
-    RemoveRecord,
-    State,
-    Event,
-    EventName,
-    ExecutionReport,
-    AccountPosition,
-    Balance,
-)
+from src.domain.enums import EventName, PositionSide, State
+from src.domain.orders import AccountPosition, Balance, Event, ExecutionReport
+from src.domain.positions import RemoveRecord
 from tests.strategies.hp.hp_simulator import wait_for_condition
 
 import logging

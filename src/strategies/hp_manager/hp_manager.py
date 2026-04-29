@@ -15,30 +15,31 @@ from binance.enums import (
 from src.common.symbol import Symbol
 from src.database import Database
 from src.common.client import BinanceClient
-from src.common.identifiers import (
-    AccountPosition,
-    Event,
+from src.domain.enums import (
     EventName,
-    ExecutionReport,
-    HPBuyConfig,
-    HPBuy,
-    HPBuyOrdersPlaced,
-    HPBuyPositionFilled,
-    HPBuyPositionPartiallyFilled,
-    HPPositionCancelled,
-    HPSellConfig,
-    HPSell,
-    HPSellPositionPartiallyFilled,
-    SellPosition,
+    PositionSide,
     SellType,
     Signal,
     SignalUpdate,
     State,
-    StateInfo,
-    TickerUpdate,
     UiState,
-    PositionSide,
+)
+from src.domain.events import (
+    HPBuyOrdersPlaced,
+    HPBuyPositionFilled,
+    HPBuyPositionPartiallyFilled,
+    HPPositionCancelled,
     HPSellPositionCompleted,
+    HPSellPositionPartiallyFilled,
+)
+from src.domain.orders import AccountPosition, Event, ExecutionReport, TickerUpdate
+from src.domain.positions import (
+    HPBuy,
+    HPBuyConfig,
+    HPSell,
+    HPSellConfig,
+    SellPosition,
+    StateInfo,
 )
 from src.gui.identifiers import HPClose, HPGuiDataBuy, HPGuiDataSell, HPUpdate
 from src.strategies.hp_manager.position_buy import HPPositionBuy

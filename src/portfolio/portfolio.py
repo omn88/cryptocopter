@@ -10,17 +10,10 @@ from typing import Dict, List, Optional
 import uuid
 from src.database.trading_database import Database
 from src.common.client import BinanceClient
-from src.common.identifiers import (
-    AccountPosition,
-    AllTickers,
-    Event,
-    EventName,
-    InventoryItem,
-    PriceUpdates,
-    SubscriptionInfo,
-    SubscriptionTarget,
-    SubscriptionType,
-)
+from src.domain.enums import EventName, SubscriptionTarget, SubscriptionType
+from src.domain.inventory import InventoryItem
+from src.domain.orders import AccountPosition, AllTickers, Event, PriceUpdates
+from src.domain.subscriptions import SubscriptionInfo
 from src.broker import BrokerSpot
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.portfolio.inventory_manager import InventoryManager

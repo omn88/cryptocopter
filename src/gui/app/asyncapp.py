@@ -22,11 +22,8 @@ from kivy.properties import ListProperty
 from kivy.uix.tabbedpanel import TabbedPanelItem
 from kivy.uix.widget import Widget
 from src.common.client import BinanceClient
-from src.common.identifiers import (
-    SubscriptionInfo,
-    SubscriptionTarget,
-    SubscriptionType,
-)
+from src.domain.enums import SubscriptionTarget, SubscriptionType
+from src.domain.subscriptions import SubscriptionInfo
 from src.portfolio.portfolio import PortfolioManager
 from src.gui.hp_manager.hpfront import HpFront
 from src.portfolio.portfolio_gui import PortfolioUI

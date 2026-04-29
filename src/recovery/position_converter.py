@@ -8,16 +8,8 @@ data structures used by the trading system.
 import logging
 from typing import Optional, Dict
 
-from src.common.identifiers import (
-    HPBuyConfig,
-    HPBuy,
-    HPSellConfig,
-    HPSell,
-    StateInfo,
-    State,
-    PositionSide,
-    Mode,
-)
+from src.domain.enums import Mode, PositionSide, State
+from src.domain.positions import HPBuy, HPBuyConfig, HPSell, HPSellConfig, StateInfo
 from src.common.symbol import Symbol
 from src.database.models import Position, PositionStatus, OrderStatus
 

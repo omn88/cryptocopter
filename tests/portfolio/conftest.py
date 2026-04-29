@@ -1,6 +1,7 @@
 import pytest
 
-from src.common.identifiers import AccountPosition, Balance, Event, EventName
+from src.domain.enums import EventName
+from src.domain.orders import AccountPosition, Balance, Event
 from tests.strategies.hp.hp_simulator import HPSimulator
 from tests.portfolio.inventory_simulator import InventorySellSimulator
 

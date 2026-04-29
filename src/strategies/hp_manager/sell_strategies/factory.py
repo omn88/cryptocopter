@@ -3,7 +3,7 @@
 import logging
 from typing import Dict, List
 
-from src.common.identifiers import HPSellConfig, SellPosition
+from src.domain.positions import HPSellConfig, SellPosition
 from src.common.symbol import Symbol
 from .base import BaseSellStrategy
 from .direct import DirectSellStrategy

@@ -2,7 +2,7 @@ import logging
 from typing import List, Optional
 from binance.enums import ORDER_STATUS_NEW, ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
 
-from src.common.identifiers import Order
+from src.domain.orders import Order
 
 logger = logging.getLogger("common_spot")
 

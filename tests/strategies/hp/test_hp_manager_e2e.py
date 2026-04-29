@@ -10,13 +10,8 @@ from binance.enums import (
     ORDER_STATUS_PARTIALLY_FILLED,
 )
 from src.common.symbol import Symbol
-from src.common.identifiers import (
-    HPSellConfig,
-    HPSell,
-    State,
-    StateInfo,
-    PositionSide,
-)
+from src.domain.enums import PositionSide, State
+from src.domain.positions import HPSell, HPSellConfig, StateInfo
 from tests.helpers import get_new_order
 from tests.strategies.hp.hp_simulator import (
     wait_for_condition,

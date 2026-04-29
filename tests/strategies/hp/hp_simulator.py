@@ -11,20 +11,9 @@ from binance.enums import (
 )
 from src.common.symbol import Symbol
 from src.gui.hp_manager.hpfront import HpFront
-from src.common.identifiers import (
-    Event,
-    EventName,
-    ExecutionReport,
-    HPBuyConfig,
-    HPBuy,
-    HPSellConfig,
-    HPSell,
-    Order,
-    State,
-    StateInfo,
-    TickerUpdate,
-    PositionSide,
-)
+from src.domain.enums import EventName, PositionSide, State
+from src.domain.orders import Event, ExecutionReport, Order, TickerUpdate
+from src.domain.positions import HPBuy, HPBuyConfig, HPSell, HPSellConfig, StateInfo
 from src.strategies.hp_manager.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor
 from tests.helpers import get_new_order

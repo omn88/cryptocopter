@@ -10,11 +10,8 @@ from src.broker import BrokerSpot
 from src.websocket import WebSocketManager, ULTRA_ROBUST_CONFIG
 from src.strategy_executor import StrategyExecutor
 from src.common.client import BinanceClient
-from src.common.identifiers import (
-    SubscriptionInfo,
-    SubscriptionType,
-    SubscriptionTarget,
-)
+from src.domain.enums import SubscriptionTarget, SubscriptionType
+from src.domain.subscriptions import SubscriptionInfo
 
 
 # Fixtures

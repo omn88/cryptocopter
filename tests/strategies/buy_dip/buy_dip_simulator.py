@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 
 from src.strategies.buy_dip.position import PositionState, BuyDipPosition
 from src.strategies.buy_dip.strategy import BuyDipStrategy
-from src.common.identifiers import EventName
+from src.domain.enums import EventName
 
 logger = logging.getLogger("buy_dip_simulator")
 

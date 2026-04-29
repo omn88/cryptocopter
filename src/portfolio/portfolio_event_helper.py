@@ -10,17 +10,16 @@ This reduces code duplication and keeps event handling consistent across the app
 
 import logging
 from typing import Callable, Optional, Any
-from src.common.identifiers import (
-    EventName,
-    HPBuyPositionCreated,
+from src.domain.enums import EventName, State
+from src.domain.events import (
     HPBuyOrdersPlaced,
+    HPBuyPositionCreated,
     HPBuyPositionFilled,
     HPBuyPositionPartiallyFilled,
-    HPSellPositionCreated,
-    HPSellPositionCompleted,
-    HPSellPositionPartiallyFilled,
     HPPositionCancelled,
-    State,
+    HPSellPositionCompleted,
+    HPSellPositionCreated,
+    HPSellPositionPartiallyFilled,
 )
 from src.gui.identifiers import HPClose
 

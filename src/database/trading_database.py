@@ -17,14 +17,8 @@ import json
 from contextlib import asynccontextmanager
 import aiosqlite
 
-from src.common.identifiers import (
-    HPSellConfig,
-    SellType,
-    State,
-    HPBuy,
-    SellPosition,
-    StateInfo,
-)
+from src.domain.enums import SellType, State
+from src.domain.positions import HPBuy, HPSellConfig, SellPosition, StateInfo
 
 from .models import (
     OrderStatus,

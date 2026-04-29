@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import MagicMock
 
 from src.common.symbol import Symbol
-from src.common.identifiers import HPSellConfig, SellPosition
+from src.domain.positions import HPSellConfig, SellPosition
 from src.strategies.hp_manager.sell_strategies.factory import SellStrategyFactory
 from src.strategies.hp_manager.sell_strategies.direct import DirectSellStrategy
 from src.strategies.hp_manager.sell_strategies.convert import ConvertSellStrategy

@@ -5,15 +5,15 @@ import logging
 import pytest
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 
-from src.common.identifiers import (
-    Event,
-    EventName,
-    HPSellPositionCreated,
-    HPSellPositionCompleted,
+from src.domain.enums import EventName
+from src.domain.events import (
     HPBuyPositionFilled,
     HPPositionCancelled,
-    InventoryItem,
+    HPSellPositionCompleted,
+    HPSellPositionCreated,
 )
+from src.domain.inventory import InventoryItem
+from src.domain.orders import Event
 from src.portfolio.portfolio_gui import PortfolioUI
 
 logger = logging.getLogger("test_hp_portfolio_lifecycle")
