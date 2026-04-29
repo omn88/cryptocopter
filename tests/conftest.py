@@ -36,7 +36,6 @@ from typing import AsyncGenerator, Dict
 from unittest.mock import AsyncMock, MagicMock
 from unittest.mock import patch
 from pytest_mock import MockerFixture
-from decouple import Config, RepositoryEnv
 from src.common.helpers import generate_hp_id
 from src.common.symbol import Symbol
 from src.database.trading_database import Database
@@ -56,11 +55,6 @@ from src.portfolio.portfolio_gui import PortfolioUI
 from src.portfolio.portfolio_event_helper import PortfolioEventHelper
 
 logger = logging.getLogger("conftest")
-
-DB_CONFIG_FILE = "config/.db_config"
-config = Config(RepositoryEnv(DB_CONFIG_FILE))
-
-logger.info("DB CONFIG: %s", config)
 
 
 @pytest.fixture

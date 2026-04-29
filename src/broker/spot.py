@@ -5,13 +5,10 @@ handling subscriptions, and coordinating with WebSocket streams.
 """
 
 import asyncio
-import os
 import threading
 import queue
 import logging
 from typing import Any, Dict, List, Optional
-
-from decouple import Config, RepositoryEnv
 
 from src.common.client import BinanceClient
 from src.common.identifiers import (
@@ -26,28 +23,9 @@ from src.broker.message_handlers import (
     handle_ticker_message,
 )
 
+from src.config import API_KEY, API_SECRET
+
 logger = logging.getLogger(__name__)
-
-# Specify the path to the .env file
-DOTENV_FILE = "config/.env"
-
-if os.path.exists(DOTENV_FILE):
-    config_env = Config(RepositoryEnv(DOTENV_FILE))
-else:
-    print("Warning: .env file not found! Using default values.")
-
-    # Create a Config-like object that behaves the same way
-    class DefaultConfig:
-        def __init__(self):
-            self._defaults = {
-                "API_KEY": "key",
-                "API_SECRET": "secret",
-            }
-
-        def __call__(self, key, default=None):
-            return self._defaults.get(key, default)
-
-    config_env = DefaultConfig()
 
 
 class BrokerSpot:
@@ -135,9 +113,7 @@ class BrokerSpot:
         )
 
         # Create Binance client
-        self.client = BinanceClient(
-            api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
-        )
+        self.client = BinanceClient(api_key=API_KEY, api_secret=API_SECRET)
 
         # Create WebSocket manager
         if self.loop is None:

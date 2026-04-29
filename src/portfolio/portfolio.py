@@ -8,7 +8,6 @@ import threading
 import time
 from typing import Dict, List, Optional
 import uuid
-from decouple import Config, RepositoryEnv
 from src.database.trading_database import Database
 from src.common.client import BinanceClient
 from src.common.identifiers import (
@@ -25,10 +24,7 @@ from src.common.identifiers import (
 from src.broker import BrokerSpot
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.portfolio.inventory_manager import InventoryManager
-
-# Specify the path to the .env file
-DOTENV_FILE = "config/.env"
-config_env = Config(RepositoryEnv(DOTENV_FILE))
+from src.config import API_KEY, API_SECRET
 
 logger = logging.getLogger(__name__)
 
@@ -72,9 +68,7 @@ class PortfolioManager:
         """Main portfolio manager loop."""
         logger.info("PortfolioManager is running.")
 
-        self.client = BinanceClient(
-            api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
-        )
+        self.client = BinanceClient(api_key=API_KEY, api_secret=API_SECRET)
 
         # Initialize portfolio inventory before starting the main loop
         await self.init_portfolio_source()
