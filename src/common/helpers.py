@@ -3,7 +3,7 @@ import logging
 import os
 from datetime import datetime, timezone
 from typing import List
-import pytz
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger("common")
 
@@ -47,7 +47,7 @@ def convert_time(timestamp):
     utc_time = datetime.fromtimestamp(timestamp_s, tz=timezone.utc)
 
     # Convert to Polish timezone
-    poland_time = utc_time.astimezone(pytz.timezone("Europe/Warsaw"))
+    poland_time = utc_time.astimezone(ZoneInfo("Europe/Warsaw"))
 
     # Format the datetime object to a string with the desired format
     formatted_poland_time = poland_time.strftime("%Y-%m-%d %H:%M:%S")
