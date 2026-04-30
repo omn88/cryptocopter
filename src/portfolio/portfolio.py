@@ -17,7 +17,6 @@ from src.domain.subscriptions import SubscriptionInfo
 from src.broker import BrokerSpot
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.portfolio.inventory_manager import InventoryManager
-from src.config import API_KEY, API_SECRET
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +28,9 @@ class PortfolioManager:
         ui_queue: queue.Queue,
         price_resolver: UsdPriceResolver,
         db: Database,
+        client: BinanceClient,
     ):
-        self.client: Optional[BinanceClient] = None
+        self.client = client
         self.broker = broker
         self.ui_queue = ui_queue
         self.worker_queue: queue.Queue = queue.Queue()
@@ -60,8 +60,6 @@ class PortfolioManager:
     async def run(self) -> None:
         """Main portfolio manager loop."""
         logger.info("PortfolioManager is running.")
-
-        self.client = BinanceClient(api_key=API_KEY, api_secret=API_SECRET)
 
         # Initialize portfolio inventory before starting the main loop
         await self.init_portfolio_source()
