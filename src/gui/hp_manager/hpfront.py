@@ -36,7 +36,7 @@ from src.gui.hp_manager.hp_row_renderer import HPRowRenderer
 from src.gui.hp_manager.hp_list_filter import HPListFilter
 
 
-logger = logging.getLogger("HPFront")
+logger = logging.getLogger(__name__)
 
 
 class HpFront(BoxLayout):

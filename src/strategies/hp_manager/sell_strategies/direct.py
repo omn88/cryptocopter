@@ -8,7 +8,7 @@ from src.domain.positions import HPSellConfig, SellPosition, StateInfo
 from .base import BaseSellStrategy
 
 
-logger = logging.getLogger("direct_sell_strategy")
+logger = logging.getLogger(__name__)
 
 
 class DirectSellStrategy(BaseSellStrategy):

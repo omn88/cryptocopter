@@ -10,8 +10,9 @@ This module provides a SQLite-based database implementation focused on:
 
 import sqlite3
 import logging
+import threading
 from pathlib import Path
-from typing import List, Dict, Any, AsyncGenerator
+from typing import List, Dict, Any, AsyncGenerator, Optional
 from datetime import datetime
 import json
 from contextlib import asynccontextmanager
@@ -53,10 +54,14 @@ class Database:
         """
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        # Thread-local storage for persistent per-thread connections.
+        # Each thread (event loop) keeps one connection alive across operations
+        # instead of opening and closing one per query.
+        self._local = threading.local()
         self._ensure_db_exists()
 
     async def insert_inventory_item(self, item) -> None:
-        async with aiosqlite.connect(self.db_path) as conn:
+        async with self.get_connection() as conn:
             await conn.execute(
                 """
                 INSERT INTO inventory (id, coin, buy_price, quantity, available_quantity, locked_quantity, source, timestamp, notes)
@@ -81,7 +86,7 @@ class Database:
             await conn.commit()
 
     async def update_inventory_item(self, item) -> None:
-        async with aiosqlite.connect(self.db_path) as conn:
+        async with self.get_connection() as conn:
             await conn.execute(
                 """
                 UPDATE inventory SET coin=?, buy_price=?, quantity=?, available_quantity=?, locked_quantity=?, source=?, timestamp=?, notes=?
@@ -106,7 +111,7 @@ class Database:
             await conn.commit()
 
     async def delete_inventory_item(self, item_id: str) -> None:
-        async with aiosqlite.connect(self.db_path) as conn:
+        async with self.get_connection() as conn:
             await conn.execute(
                 "DELETE FROM inventory WHERE id = ?",
                 (item_id,),
@@ -120,7 +125,7 @@ class Database:
         populated at runtime from Binance WebSocket account position updates.
         Only the 'quantity' field represents the persisted total portfolio value.
         """
-        async with aiosqlite.connect(self.db_path) as conn:
+        async with self.get_connection() as conn:
             cursor = await conn.execute(
                 "SELECT id, coin, buy_price, quantity, source, timestamp, notes FROM inventory"
             )
@@ -290,11 +295,21 @@ class Database:
 
     @asynccontextmanager
     async def get_connection(self) -> AsyncGenerator[aiosqlite.Connection, None]:
-        """Get an async database connection."""
+        """Get the persistent async database connection for this thread.
+
+        Opens the connection on first use per thread and keeps it alive for
+        subsequent calls, avoiding the per-query open/close overhead.
+        """
         try:
-            async with aiosqlite.connect(self.db_path) as conn:
-                conn.row_factory = aiosqlite.Row
-                yield conn
+            if getattr(self._local, "conn", None) is None:
+                self._local.conn = await aiosqlite.connect(self.db_path)
+                self._local.conn.row_factory = aiosqlite.Row
+                # Enable WAL mode so multiple readers/writers can coexist
+                # without immediately raising "database is locked".
+                await self._local.conn.execute("PRAGMA journal_mode=WAL")
+                # Retry for up to 5 s before giving up on a locked write.
+                await self._local.conn.execute("PRAGMA busy_timeout=5000")
+            yield self._local.conn
         except Exception as e:
             raise DatabaseConnectionError(f"Failed to connect to database: {e}") from e
 
@@ -593,9 +608,12 @@ class Database:
             raise DatabaseError(f"Failed to convert row to order: {e}") from e
 
     async def close(self) -> None:
-        """Close database connections."""
-        # SQLite connections are closed automatically with context managers
-        logger.info("Database connections closed")
+        """Close the persistent database connection for this thread."""
+        conn: Optional[aiosqlite.Connection] = getattr(self._local, "conn", None)
+        if conn is not None:
+            await conn.close()
+            self._local.conn = None
+        logger.info("Database connection closed")
 
     async def get_database_stats(self) -> Dict[str, int]:
         """Get database statistics for monitoring."""
