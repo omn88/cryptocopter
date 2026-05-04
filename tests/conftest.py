@@ -33,6 +33,7 @@ from typing import AsyncGenerator, Dict
 from unittest.mock import AsyncMock, MagicMock
 from unittest.mock import patch
 from pytest_mock import MockerFixture
+from src.common.client import BinanceClient
 from src.common.helpers import generate_hp_id
 from src.common.symbol import Symbol
 from src.database.trading_database import Database
@@ -225,7 +226,7 @@ def mock_broker():
     with patch("src.common.identifiers.BinanceClient"):
         # Patch the thread.start() to prevent background thread from starting
         with patch("threading.Thread.start"):
-            broker = BrokerSpot()
+            broker = BrokerSpot(client=MagicMock(spec=BinanceClient))
             # Manually set loop without starting the thread
             broker.loop = asyncio.new_event_loop()
             yield broker

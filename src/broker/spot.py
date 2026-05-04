@@ -20,17 +20,19 @@ from src.broker.message_handlers import (
     handle_ticker_message,
 )
 
-from src.config import API_KEY, API_SECRET
-
 logger = logging.getLogger(__name__)
 
 
 class BrokerSpot:
     """Binance spot trading broker with real-time WebSocket integration."""
 
-    def __init__(self) -> None:
-        """Initialize BrokerSpot."""
-        self.client: Optional[BinanceClient] = None
+    def __init__(self, client: BinanceClient) -> None:
+        """Initialize BrokerSpot.
+
+        Args:
+            client: Shared BinanceClient instance to use for WebSocket streams.
+        """
+        self.client: BinanceClient = client
         self.subscriptions: Dict[str, list] = {}
         self.queues: Dict[str, queue.Queue] = {}
         self.loop: Optional[asyncio.AbstractEventLoop] = None
@@ -70,9 +72,6 @@ class BrokerSpot:
         logger.info(
             "Main entry point for running the broker, thread: %s", self.thread.name
         )
-
-        # Create Binance client
-        self.client = BinanceClient(api_key=API_KEY, api_secret=API_SECRET)
 
         # Create WebSocket manager
         if self.loop is None:
@@ -281,7 +280,7 @@ class BrokerSpot:
 
         finally:
             # Ensure the thread is stopped even if errors occur
-            if self.loop and self.client:
+            if self.loop:
                 loop = asyncio.get_running_loop()
                 loop.create_task(self.client.close_connection())
             self.join_thread()

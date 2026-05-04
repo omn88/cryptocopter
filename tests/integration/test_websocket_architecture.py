@@ -45,7 +45,7 @@ def mock_broker_with_ws():
     """Create a mock broker with initialized WebSocketManager."""
     with patch("src.common.client.BinanceClient"):
         with patch("threading.Thread.start"):
-            broker = BrokerSpot()
+            broker = BrokerSpot(client=Mock(spec=BinanceClient))
             broker.loop = asyncio.new_event_loop()
 
             # Manually initialize WebSocketManager

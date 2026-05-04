@@ -10,8 +10,9 @@ Main Components:
 
 Usage:
     from src.broker import BrokerSpot
+    from src.common.client import BinanceClient
 
-    broker = BrokerSpot()
+    broker = BrokerSpot(client=client)
     broker.setup_subscriptions(hp_id="strategy1", symbol="BTCUSDC",
                               additional_symbols=None, worker_queue=queue)
 """
