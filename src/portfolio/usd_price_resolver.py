@@ -3,6 +3,7 @@ from typing import Dict
 import logging
 from src.common.symbol import Symbol
 from src.common.client import BinanceClient
+from src.strategies.hp_manager.sell_strategies.factory import DELISTED_COINS
 
 logger = logging.getLogger(__name__)
 
@@ -30,18 +31,6 @@ class UsdPriceResolver:
     def resolve_usd(self, coin: str) -> float:
         raw_price = None
 
-        delisted_coins = {
-            "USDT",
-            "FDUSD",
-            "TUSD",
-            "USDP",
-            "DAI",
-            "AEUR",
-            "UST",
-            "USTC",
-            "PAXG",
-        }
-
         # Priority 1: coinUSDC
         if f"{coin}USDC" in self.latest_prices:
             raw_price = self.latest_prices[f"{coin}USDC"]
@@ -49,7 +38,7 @@ class UsdPriceResolver:
 
         # Priority 2: coinBTC + BTCUSDC — only if coin is NOT delisted
         elif (
-            coin not in delisted_coins
+            coin not in DELISTED_COINS
             and f"{coin}BTC" in self.latest_prices
             and "BTCUSDC" in self.latest_prices
         ):
@@ -65,12 +54,12 @@ class UsdPriceResolver:
         #     )
 
         # Priority 3: Exotic pairs like coinTRY + TRYUSDC
-        elif coin not in delisted_coins:
+        elif coin not in DELISTED_COINS:
             for pair, price in self.latest_prices.items():
                 if pair.startswith(coin):
                     quote = pair.replace(coin, "")
                     usdc_pair = f"{quote}USDC"
-                    if quote in delisted_coins:
+                    if quote in DELISTED_COINS:
                         # logger.info(
                         #     "Coin %s has pair to %s, but %s is delisted — skipping",
                         #     coin,

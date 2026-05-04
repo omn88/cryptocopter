@@ -14,9 +14,9 @@ class BinanceClient(AsyncClient):
 
     async def get_server_time_difference(self) -> float:
         server_time = await self.get_server_time()
-        server_time = server_time["serverTime"] / 1000  # Convert from ms to s
+        server_ts = float(server_time["serverTime"]) / 1000  # Convert from ms to s
         local_time = time.time()
-        return local_time - server_time
+        return local_time - server_ts
 
     async def get_adjusted_time(self) -> float:
         if time.time() - self.last_sync > self.sync_interval:

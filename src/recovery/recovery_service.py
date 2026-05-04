@@ -558,7 +558,7 @@ class RecoveryService:
                 )
                 row = await cursor.fetchone()
                 if row:
-                    return row["strategy_state"]
+                    return str(row["strategy_state"])
                 logger.warning("No strategy state found for HP ID: %s", hp_id)
                 return None
         except Exception as e:
