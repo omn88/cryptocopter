@@ -9,7 +9,7 @@ import json
 import logging
 import time
 import threading
-from typing import Dict, List, Optional, Callable, Any, Union
+from typing import Dict, List, Optional, Callable, Any, Union, cast
 
 import websockets
 
@@ -395,7 +395,7 @@ class WebSocketManager:
         """
         if isinstance(raw_msg, str):
             try:
-                return json.loads(raw_msg)
+                return cast(Union[Dict[Any, Any], List[Any]], json.loads(raw_msg))
             except json.JSONDecodeError:
                 logger.warning("Received non-JSON string: %s", raw_msg)
                 return None

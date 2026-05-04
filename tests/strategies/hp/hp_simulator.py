@@ -1151,7 +1151,7 @@ class HPSimulator:
             strategy.conditions_for_cancelling_partially_sold_and_bought_orders_buy_position()
         )
 
-        await strategy.process_ticker()  # type: ignore[attr-defined]
+        await strategy.process_ticker()
 
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["state"]
@@ -2177,7 +2177,7 @@ class HPSimulator:
             Callable for use as side_effect in mock
         """
 
-        def _mock(symbol, orderId=None):  # type: ignore[no-untyped-def]
+        def _mock(symbol, orderId=None):
             oid = orderId
             db_order = next(
                 (

@@ -7,7 +7,7 @@ Handles order placement, cancellation, and fill callbacks.
 
 import logging
 from decimal import Decimal
-from typing import Optional, Callable, Dict
+from typing import Optional, Callable, Dict, Any, cast
 from src.common.client import BinanceClient
 from src.common.symbol import Symbol
 
@@ -68,7 +68,7 @@ class BuyDipBrokerAdapter:
         side: str,
         price: Decimal,
         quantity: Decimal,
-    ) -> Dict:
+    ) -> Dict[str, Any]:
         """
         Place a limit order on Binance.
 
@@ -118,13 +118,13 @@ class BuyDipBrokerAdapter:
                 f"qty {quantity_str} (Binance ID: {order_response.get('orderId')})"
             )
 
-            return order_response
+            return cast(Dict[str, Any], order_response)
 
         except Exception as e:
             logger.error(f"Failed to place order {order_id}: {e}")
             raise
 
-    async def cancel_order(self, order_id: str) -> Dict:
+    async def cancel_order(self, order_id: str) -> Dict[str, Any]:
         """
         Cancel an order on Binance.
 
@@ -154,7 +154,7 @@ class BuyDipBrokerAdapter:
             if self._order_cancelled_callback:
                 self._order_cancelled_callback(order_id)
 
-            return cancel_response
+            return cast(Dict[str, Any], cancel_response)
 
         except Exception as e:
             logger.error(f"Failed to cancel order {order_id}: {e}")

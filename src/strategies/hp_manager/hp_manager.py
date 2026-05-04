@@ -1892,7 +1892,7 @@ class HpStrategy:
                 self.execution_report.side,
                 self.execution_report.price,
             )
-        return condition
+        return bool(condition)
 
     async def confirm_expired_order(self, *args, **kwargs) -> None:
         """Confirm and update expired order status."""

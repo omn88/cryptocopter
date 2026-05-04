@@ -408,7 +408,7 @@ class HPChildCreator:
 
     def _get_buy_child_state(self, update: HPUpdate) -> str:
         if self.buy_state_getter_callback:
-            return self.buy_state_getter_callback(update)
+            return str(self.buy_state_getter_callback(update))
         if hasattr(update, "state") and update.state:
             return (
                 update.state.value
@@ -419,7 +419,7 @@ class HPChildCreator:
 
     def _get_sell_child_state(self, update: HPUpdate) -> str:
         if self.sell_state_getter_callback:
-            return self.sell_state_getter_callback(update)
+            return str(self.sell_state_getter_callback(update))
         if hasattr(update, "state") and update.state:
             return (
                 update.state.value

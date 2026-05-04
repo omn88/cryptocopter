@@ -21,7 +21,7 @@ def raw_data_generate(desired_signal: Signal) -> List:
         logger.info("Wrong signal provided")
         raise KeyError
 
-    return raw_data
+    return list(raw_data)
 
 
 def data_short():

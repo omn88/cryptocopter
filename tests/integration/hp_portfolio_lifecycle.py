@@ -22,13 +22,13 @@ logger = logging.getLogger("test_hp_portfolio_lifecycle")
 def get_inventory_balance(portfolio_ui, coin: str) -> float:
     """Helper to get total quantity of a coin from inventory (replaces balances.get())."""
     items = [item for item in portfolio_ui.inventory if item.coin == coin]
-    return sum(item.quantity for item in items)
+    return float(sum(item.quantity for item in items))
 
 
 def get_inventory_available(portfolio_ui, coin: str) -> float:
     """Helper to get available quantity of a coin from inventory."""
     items = [item for item in portfolio_ui.inventory if item.coin == coin]
-    return sum(item.available_quantity for item in items)
+    return float(sum(item.available_quantity for item in items))
 
 
 async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: PortfolioUI):

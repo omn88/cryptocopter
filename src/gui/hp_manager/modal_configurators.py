@@ -22,7 +22,7 @@ from .hp_config import HPConfiguration
 logger = logging.getLogger(__name__)
 
 
-class BaseHPModal(Popup):  # type: ignore[misc]
+class BaseHPModal(Popup):
     """Base class for HP configuration modals."""
 
     def __init__(

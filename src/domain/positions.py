@@ -36,6 +36,8 @@ class StateInfo:
 class HPBuyConfig:
     symbol: Symbol
     coin: str
+    # Human-readable label assigned at creation time (e.g. "1001").
+    # Distinct from the UUID primary key stored in the database.
     hp_id: str = "0"
     buy_price: float = 0
     order_trigger: float = 0
@@ -67,6 +69,8 @@ class HPBuy:
 @dataclass
 class HPSellConfig:
     symbol: Symbol = Symbol()
+    # Human-readable label matching the parent HPBuyConfig.hp_id.
+    # Distinct from the UUID primary key stored in the database.
     hp_id: str = ""
     coin: str = ""
     quantity: float = 0.0
