@@ -2,7 +2,7 @@ import logging
 from typing import Any, Dict
 from src.gui.identifiers import HPUpdate
 
-logger = logging.getLogger("HPPositionUpdater")
+logger = logging.getLogger(__name__)
 
 
 class HPPositionUpdater:

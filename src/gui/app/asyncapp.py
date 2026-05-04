@@ -35,7 +35,7 @@ from src.strategies.buy_dip.executor import BuyDipExecutor
 from src.strategies.buy_dip.ui.buy_dip_front import BuyDipFront
 from src.strategy_executor import StrategyExecutor
 
-logger = logging.getLogger("async_app")
+logger = logging.getLogger(__name__)
 
 # Load the common_widgets.kv file first
 Builder.load_file("src/gui/common_widgets.kv")

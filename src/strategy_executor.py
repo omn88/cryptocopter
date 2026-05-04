@@ -93,24 +93,27 @@ class StrategyExecutor:
         )
         await self.recover_positions_from_crash()
 
-        while not self.stop_event.is_set():
-            try:
-                strategy_data = self.config_queue.get_nowait()
-                logger.info("New config for strategy executor: %s", strategy_data)
+        try:
+            while not self.stop_event.is_set():
+                try:
+                    strategy_data = self.config_queue.get_nowait()
+                    logger.info("New config for strategy executor: %s", strategy_data)
 
-                if isinstance(strategy_data, HPBuy):
-                    await self._handle_buy_config(strategy_data)
-                elif isinstance(strategy_data, HPSell):
-                    await self._handle_sell_config(strategy_data)
-                elif isinstance(strategy_data, RemoveRecord):
-                    await self.remove_record(
-                        hp_id=strategy_data.hp_id, side=strategy_data.side
-                    )
-                elif isinstance(strategy_data, HPClose):
-                    await self.close_position(close_data=strategy_data)
+                    if isinstance(strategy_data, HPBuy):
+                        await self._handle_buy_config(strategy_data)
+                    elif isinstance(strategy_data, HPSell):
+                        await self._handle_sell_config(strategy_data)
+                    elif isinstance(strategy_data, RemoveRecord):
+                        await self.remove_record(
+                            hp_id=strategy_data.hp_id, side=strategy_data.side
+                        )
+                    elif isinstance(strategy_data, HPClose):
+                        await self.close_position(close_data=strategy_data)
 
-            except queue.Empty:
-                await asyncio.sleep(0.1)
+                except queue.Empty:
+                    await asyncio.sleep(0.1)
+        finally:
+            await self.db.close()
 
     def stop(self) -> None:
         logger.info("Stopping strategy executor, stop event SET.")

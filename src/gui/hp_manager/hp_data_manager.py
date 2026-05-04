@@ -12,7 +12,7 @@ from src.gui.hp_manager.hp_position_updater import HPPositionUpdater
 from src.gui.hp_manager.hp_child_creator import HPChildCreator
 from src.gui.hp_manager.hp_state_calculator import HPStateCalculator
 
-logger = logging.getLogger("HPDataManager")
+logger = logging.getLogger(__name__)
 
 
 class HPDataManager:

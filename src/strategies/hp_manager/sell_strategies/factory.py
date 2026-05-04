@@ -13,6 +13,20 @@ from .multihop import MultihopSellStrategy
 
 logger = logging.getLogger(__name__)
 
+# Coins that cannot be used as intermediate hops because they are delisted
+# or are stable-coin end destinations rather than tradeable intermediate assets.
+DELISTED_COINS = {
+    "USDT",
+    "FDUSD",
+    "TUSD",
+    "USDP",
+    "DAI",
+    "AEUR",
+    "UST",
+    "USTC",
+    "PAXG",
+}
+
 
 class SellStrategyFactory:
     """Factory for creating appropriate sell strategy based on sell path."""
@@ -42,18 +56,6 @@ class SellStrategyFactory:
         Raises:
             ValueError: If no valid sell path can be found
         """
-        delisted_coins = {
-            "USDT",
-            "FDUSD",
-            "TUSD",
-            "USDP",
-            "DAI",
-            "AEUR",
-            "UST",
-            "USTC",
-            "PAXG",
-        }
-
         sell_path = []
         coin = config.coin
         end_currency = config.end_currency
@@ -86,7 +88,7 @@ class SellStrategyFactory:
 
             # Priority 3: coinBTC + BTCPLN
             if (
-                coin not in delisted_coins
+                coin not in DELISTED_COINS
                 and f"{coin}BTC" in symbols
                 and "BTCPLN" in symbols
             ):
@@ -99,7 +101,7 @@ class SellStrategyFactory:
 
             # Priority 4: coinBNB + BNBPLN
             if (
-                coin not in delisted_coins
+                coin not in DELISTED_COINS
                 and f"{coin}BNB" in symbols
                 and "BNBPLN" in symbols
             ):
@@ -131,7 +133,7 @@ class SellStrategyFactory:
 
             # Priority 2: coinBTC + BTCUSDC
             if (
-                coin not in delisted_coins
+                coin not in DELISTED_COINS
                 and f"{coin}BTC" in symbols
                 and "BTCUSDC" in symbols
             ):
@@ -143,11 +145,11 @@ class SellStrategyFactory:
                 )
 
             # Priority 3: Exotic coinXYZ + XYZUSDC
-            if coin not in delisted_coins:
+            if coin not in DELISTED_COINS:
                 for pair in symbols:
                     if pair.startswith(coin):
                         quote = pair.replace(coin, "")
-                        if quote in delisted_coins:
+                        if quote in DELISTED_COINS:
                             continue
                         if f"{quote}USDC" in symbols:
                             logger.info(

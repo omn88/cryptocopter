@@ -9,7 +9,7 @@ from src.domain.positions import HPSellConfig, SellPosition, StateInfo
 from .base import BaseSellStrategy
 
 
-logger = logging.getLogger("convert_sell_strategy")
+logger = logging.getLogger(__name__)
 
 
 class ConvertSellStrategy(BaseSellStrategy):
