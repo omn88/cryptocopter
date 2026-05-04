@@ -76,7 +76,7 @@ class AsyncApp(App):
         self.client = client
         self.db = db
         self.price_resolver = price_resolver
-        self.broker: BrokerSpot = BrokerSpot()
+        self.broker: BrokerSpot = BrokerSpot(client=client)
         self.portfolio: Optional[PortfolioManager] = None
         self.portfolio_ui: Optional[PortfolioUI] = (
             None  # Reference to portfolio UI for HP manager integration
