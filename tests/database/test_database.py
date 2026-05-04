@@ -6,6 +6,8 @@ fresh temp-file SQLite database per test and closes it afterwards.
 """
 
 import time
+from typing import Any
+
 import pytest
 
 from src.database.trading_database import Database
@@ -26,8 +28,8 @@ from src.domain.inventory import InventoryItem
 # ---------------------------------------------------------------------------
 
 
-def _make_position(hp_id: str = "1000", **kwargs) -> Position:
-    defaults = dict(
+def _make_position(hp_id: str = "1000", **kwargs: Any) -> Position:
+    defaults: dict[str, Any] = dict(
         hp_id=hp_id,
         symbol="BTCUSDC",
         coin="BTC",
@@ -43,8 +45,8 @@ def _make_position(hp_id: str = "1000", **kwargs) -> Position:
     return Position(**defaults)
 
 
-def _make_order(position_id: str = "1000", **kwargs) -> Order:
-    defaults = dict(
+def _make_order(position_id: str = "1000", **kwargs: Any) -> Order:
+    defaults: dict[str, Any] = dict(
         position_id=position_id,
         symbol="BTCUSDC",
         side="BUY",
@@ -57,9 +59,9 @@ def _make_order(position_id: str = "1000", **kwargs) -> Order:
 
 
 def _make_inventory_item(
-    item_id: str = "inv1", coin: str = "BTC", **kwargs
+    item_id: str = "inv1", coin: str = "BTC", **kwargs: Any
 ) -> InventoryItem:
-    defaults = dict(
+    defaults: dict[str, Any] = dict(
         id=item_id,
         coin=coin,
         buy_price=50000.0,
