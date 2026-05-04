@@ -25,3 +25,9 @@ clean_venv:
 
 ut:
 	${PYTHON} -m pytest tests -vvv
+
+sanity:
+	${PYTHON} -m pytest tests -m "not db" --override-ini="addopts=" -q
+
+db-tests:
+	${PYTHON} -m pytest tests -m "db" --override-ini="addopts=" -q

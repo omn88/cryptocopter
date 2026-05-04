@@ -12,7 +12,6 @@ Handles:
 import asyncio
 import logging
 import queue
-import threading
 import time
 from decimal import Decimal
 from typing import Dict, Optional, Any
@@ -134,11 +133,10 @@ class BuyDipExecutor:
         for symbol in symbols:
             self.strategy.add_symbol(symbol)
 
-        # Async loop management
-        self.loop: Optional[asyncio.AbstractEventLoop] = None
-        self.stop_event = threading.Event()
+        # Async lifecycle management
+        self.stop_event = asyncio.Event()
         self.worker_task: Optional[asyncio.Task] = None
-        self.thread = threading.Thread(target=self._start_loop)
+        self._task: Optional[asyncio.Task] = None
 
         logger.info(
             f"BuyDipExecutor initialized for symbols: {symbols}, "
@@ -147,9 +145,9 @@ class BuyDipExecutor:
 
     def start(self) -> None:
         """
-        Start the executor (launch worker thread/loop).
+        Start the executor as an asyncio task on the running event loop.
         """
-        self.thread.start()
+        self._task = asyncio.create_task(self._run())
         logger.info("BuyDipExecutor started")
 
     def stop(self) -> None:
@@ -157,17 +155,9 @@ class BuyDipExecutor:
         Stop the executor gracefully.
         """
         self.stop_event.set()
-        if self.loop and self.worker_task:
-            self.loop.call_soon_threadsafe(self.worker_task.cancel)
+        if self._task and not self._task.done():
+            self._task.cancel()
         logger.info("BuyDipExecutor stop requested")
-
-    def _start_loop(self) -> None:
-        """
-        Start asyncio loop in worker thread.
-        """
-        self.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.loop)
-        self.loop.run_until_complete(self._run())
 
     async def _run(self) -> None:
         """

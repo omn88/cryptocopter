@@ -4,6 +4,8 @@ import asyncio
 import pytest
 import logging
 
+pytestmark = pytest.mark.db
+
 from src.domain.enums import EventName
 from src.domain.events import HPSellPositionCreated
 from src.domain.orders import AccountPosition, Balance, Event

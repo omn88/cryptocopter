@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import queue
-import threading
 from typing import Dict, List, Optional
 from binance.enums import (
     ORDER_STATUS_CANCELED,
@@ -39,7 +38,6 @@ from src.broker import BrokerSpot
 from src.recovery import RecoveryService
 from src.database.exceptions import RecoveryError
 from src.portfolio.portfolio_event_helper import PortfolioEventHelper
-from src.config import API_KEY, API_SECRET
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +50,7 @@ class StrategyExecutor:
         ui_queue: queue.Queue,
         inventory: List[InventoryItem],
         price_resolver: UsdPriceResolver,
+        client: Optional[BinanceClient] = None,
         portfolio_ui_queue: Optional[queue.Queue] = None,
         test_mode: bool = False,
     ):
@@ -63,28 +62,15 @@ class StrategyExecutor:
         self.strategies: Dict[str, HpStrategy] = {}
         self.inventory_manager = InventoryManager(inventory)  # Create inventory manager
         self.supported_quotes = ["USDC", "PLN", "BTC", "BNB", "USDT"]
-        self.test_mode = test_mode  # Add a test_mode parameter
+        self.test_mode = test_mode
         self.price_resolver = price_resolver
-        self.client: Optional[BinanceClient] = None
+        self.client: Optional[BinanceClient] = client
         self.recovery_service: Optional[RecoveryService] = None
-
-        self.loop: Optional[asyncio.AbstractEventLoop] = None
-        self.stop_event = threading.Event()
-        self.thread = threading.Thread(target=self.start_loop)
-        self.thread.start()
-
-    def start_loop(self) -> None:
-        """Starts the asyncio loop in a new thread."""
-        self.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.loop)
-        self.loop.run_until_complete(self.run())
+        self.stop_event = asyncio.Event()
+        self._recovery_done = False  # Guard against concurrent duplicate recovery calls
 
     async def run(self) -> None:
         logger.info("Strategy executor ready to retrieve the first config")
-
-        # Create client if not in test mode and not already set
-        if not self.test_mode and self.client is None:
-            self.client = BinanceClient(api_key=API_KEY, api_secret=API_SECRET)
 
         self.recovery_service = RecoveryService(
             symbols=self.price_resolver.symbols,
@@ -118,17 +104,7 @@ class StrategyExecutor:
     def stop(self) -> None:
         logger.info("Stopping strategy executor, stop event SET.")
         self.stop_event.set()
-
-        # Close client connection if it exists
-        if self.client:
-            try:
-                asyncio.run(self.client.close_connection())
-            except Exception as e:
-                logger.error("Error closing client connection: %s", e)
-
         logger.info("Strategy executor stopped.")
-        self.thread.join()
-        logger.info("Strategy executor thread finished")
 
     async def close_position(self, close_data: HPClose) -> None:
         self.broker.unsubscribe(system_id=close_data.config.hp_id)
@@ -695,6 +671,13 @@ class StrategyExecutor:
 
     async def recover_positions_from_crash(self) -> None:
         """Recover all active trading positions from database after system crash/restart."""
+        # Guard against duplicate recovery calls.  The flag is set AFTER the
+        # recovery_service / client None-checks so that a premature call (before
+        # run() has initialised those objects) fails without locking out the
+        # legitimate call from run().
+        if self._recovery_done:
+            logger.info("Recovery already completed, skipping duplicate call.")
+            return
         logger.info("Starting crash recovery process...")
 
         try:
@@ -702,6 +685,12 @@ class StrategyExecutor:
                 raise RuntimeError("RecoveryService not initialized")
             if self.client is None:
                 raise RuntimeError("BinanceClient not initialized")
+
+            # Mark done after validation but before first await — prevents concurrent duplicate
+            # calls from both proceeding, while allowing a later call to succeed if the first
+            # call failed because recovery_service was not yet initialised (e.g. called before
+            # run() has started).
+            self._recovery_done = True
 
             (
                 buy_positions,
@@ -919,8 +908,20 @@ class StrategyExecutor:
             state=State.CLOSED,
         )
 
-        # Remove from active strategies
+        # Remove from active strategies (cancel worker task first)
         if base_hp_id in self.strategies:
+            strat = self.strategies[base_hp_id]
+            strat.stop_event.set()
+            if (
+                hasattr(strat, "worker_task")
+                and strat.worker_task
+                and not strat.worker_task.done()
+            ):
+                strat.worker_task.cancel()
+                try:
+                    await strat.worker_task
+                except asyncio.CancelledError:
+                    pass
             del self.strategies[base_hp_id]
 
         logger.info("Successfully cancelled all multihop sell positions for: %s", hp_id)

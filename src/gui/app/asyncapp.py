@@ -13,7 +13,6 @@ import asyncio
 from decimal import Decimal
 import logging
 import queue
-import time
 from typing import Optional
 from kivy.app import App
 from kivy.core.window import Window
@@ -98,7 +97,13 @@ class AsyncApp(App):
         return self.root
 
     def on_start(self) -> None:
-        self.setup_portfolio_manager()
+        asyncio.get_event_loop().create_task(self._on_start_async())
+
+    async def _on_start_async(self) -> None:
+        # Start broker as a background task
+        self.broker._run_task = asyncio.create_task(self.broker.run())
+        # Setup portfolio (awaits initialization before proceeding)
+        await self.setup_portfolio_manager()
         # Always setup HP Manager as default strategy
         self.setup_hp_manager()
         # Optionally setup Buy Dip strategy (uncomment to enable)
@@ -150,8 +155,8 @@ class AsyncApp(App):
         executor_control = {
             "start": lambda: executor.start(),
             "stop": lambda: executor.stop(),
-            "is_running": lambda: hasattr(executor, "thread")
-            and executor.thread.is_alive(),
+            "is_running": lambda: executor._task is not None
+            and not executor._task.done(),
         }
 
         # Create frontend with executor control and portfolio reference
@@ -200,7 +205,7 @@ class AsyncApp(App):
 
         logger.info("Buy Dip strategy setup complete (not started).")
 
-    def setup_portfolio_manager(self) -> None:
+    async def setup_portfolio_manager(self) -> None:
         # Load the portfolio UI from portfolio.kv
         Builder.load_file("src/portfolio/portfolio.kv")
 
@@ -245,33 +250,13 @@ class AsyncApp(App):
         )  # Add the tab to the root tab panel
         self.root.add_widget(tab)
 
-        # Wait for portfolio initialization to complete before proceeding
+        # Await portfolio initialization (loads inventory, subscribes to broker)
         logger.info("Waiting for portfolio initialization to complete...")
-        wait_time = 0.1  # Start with 100ms
-        max_wait_time = 8.0  # Cap at 8 seconds
-        total_wait_time = 0.0
-        timeout = 30.0
+        await self.portfolio.initialize()
+        logger.info("Portfolio initialization complete - starting portfolio loop.")
 
-        while (
-            not self.portfolio.initialization_complete.is_set()
-            and total_wait_time < timeout
-        ):
-            time.sleep(wait_time)
-            total_wait_time += wait_time
-            # Exponential backoff with cap
-            wait_time = min(wait_time * 1.5, max_wait_time)
-            logger.debug(
-                f"Portfolio initialization check: waited {total_wait_time:.1f}s, next wait: {wait_time:.1f}s"
-            )
-
-        if self.portfolio.initialization_complete.is_set():
-            logger.info(
-                f"Portfolio initialization completed after {total_wait_time:.1f}s - ready to setup HP manager"
-            )
-        else:
-            logger.error(
-                f"Portfolio initialization timed out after {timeout}s - proceeding with potentially empty inventory"
-            )
+        # Start the portfolio loop as a background task
+        asyncio.create_task(self.portfolio.run_loop())
 
     def setup_hp_manager(self, strategy_id: Optional[str] = None) -> None:
         # Use existing strategy ID or generate new one
@@ -300,12 +285,14 @@ class AsyncApp(App):
             ui_queue=ui_queue,
             inventory=self.portfolio.inventory,
             price_resolver=self.price_resolver,
+            client=self.client,
             portfolio_ui_queue=(
                 self.portfolio_ui.ui_queue if self.portfolio_ui else None
             ),
         )
 
         self.trading_systems.append(back_end)
+        asyncio.create_task(back_end.run())
 
         front_end = HpFront(
             client=self.client,
@@ -402,7 +389,7 @@ class AsyncApp(App):
 
         # Stop the broker
         logger.info("Stopping the broker...")
-        self.broker.stop()
+        await self.broker.stop()
 
         logger.info("All systems stopped successfully. Application exiting.")
 

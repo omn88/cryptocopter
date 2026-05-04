@@ -92,11 +92,13 @@ def mock_async_client(mocker: MockerFixture) -> AsyncMock:
 
 
 @pytest.fixture
-def strategy_executor_fixture(test_db: Database, mock_async_client, mock_inventory):
+async def strategy_executor_fixture(
+    test_db: Database, mock_async_client, mock_inventory
+):
     """
     Fixture to create and run a StrategyExecutor instance.
 
-    - Starts the executor loop in a separate thread.
+    - Runs the executor as an asyncio task on the test event loop.
     - Mocks necessary dependencies.
     - Provides an initialized instance for testing.
     """
@@ -123,17 +125,42 @@ def strategy_executor_fixture(test_db: Database, mock_async_client, mock_invento
         broker=mock_broker,
         ui_queue=ui_queue,
         inventory=mock_inventory,
+        client=mock_async_client,
         test_mode=True,
         price_resolver=price_resolver,
         portfolio_ui_queue=queue.Queue(),
     )
-    # Set the mock client directly on the executor for testing
-    executor.client = mock_async_client
+
+    # Run executor as a task on the test event loop
+    task = asyncio.create_task(executor.run())
 
     yield executor  # Provide the instance for the test
 
-    # Cleanup: Ensure proper shutdown after the test
-    executor.stop()
+    # Cleanup: cancel worker tasks first, then the executor task
+    worker_tasks = []
+    for strategy in executor.strategies.values():
+        strategy.stop_event.set()
+        if (
+            hasattr(strategy, "worker_task")
+            and strategy.worker_task
+            and not strategy.worker_task.done()
+        ):
+            strategy.worker_task.cancel()
+            worker_tasks.append(strategy.worker_task)
+    if worker_tasks:
+        await asyncio.wait(set(worker_tasks), timeout=2.0)
+
+    executor.stop_event.set()
+    # Wait for run() to exit naturally so finally: await db.close() completes cleanly.
+    # Forcing task.cancel() here sets _must_cancel=True, which would interrupt db.close()
+    # inside the finally block before the aiosqlite thread gets its close command.
+    done, pending = await asyncio.wait({task}, timeout=5.0)
+    if pending:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     for handler in logging.root.handlers[:]:
         handler.close()
         logging.root.removeHandler(handler)
@@ -207,12 +234,7 @@ async def hp_gui(mock_async_client) -> AsyncGenerator:
             tasks_to_wait.append(gui.queue_task)
 
         if tasks_to_wait:
-            try:
-                await asyncio.wait_for(
-                    asyncio.gather(*tasks_to_wait, return_exceptions=True), timeout=2.0
-                )
-            except asyncio.TimeoutError:
-                logger.warning("Some GUI tasks didn't complete within timeout")
+            await asyncio.wait(set(tasks_to_wait), timeout=2.0)
 
         # Clean up logging handlers
         for handler in logging.root.handlers[:]:
@@ -223,31 +245,8 @@ async def hp_gui(mock_async_client) -> AsyncGenerator:
 @pytest.fixture
 def mock_broker():
     """Create a mock broker instance for WebSocket architecture testing"""
-    with patch("src.common.identifiers.BinanceClient"):
-        # Patch the thread.start() to prevent background thread from starting
-        with patch("threading.Thread.start"):
-            broker = BrokerSpot(client=MagicMock(spec=BinanceClient))
-            # Manually set loop without starting the thread
-            broker.loop = asyncio.new_event_loop()
-            yield broker
-            # Graceful teardown - cancel tasks if they were created
-            try:
-                if (
-                    hasattr(broker, "_ticker_timeout_task")
-                    and broker._ticker_timeout_task
-                    and not broker._ticker_timeout_task.done()
-                ):
-                    broker._ticker_timeout_task.cancel()
-                if (
-                    hasattr(broker, "_connection_health_task")
-                    and broker._connection_health_task
-                    and not broker._connection_health_task.done()
-                ):
-                    broker._connection_health_task.cancel()
-                if broker.loop and not broker.loop.is_closed():
-                    broker.loop.close()
-            except Exception:
-                pass  # Ignore teardown errors
+    broker = BrokerSpot(client=MagicMock(spec=BinanceClient))
+    yield broker
 
 
 @pytest.fixture
@@ -280,7 +279,17 @@ async def frontend_backend_setup(
 
     for strategy in strategy_executor_fixture.strategies.values():
         strategy.stop_event.set()
-        await wait_for_condition(condition_func=lambda: not strategy.worker_active)
+    worker_tasks = []
+    for strategy in strategy_executor_fixture.strategies.values():
+        if (
+            hasattr(strategy, "worker_task")
+            and strategy.worker_task
+            and not strategy.worker_task.done()
+        ):
+            strategy.worker_task.cancel()
+            worker_tasks.append(strategy.worker_task)
+    if worker_tasks:
+        await asyncio.wait(set(worker_tasks), timeout=2.0)
 
     # Cleanup is handled in individual fixtures (strategy_executor_fixture, hp_gui)
 
@@ -300,6 +309,7 @@ async def crash_recovery_factory(test_db: Database, mock_async_client, mock_inve
     """
 
     created_instances = []  # Track all created instances for cleanup
+    backend_tasks = []  # Track executor tasks for cleanup
 
     def create_frontend_backend_pair(instance_name=""):
         """Create a new frontend-backend pair"""
@@ -338,11 +348,10 @@ async def crash_recovery_factory(test_db: Database, mock_async_client, mock_inve
             ui_queue=ui_queue,
             inventory=mock_inventory,
             price_resolver=price_resolver,
+            client=mock_async_client,
             test_mode=True,
         )
-        logger.info("StrategyExecutor created, assigning mock client")
-        backend.client = mock_async_client
-        logger.info("Mock client assigned to backend")
+        logger.info("StrategyExecutor created with mock client")
 
         # Create frontend with proper Kivy mocking
         with patch("kivy.base.EventLoop.ensure_window"):
@@ -365,6 +374,10 @@ async def crash_recovery_factory(test_db: Database, mock_async_client, mock_inve
         # Track for cleanup
         created_instances.extend([frontend, backend])
 
+        # Start backend run loop as an asyncio task
+        task = asyncio.get_event_loop().create_task(backend.run())
+        backend_tasks.append(task)
+
         return frontend, backend
 
     async def simulate_crash(frontend, backend):
@@ -373,6 +386,7 @@ async def crash_recovery_factory(test_db: Database, mock_async_client, mock_inve
         # We cannot set stop events as that would trigger graceful cleanup
 
         # Cancel strategy worker tasks directly without graceful shutdown
+        worker_tasks_to_crash = []
         for strategy in backend.strategies.values():
             # Forcefully mark as inactive without graceful stop
             if hasattr(strategy, "worker_active"):
@@ -384,6 +398,10 @@ async def crash_recovery_factory(test_db: Database, mock_async_client, mock_inve
                 and not strategy.worker_task.done()
             ):
                 strategy.worker_task.cancel()
+                worker_tasks_to_crash.append(strategy.worker_task)
+
+        if worker_tasks_to_crash:
+            await asyncio.wait(set(worker_tasks_to_crash), timeout=2.0)
 
         # Cancel frontend tasks - these belong to the current event loop
         tasks_to_cancel = []
@@ -409,17 +427,10 @@ async def crash_recovery_factory(test_db: Database, mock_async_client, mock_inve
             except Exception as e:
                 logger.warning("Failed to cancel refresh_task: %s", e)
 
-        # Wait for cancelled tasks to finish with short timeout
+        # Wait for cancelled tasks to finish
         if tasks_to_cancel:
             try:
-                await asyncio.wait_for(
-                    asyncio.gather(*tasks_to_cancel, return_exceptions=True),
-                    timeout=1.0,
-                )
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "Some tasks didn't complete within timeout during crash simulation"
-                )
+                await asyncio.wait(set(tasks_to_cancel), timeout=2.0)
             except Exception as e:
                 logger.warning("Error during task cancellation: %s", e)
 
@@ -464,17 +475,10 @@ async def crash_recovery_factory(test_db: Database, mock_async_client, mock_inve
                 frontend_tasks.append(frontend.queue_task)
 
             if frontend_tasks:
-                try:
-                    await asyncio.wait_for(
-                        asyncio.gather(*frontend_tasks, return_exceptions=True),
-                        timeout=1.0,
-                    )
-                except asyncio.TimeoutError:
-                    logger.warning(
-                        "Frontend tasks didn't complete within timeout during cleanup"
-                    )
+                await asyncio.wait(set(frontend_tasks), timeout=2.0)
 
             # Cancel strategy worker tasks
+            worker_tasks = []
             for strategy in backend.strategies.values():
                 strategy.stop_event.set()
                 if (
@@ -483,12 +487,25 @@ async def crash_recovery_factory(test_db: Database, mock_async_client, mock_inve
                     and not strategy.worker_task.done()
                 ):
                     strategy.worker_task.cancel()
+                    worker_tasks.append(strategy.worker_task)
 
-            # Stop backend thread
-            if hasattr(backend, "thread") and backend.thread.is_alive():
-                backend.thread.join(timeout=1.0)
+            if worker_tasks:
+                await asyncio.wait(set(worker_tasks), timeout=2.0)
+
+            # No thread to join — backend runs as asyncio task
+            # Tasks are cancelled via stop_event.set() above
 
     logger.info("Cleaned up all created frontend/backend instances.")
+
+    # Wait for backend run() tasks to exit naturally after stop_event (they'll call db.close()).
+    # Do NOT cancel first — task.cancel() sets _must_cancel=True which interrupts db.close()
+    # inside the finally block before the aiosqlite thread processes the close command.
+    if backend_tasks:
+        done, pending = await asyncio.wait(set(backend_tasks), timeout=5.0)
+        for task in pending:
+            task.cancel()
+        if pending:
+            await asyncio.wait(pending, timeout=2.0)
 
 
 @pytest.fixture
@@ -903,10 +920,19 @@ async def portfolio_hp_backend_setup(
 
     yield portfolio_ui, hp_gui, strategy_executor_fixture
 
-    if strategy_executor_fixture.strategies:
-        strategy = strategy_executor_fixture.strategies["1000"]
+    for strategy in strategy_executor_fixture.strategies.values():
         strategy.stop_event.set()
-        await wait_for_condition(condition_func=lambda: not strategy.worker_active)
+    worker_tasks = []
+    for strategy in strategy_executor_fixture.strategies.values():
+        if (
+            hasattr(strategy, "worker_task")
+            and strategy.worker_task
+            and not strategy.worker_task.done()
+        ):
+            strategy.worker_task.cancel()
+            worker_tasks.append(strategy.worker_task)
+    if worker_tasks:
+        await asyncio.wait(set(worker_tasks), timeout=2.0)
 
 
 @pytest.fixture
@@ -943,6 +969,7 @@ async def portfolio_crash_recovery_factory(
     """
 
     created_instances = []  # Track all created instances for cleanup
+    portfolio_backend_tasks = []  # Track executor tasks for cleanup
 
     def create_portfolio_hp_setup(instance_name=""):
         """
@@ -1009,9 +1036,9 @@ async def portfolio_crash_recovery_factory(
             ui_queue=ui_queue,
             inventory=mock_inventory,
             price_resolver=price_resolver,
+            client=mock_async_client,
             test_mode=True,
         )
-        strategy_executor.client = mock_async_client
         logger.info(f"Created StrategyExecutor for {instance_name}")
 
         # Create HP Frontend with proper Kivy mocking
@@ -1047,6 +1074,10 @@ async def portfolio_crash_recovery_factory(
 
         # Track for cleanup
         created_instances.extend([portfolio_ui, hp_frontend, strategy_executor])
+
+        # Start executor run loop as an asyncio task
+        task = asyncio.get_event_loop().create_task(strategy_executor.run())
+        portfolio_backend_tasks.append(task)
 
         return portfolio_ui, hp_frontend, strategy_executor
 
@@ -1112,13 +1143,7 @@ async def portfolio_crash_recovery_factory(
 
                 # Wait for tasks to finish
                 if tasks_to_cancel:
-                    try:
-                        await asyncio.wait_for(
-                            asyncio.gather(*tasks_to_cancel, return_exceptions=True),
-                            timeout=1.0,
-                        )
-                    except asyncio.TimeoutError:
-                        logger.warning("Frontend tasks didn't complete within timeout")
+                    await asyncio.wait(set(tasks_to_cancel), timeout=2.0)
 
             elif hasattr(component, "coin_list_data") and hasattr(component, "db"):
                 # This is a PortfolioUI
@@ -1184,19 +1209,13 @@ async def portfolio_crash_recovery_factory(
 
     # Wait for frontend tasks
     if frontend_tasks:
-        try:
-            await asyncio.wait_for(
-                asyncio.gather(*frontend_tasks, return_exceptions=True), timeout=1.0
-            )
-        except asyncio.TimeoutError:
-            logger.warning(
-                "Some frontend tasks didn't complete within timeout during cleanup"
-            )
+        await asyncio.wait(set(frontend_tasks), timeout=2.0)
 
     # Stop strategy executors
     for executor in strategy_executors:
         if hasattr(executor, "stop_event"):
             executor.stop_event.set()
+        worker_tasks = []
         for strategy in executor.strategies.values():
             if hasattr(strategy, "stop_event"):
                 strategy.stop_event.set()
@@ -1206,18 +1225,26 @@ async def portfolio_crash_recovery_factory(
                 and not strategy.worker_task.done()
             ):
                 strategy.worker_task.cancel()
-        if (
-            hasattr(executor, "thread")
-            and executor.thread
-            and executor.thread.is_alive()
-        ):
-            executor.thread.join(timeout=1.0)
+                worker_tasks.append(strategy.worker_task)
+        if worker_tasks:
+            await asyncio.wait(set(worker_tasks), timeout=2.0)
+        # No thread to join — executors now run as asyncio tasks
 
     # Portfolio UIs don't need special cleanup
     logger.info(
         f"Cleanup completed for {len(portfolios)} portfolios, "
         f"{len(hp_frontends)} frontends, {len(strategy_executors)} executors"
     )
+
+    # Wait for backend run() tasks to exit naturally after stop_event (they'll call db.close()).
+    # Do NOT cancel first — task.cancel() sets _must_cancel=True which interrupts db.close()
+    # inside the finally block before the aiosqlite thread processes the close command.
+    if portfolio_backend_tasks:
+        done, pending = await asyncio.wait(set(portfolio_backend_tasks), timeout=5.0)
+        for task in pending:
+            task.cancel()
+        if pending:
+            await asyncio.wait(pending, timeout=2.0)
 
 
 # ============================================================================

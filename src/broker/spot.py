@@ -5,7 +5,6 @@ handling subscriptions, and coordinating with WebSocket streams.
 """
 
 import asyncio
-import threading
 import queue
 import logging
 from typing import Dict, List, Optional
@@ -35,16 +34,14 @@ class BrokerSpot:
         self.client: BinanceClient = client
         self.subscriptions: Dict[str, list] = {}
         self.queues: Dict[str, queue.Queue] = {}
-        self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.stop_producers_event: asyncio.Event = asyncio.Event()
         self.tasks: Optional[List[asyncio.Task]] = None
-        self.thread = threading.Thread(target=self.start_loop)
+        self._run_task: Optional[asyncio.Task] = None
 
         # WebSocket manager (will be initialized in run())
         self._ws_manager: Optional[WebSocketManager] = None
 
         logger.info("BrokerSpot initialized")
-        self.thread.start()
 
     @property
     def _ticker_timeout_task(self) -> Optional[asyncio.Task]:
@@ -61,28 +58,15 @@ class BrokerSpot:
         """WebSocket configuration (delegated to WebSocketManager)."""
         return self._ws_manager._ws_config if self._ws_manager else None
 
-    def start_loop(self) -> None:
-        """Start the asyncio loop in a new thread."""
-        self.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.loop)
-        self.loop.run_until_complete(self.run())
-
     async def run(self) -> None:
         """Main entry point for running the broker."""
-        logger.info(
-            "Main entry point for running the broker, thread: %s", self.thread.name
-        )
+        logger.info("Main entry point for running the broker")
 
         # Create WebSocket manager
-        if self.loop is None:
-            raise RuntimeError(
-                "Event loop not initialized before creating WebSocket manager"
-            )
         self._ws_manager = WebSocketManager(
             client=self.client,
             subscriptions=self.subscriptions,
             stop_event=self.stop_producers_event,
-            loop=self.loop,
         )
 
         # Set up message handlers
@@ -228,7 +212,7 @@ class BrokerSpot:
         if self._ws_manager:
             self._ws_manager.unregister_subscription(system_id)
 
-    def stop(self):
+    async def stop(self) -> None:
         """Shut down BrokerSpot gracefully."""
         logger.info("Stopping BrokerSpot gracefully.")
 
@@ -236,54 +220,15 @@ class BrokerSpot:
         self.stop_producers_event.set()
 
         # Stop WebSocket manager
-        if self._ws_manager and self.loop:
-            self.loop.run_until_complete(self._ws_manager.stop())
+        if self._ws_manager:
+            await self._ws_manager.stop()
 
-        self.shutdown()
+        # Cancel the main run task if still running
+        if self._run_task and not self._run_task.done():
+            self._run_task.cancel()
+            try:
+                await self._run_task
+            except asyncio.CancelledError:
+                pass
 
-    def join_thread(self):
-        """Join the broker's thread."""
-        if self.thread.is_alive():
-            self.thread.join()
-
-    def shutdown(self):
-        """Shutdown the broker and close resources."""
-        logger.info("Shutting down BrokerSpot...")
-
-        try:
-            # Log current tasks before shutdown
-            logger.info("Current tasks: %s", asyncio.all_tasks())
-
-            if self.loop:
-                # Stop the event loop safely
-
-                # Give some time for pending tasks to handle cancellation
-                pending_tasks = [
-                    task for task in asyncio.all_tasks(self.loop) if not task.done()
-                ]
-
-                if pending_tasks:
-                    # Wait for the remaining tasks to be canceled or completed
-                    self.loop.run_until_complete(
-                        asyncio.gather(*pending_tasks, return_exceptions=True)
-                    )
-
-                self.loop.call_soon_threadsafe(self.loop.stop)
-
-        except RuntimeError as error:
-            # Handle the event loop stop error gracefully
-            logger.error("RuntimeError during shutdown: %s", error)
-
-        except Exception as error:
-            # Catch any other exceptions
-            logger.error("Unexpected error during shutdown: %s", error)
-
-        finally:
-            # Ensure the thread is stopped even if errors occur
-            if self.loop:
-                loop = asyncio.get_running_loop()
-                loop.create_task(self.client.close_connection())
-            self.join_thread()
-
-            # Final log statement indicating complete shutdown
-            logger.info("BrokerSpot shutdown complete.")
+        logger.info("BrokerSpot stopped.")

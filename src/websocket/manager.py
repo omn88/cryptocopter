@@ -28,7 +28,6 @@ class WebSocketManager:
         client: BinanceClient,
         subscriptions: Dict[str, List[SubscriptionInfo]],
         stop_event: asyncio.Event,
-        loop: asyncio.AbstractEventLoop,
     ):
         """Initialize WebSocket manager.
 
@@ -36,12 +35,10 @@ class WebSocketManager:
             client: Binance AsyncClient instance
             subscriptions: Dict mapping system_id to list of SubscriptionInfo
             stop_event: Event to signal shutdown
-            loop: Asyncio event loop
         """
         self.client = client
         self.subscriptions = subscriptions
         self.stop_event = stop_event
-        self.loop = loop
 
         # WebSocket tasks
         self._ticker_socket_task: Optional[asyncio.Task] = None
@@ -120,17 +117,15 @@ class WebSocketManager:
         logger.info("Starting WebSocket streams and monitors...")
 
         # Start health monitoring
-        self._connection_health_task = self.loop.create_task(
+        self._connection_health_task = asyncio.create_task(
             self._monitor_connection_health()
         )
 
         # Start ticker timeout monitoring
-        self._ticker_timeout_task = self.loop.create_task(
-            self._monitor_ticker_timeout()
-        )
+        self._ticker_timeout_task = asyncio.create_task(self._monitor_ticker_timeout())
 
         # Start health reporting
-        self._health_report_task = self.loop.create_task(self._report_system_health())
+        self._health_report_task = asyncio.create_task(self._report_system_health())
 
         # Start websocket streams
         await self._start_websocket_tasks()
@@ -188,12 +183,12 @@ class WebSocketManager:
         # equivalent. Mini ticker provides: symbol (s), close/last price (c), open (o),
         # high (h), low (l), volume (v). Bid/ask fields (b, a) are absent and default to 0.
         ticker_url = f"{self._base_ws_url}/ws/!miniTicker@arr"
-        self._ticker_socket_task = self.loop.create_task(
+        self._ticker_socket_task = asyncio.create_task(
             self._run_stream(ticker_url, self._ticker_message_handler, "ticker")
         )
 
         # User data stream (listen key managed inside _run_user_stream)
-        self._user_socket_task = self.loop.create_task(self._run_user_stream())
+        self._user_socket_task = asyncio.create_task(self._run_user_stream())
 
         # Kline streams for subscribed symbols
         if self._kline_message_handler:
@@ -208,7 +203,7 @@ class WebSocketManager:
             for symbol in kline_symbols:
                 kline_url = f"{self._base_ws_url}/ws/{symbol.lower()}@kline_15m"
                 task_key = f"kline_{symbol}"
-                self._kline_socket_tasks[task_key] = self.loop.create_task(
+                self._kline_socket_tasks[task_key] = asyncio.create_task(
                     self._run_stream(kline_url, self._kline_message_handler, task_key)
                 )
                 logger.info("Created kline stream task for %s (15m)", symbol)
@@ -777,11 +772,9 @@ class WebSocketManager:
             del self._subscription_registry[system_id]
 
     def handle_error_from_message_handler(self, error_msg: Union[str, Dict]) -> None:
-        """Handle errors reported by message handlers (called from outside)."""
-        if self.loop and self._restart_lock.acquire(blocking=False):
+        """Handle errors reported by message handlers (called from the event loop)."""
+        if self._restart_lock.acquire(blocking=False):
             try:
-                asyncio.run_coroutine_threadsafe(
-                    self._handle_websocket_error(error_msg), self.loop
-                )
+                asyncio.ensure_future(self._handle_websocket_error(error_msg))
             finally:
                 self._restart_lock.release()
