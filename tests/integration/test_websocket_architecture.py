@@ -30,12 +30,10 @@ def websocket_manager(mock_client):
     """Create a WebSocketManager instance for testing."""
     subscriptions = {}
     stop_event = asyncio.Event()
-    loop = asyncio.new_event_loop()
     ws_manager = WebSocketManager(
         client=mock_client,
         subscriptions=subscriptions,
         stop_event=stop_event,
-        loop=loop,
     )
     return ws_manager
 
@@ -43,33 +41,22 @@ def websocket_manager(mock_client):
 @pytest.fixture
 def mock_broker_with_ws():
     """Create a mock broker with initialized WebSocketManager."""
-    with patch("src.common.client.BinanceClient"):
-        with patch("threading.Thread.start"):
-            broker = BrokerSpot(client=Mock(spec=BinanceClient))
-            broker.loop = asyncio.new_event_loop()
+    broker = BrokerSpot(client=Mock(spec=BinanceClient))
 
-            # Manually initialize WebSocketManager
-            broker._ws_manager = WebSocketManager(
-                client=Mock(spec=BinanceClient),
-                subscriptions=broker.subscriptions,
-                stop_event=broker.stop_producers_event,
-                loop=broker.loop,
-            )
+    # Manually initialize WebSocketManager
+    broker._ws_manager = WebSocketManager(
+        client=Mock(spec=BinanceClient),
+        subscriptions=broker.subscriptions,
+        stop_event=broker.stop_producers_event,
+    )
 
-            # Set message handlers
-            broker._ws_manager.set_message_handlers(
-                user_handler=Mock(),
-                ticker_handler=Mock(),
-            )
+    # Set message handlers
+    broker._ws_manager.set_message_handlers(
+        user_handler=Mock(),
+        ticker_handler=Mock(),
+    )
 
-            yield broker
-
-            # Cleanup
-            try:
-                if broker.loop and not broker.loop.is_closed():
-                    broker.loop.close()
-            except Exception:
-                pass
+    yield broker
 
 
 # WebSocketManager Tests

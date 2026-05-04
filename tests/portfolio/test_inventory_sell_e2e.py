@@ -1309,11 +1309,14 @@ async def test_axl_multihop_sell_cancellation_fix_validation(
     # Step 4: Use proper frontend cancellation flow to trigger the fix
     # This should now properly determine position side and unlock inventory
     hp_front.cancel_hp(hp_id, "SELL")
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(
+        0.3
+    )  # Executor sleeps 0.1s; give it time to wake + process RemoveRecord
 
     # Process pending portfolio events for inventory unlock
     await portfolio.process_test_events()
     await asyncio.sleep(0.1)
+    await portfolio.process_test_events()  # Second pass: catches events enqueued during first wait
 
     # NOTE: With immediate local unlocking, we don't need to simulate AccountPosition anymore.
     # The handle_hp_position_cancelled() already unlocked the quantities locally.

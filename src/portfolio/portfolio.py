@@ -4,7 +4,6 @@ import csv
 import logging
 import os
 import queue
-import threading
 import time
 from typing import Dict, List, Optional
 import uuid
@@ -45,21 +44,13 @@ class PortfolioManager:
         )  # Inventory manager for aggregations
 
         # Starting the async loop
-        self.loop = asyncio.new_event_loop()
         self.stop_event = asyncio.Event()
-        # Threading event to signal when initialization is complete
-        self.initialization_complete = threading.Event()
-        self.thread = threading.Thread(target=self.start_loop)
-        self.thread.start()
+        # Asyncio event to signal when initialization is complete
+        self.initialization_complete = asyncio.Event()
 
-    def start_loop(self) -> None:
-        """Starts the asyncio loop in a new thread."""
-        asyncio.set_event_loop(self.loop)
-        self.loop.run_until_complete(self.run())
-
-    async def run(self) -> None:
-        """Main portfolio manager loop."""
-        logger.info("PortfolioManager is running.")
+    async def initialize(self) -> None:
+        """Load inventory and signal readiness. Must be awaited before run_loop()."""
+        logger.info("PortfolioManager is initializing.")
 
         # Initialize portfolio inventory before starting the main loop
         await self.init_portfolio_source()
@@ -112,6 +103,8 @@ class PortfolioManager:
             ),
         )
 
+    async def run_loop(self) -> None:
+        """Main worker loop. Call after initialize()."""
         while not self.stop_event.is_set():
             try:
                 event = self.worker_queue.get_nowait()
@@ -128,6 +121,11 @@ class PortfolioManager:
 
         logger.info("PortfolioManager loop exiting.")
 
+    async def run(self) -> None:
+        """Main portfolio manager loop (convenience wrapper)."""
+        await self.initialize()
+        await self.run_loop()
+
     def stop(self) -> None:
         """Gracefully stop the PortfolioManager."""
         logger.info("Stopping PortfolioManager...")
@@ -137,10 +135,6 @@ class PortfolioManager:
 
         # Unsubscribe from the broker feeds
         self.broker.unsubscribe("PORTFOLIO")
-
-        # Wait for the thread to finish
-        if self.thread.is_alive():
-            self.thread.join()
 
         logger.info("PortfolioManager stopped.")
 

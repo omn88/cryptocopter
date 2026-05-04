@@ -2,6 +2,10 @@
 import logging
 from unittest.mock import AsyncMock
 
+import pytest
+
+pytestmark = pytest.mark.db
+
 from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_FILLED,
