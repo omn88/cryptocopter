@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import time
 
@@ -12,15 +11,6 @@ class BinanceClient(AsyncClient):
         self.sync_interval: int = sync_interval
         self.last_sync: float = 0.0
         self.logger = logging.getLogger(__name__)
-
-    async def time_sync_loop(self):
-        while True:
-            try:
-                self.time_difference = await self.get_server_time_difference()
-                self.last_sync = time.time()
-            except Exception as e:
-                self.logger.info("Failed to sync time: %s", e)
-            await asyncio.sleep(self.sync_interval)
 
     async def get_server_time_difference(self) -> float:
         server_time = await self.get_server_time()
