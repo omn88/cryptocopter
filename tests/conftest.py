@@ -23,6 +23,7 @@ from src.strategy_executor import StrategyExecutor
 from src.recovery import RecoveryService
 from tests.strategies.hp.hp_simulator import wait_for_condition
 
+import aiosqlite
 import asyncio
 import logging
 import queue
@@ -164,6 +165,29 @@ async def strategy_executor_fixture(
     for handler in logging.root.handlers[:]:
         handler.close()
         logging.root.removeHandler(handler)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def aiosqlite_daemon_threads():
+    """Mark aiosqlite connection threads as daemon so they never block process exit.
+
+    aiosqlite.Connection is a non-daemon Thread that blocks on a queue waiting
+    for a stop sentinel.  In test teardown, if a sentinel is not delivered before
+    the event loop closes (e.g. a lazy connection opened after db.close() was
+    already called), that thread keeps Python alive indefinitely.  Daemon threads
+    are reaped automatically when the main thread exits, so the process always
+    exits cleanly.  This is safe in tests because every DB file is a temp file
+    that is removed during teardown.
+    """
+    original_start = aiosqlite.Connection.start
+
+    def _daemon_start(self):
+        self.daemon = True
+        original_start(self)
+
+    aiosqlite.Connection.start = _daemon_start
+    yield
+    aiosqlite.Connection.start = original_start
 
 
 @pytest.fixture
