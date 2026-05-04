@@ -77,9 +77,8 @@ class StrategyExecutor:
             database=self.db,
             broker=self.broker,
         )
-        await self.recover_positions_from_crash()
-
         try:
+            await self.recover_positions_from_crash()
             while not self.stop_event.is_set():
                 try:
                     strategy_data = self.config_queue.get_nowait()
