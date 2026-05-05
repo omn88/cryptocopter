@@ -15,6 +15,7 @@ This module is separate from test_hp_manager_e2e.py as it tests a different doma
 - test_inventory_sell_e2e.py: Tests selling existing inventory items through portfolio
 """
 
+from decimal import Decimal
 import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock
@@ -101,7 +102,7 @@ async def test_inventory_sell_configure_direct_sell_btc_to_usdc(
     assert strategy.sell.current_position.config.coin == "BTC"
     assert strategy.sell.current_position.config.sell_price == 100000.0
     assert strategy.sell.current_position.config.end_currency == "USDC"
-    assert strategy.sell.current_position.config.quantity == 1.0
+    assert strategy.sell.current_position.config.quantity == Decimal("1.0")
     assert (
         strategy.state.name == "BOUGHT"
     )  # Should start in BOUGHT state for inventory sells
@@ -165,12 +166,12 @@ async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
     # Verify strategy configuration
     assert strategy.sell.current_position.config.coin == "AXL"
     assert (
-        strategy.sell.current_position.config.sell_price == 0.00000469
+        strategy.sell.current_position.config.sell_price == Decimal("0.00000469")
     )  # First hop price
     assert (
         strategy.sell.current_position.config.end_currency == "PLN"
     )  # First hop end currency
-    assert strategy.sell.current_position.config.quantity == 1000.0
+    assert strategy.sell.current_position.config.quantity == Decimal("1000.0")
     assert (
         strategy.state.name == "BOUGHT"
     )  # Should start in BOUGHT state for inventory sells
@@ -361,7 +362,7 @@ async def test_inventory_sell_execute_direct_sell_to_completion(
 
     # Validate final SOLD state using the strategy data directly first
     assert strategy.state == State.SOLD
-    assert strategy.sell.current_position.sell_order.realized_quantity == 1.0
+    assert strategy.sell.current_position.sell_order.realized_quantity == Decimal("1.0")
     assert strategy.sell.current_position.state_info.completeness == 1.0
 
     # Try HP simulator validation - if it fails, we'll see what data is available
@@ -645,9 +646,9 @@ async def test_inventory_sell_execute_partial_fill_exchange_driven_locking(
     assert lot2 is not None, "btc_lot2 should exist after partial sell"
     assert lot3 is not None, "btc_lot3 should exist after partial sell"
     assert (
-        lot2.quantity == 0.2
+        abs(lot2.quantity - 0.2) < 1e-8
     ), f"btc_lot2 should be reduced to 0.2, got {lot2.quantity}"
-    assert lot3.quantity == 0.3, f"btc_lot3 should remain 0.3, got {lot3.quantity}"
+    assert abs(lot3.quantity - 0.3) < 1e-8, f"btc_lot3 should remain 0.3, got {lot3.quantity}"
 
     # Note: In test environment, locking may not complete immediately due to timing
     # The important validation is that inventory quantities are correct (FIFO logic worked)

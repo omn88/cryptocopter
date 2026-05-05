@@ -1,6 +1,7 @@
 """Unit tests for src.strategies.hp_manager.sell_strategies.factory.SellStrategyFactory."""
 
 import pytest
+from decimal import Decimal
 from unittest.mock import MagicMock
 
 from src.common.symbol import Symbol
@@ -35,9 +36,9 @@ def make_config(coin: str, end_currency: str) -> HPSellConfig:
         coin=coin,
         end_currency=end_currency,
         hp_id="test-hp",
-        quantity=1.0,
-        buy_price=100.0,
-        sell_price=110.0,
+        quantity=Decimal("1.0"),
+        buy_price=Decimal("100.0"),
+        sell_price=Decimal("110.0"),
     )
 
 

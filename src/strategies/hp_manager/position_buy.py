@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import pprint
+from decimal import Decimal
 from typing import List, Optional
 from binance.enums import (
     TIME_IN_FORCE_GTC,
@@ -115,7 +116,7 @@ class HPPositionBuy:
         # If order is canceled and has no realized quantity, it was never filled
         elif self.buy_order.status == ORDER_STATUS_CANCELED:
             self.data.state_info.state = State.NEW
-            self.data.state_info.completeness = 0.0
+            self.data.state_info.completeness = Decimal("0.0")
             logger.info(
                 "Order canceled with no fill: setting state to NEW and completeness to 0.0"
             )
@@ -145,14 +146,15 @@ class HPPositionBuy:
             raise RuntimeError("Buy order not prepared")
         if execution_report.order_id == self.buy_order.order_id:
             self.buy_order.status = execution_report.current_order_status
-            self.buy_order.realized_quantity = (
-                execution_report.cumulative_filled_quantity
+            self.buy_order.realized_quantity = Decimal(
+                str(execution_report.cumulative_filled_quantity)
             )
-            self.buy_order.quantity_stable -= (
-                execution_report.last_executed_price
-                * execution_report.last_executed_quantity
+            self.buy_order.quantity_stable -= Decimal(
+                str(execution_report.last_executed_price)
+            ) * Decimal(str(execution_report.last_executed_quantity))
+            self.buy_order.price = Decimal(
+                str(execution_report.last_executed_price)
             )
-            self.buy_order.price = execution_report.last_executed_price
 
             await self.db.upsert_order(
                 order=self.buy_order,
@@ -169,9 +171,11 @@ class HPPositionBuy:
             raise RuntimeError("Buy order not prepared")
         if execution_report.order_id == self.buy_order.order_id:
             self.buy_order.status = execution_report.current_order_status
-            self.buy_order.price = execution_report.last_executed_price
-            self.buy_order.realized_quantity = (
-                execution_report.cumulative_filled_quantity
+            self.buy_order.price = Decimal(
+                str(execution_report.last_executed_price)
+            )
+            self.buy_order.realized_quantity = Decimal(
+                str(execution_report.cumulative_filled_quantity)
             )
             logger.info(
                 "Order: %s filled, symbol: %s, price: %s, status: %s",
@@ -214,16 +218,16 @@ class HPPositionBuy:
         )
         self.buy_order = order
 
-    def calculate_trigger_cancel_order_price(self):
+    def calculate_trigger_cancel_order_price(self) -> float:
         if self.buy_order is None:
             raise RuntimeError("Buy order not prepared")
         if self.buy_order.status == ORDER_STATUS_FILLED:
             return 0.0
-        return self.data.config.symbol.adjust_price(
+        return float(self.data.config.symbol.adjust_price(
             self.buy_order.price * (1 + (2 * self.data.config.order_trigger / 100))
-        )
+        ))
 
-    def calculate_avg_buy_price(self) -> float:
+    def calculate_avg_buy_price(self) -> Decimal:
         """
         Calculates the weighted average buy price based on realized quantities.
 
@@ -231,7 +235,7 @@ class HPPositionBuy:
             orders (List[Dict]): Each dict has 'price', 'realized_quantity', and 'total_quantity'
 
         Returns:
-            float: Weighted average buy price or 0.0 if no realized quantity
+            Decimal: Weighted average buy price or Decimal(0) if no realized quantity
         """
         if self.buy_order is None:
             raise RuntimeError("Buy order not prepared")
@@ -239,13 +243,13 @@ class HPPositionBuy:
         total_cost = self.buy_order.realized_quantity * self.buy_order.price
 
         if total_realized_quantity == 0:
-            return 0.0  # Avoid division by zero
+            return Decimal(0)  # Avoid division by zero
 
         return self.data.config.symbol.adjust_price(
             total_cost / total_realized_quantity
         )
 
-    def calculate_realized_quantity(self) -> float:
+    def calculate_realized_quantity(self) -> Decimal:
         """
         Calculates the weighted average buy price based on realized quantities.
 
@@ -253,14 +257,14 @@ class HPPositionBuy:
             orders (List[Dict]): Each dict has 'price', 'realized_quantity', and 'total_quantity'
 
         Returns:
-            float: Weighted average buy price or 0.0 if no realized quantity
+            Decimal: Weighted average buy price or Decimal(0) if no realized quantity
         """
         if self.buy_order is None:
             raise RuntimeError("Buy order not prepared")
         total_realized_quantity = self.buy_order.realized_quantity
 
         if total_realized_quantity == 0:
-            return 0.0  # Avoid division by zero
+            return Decimal(0)  # Avoid division by zero
 
         return self.data.config.symbol.adjust_quantity(total_realized_quantity)
 

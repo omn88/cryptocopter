@@ -225,8 +225,8 @@ class OrderRestorer:
                 ):
                     ex_report = ExecutionReport(
                         symbol=symbol_name,
-                        quantity=order.quantity,
-                        price=order.price,
+                        quantity=float(order.quantity),
+                        price=float(order.price),
                         current_order_status=latest_status,
                         order_id=order.order_id,
                         cumulative_filled_quantity=latest_realized_quantity,

@@ -6,6 +6,7 @@ data structures used by the trading system.
 """
 
 import logging
+from decimal import Decimal
 from typing import Optional, Dict
 
 from src.domain.enums import Mode, PositionSide, State
@@ -81,7 +82,7 @@ class PositionConverter:
 
             # Get base state from status and completeness
             state_info_state = self.convert_to_state_info_state(
-                position.status, position.completeness, PositionSide.LONG
+                position.status, float(position.completeness), PositionSide.LONG
             )
 
             # Special case: if database status is NEW but strategy_state is BUYING/SELLING,
@@ -119,16 +120,16 @@ class PositionConverter:
                 symbol=symbol,
                 coin=position.coin,
                 hp_id=position.hp_id,
-                buy_price=position.buy_price,
-                order_trigger=position.order_trigger,
-                budget=position.budget,
+                buy_price=Decimal(str(position.buy_price)),
+                order_trigger=Decimal(str(position.order_trigger)),
+                budget=Decimal(str(position.budget)),
             )
 
             state_info = StateInfo(
                 state=state_info_state,
                 open_time=position.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                 side=PositionSide.LONG,
-                completeness=position.completeness,
+                completeness=Decimal(str(position.completeness)),
             )
 
             return HPBuy(config=config, state_info=state_info)
@@ -151,9 +152,9 @@ class PositionConverter:
                 symbol=symbol,
                 hp_id=position.hp_id,
                 coin=position.coin,
-                quantity=position.quantity,
-                buy_price=position.buy_price,
-                sell_price=position.sell_price,
+                quantity=Decimal(str(position.quantity)),
+                buy_price=Decimal(str(position.buy_price)),
+                sell_price=Decimal(str(position.sell_price)),
                 end_currency=position.end_currency,
                 is_child=position.parent_position_id is not None,
                 parent_hp_id=position.parent_position_id,
@@ -161,14 +162,14 @@ class PositionConverter:
 
             # Get state from status and completeness
             state_info_state = self.convert_to_state_info_state(
-                position.status, position.completeness, PositionSide.SHORT
+                position.status, float(position.completeness), PositionSide.SHORT
             )
 
             state_info = StateInfo(
                 state=state_info_state,
                 open_time=position.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                 side=PositionSide.SHORT,
-                completeness=position.completeness,
+                completeness=Decimal(str(position.completeness)),
             )
 
             return HPSell(config=config, state_info=state_info)

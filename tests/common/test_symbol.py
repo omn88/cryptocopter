@@ -1,6 +1,7 @@
 """Unit tests for src.common.symbol.Symbol."""
 
 import pytest
+from decimal import Decimal
 from src.common.symbol import Symbol
 
 
@@ -25,7 +26,7 @@ def make_symbol(precision=8, price_precision=2, min_notional=10.0):
 class TestAdjustQuantity:
     def test_rounds_to_precision(self):
         s = make_symbol(precision=3)
-        assert s.adjust_quantity(1.23456789) == 1.235
+        assert s.adjust_quantity(1.23456789) == Decimal("1.235")
 
     def test_zero_precision(self):
         s = make_symbol(precision=0)
@@ -33,7 +34,7 @@ class TestAdjustQuantity:
 
     def test_exact_value_unchanged(self):
         s = make_symbol(precision=5)
-        assert s.adjust_quantity(0.12345) == 0.12345
+        assert s.adjust_quantity(0.12345) == Decimal("0.12345")
 
 
 class TestAdjustPrice:
@@ -47,7 +48,7 @@ class TestAdjustPrice:
 
     def test_exact_value_unchanged(self):
         s = make_symbol(price_precision=4)
-        assert s.adjust_price(1.2345) == 1.2345
+        assert s.adjust_price(1.2345) == Decimal("1.2345")
 
 
 # ---------------------------------------------------------------------------

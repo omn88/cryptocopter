@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Optional
 from src.common.symbol import Symbol
 from src.domain.enums import State
@@ -34,6 +35,19 @@ class HPUpdate:
     sell_completeness: Optional[float] = None  # Added for sell position progress
     sell_state: Optional[str] = None  # Added for sell operation state
     buy_operation_state: Optional[str] = None  # Added for buy operation state
+
+    def __post_init__(self) -> None:
+        """Convert any Decimal fields to float (GUI layer boundary)."""
+        _float_fields = (
+            "buy_price", "quantity", "quantity_usd", "realized_quantity",
+            "total_quantity", "expected_quantity", "orders_total_quantity",
+            "sell_price", "expected_return", "current_price",
+            "net", "net_percent", "sell_completeness",
+        )
+        for attr in _float_fields:
+            v = getattr(self, attr)
+            if isinstance(v, Decimal):
+                setattr(self, attr, float(v))
 
 
 @dataclass

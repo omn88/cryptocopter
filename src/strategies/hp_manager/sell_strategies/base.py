@@ -1,7 +1,8 @@
 """Base sell strategy interface for HP Manager."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from decimal import Decimal
+from typing import Any, Dict, List, Union
 
 from src.domain.orders import Order
 from src.domain.positions import SellPosition
@@ -82,7 +83,7 @@ class BaseSellStrategy(ABC):
         """
         pass
 
-    def _generate_order(self, symbol: Symbol, price: float, quantity: float) -> Order:
+    def _generate_order(self, symbol: Symbol, price: Union[Decimal, float], quantity: Union[Decimal, float]) -> Order:
         """Helper to generate an Order with proper precision.
 
         Args:

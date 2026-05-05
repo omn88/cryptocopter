@@ -8,6 +8,7 @@ verifying their state with the exchange, and ensuring consistency.
 import asyncio
 import logging
 import queue
+from decimal import Decimal
 from typing import List, Dict, Optional, Tuple, Any
 
 from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_NEW
@@ -159,7 +160,7 @@ class RecoveryService:
                         coin=buy_data.config.coin,
                     ),
                     state_info=StateInfo(side=PositionSide.SHORT),
-                    sell_order=Order(quantity=0.0),
+                    sell_order=Order(quantity=Decimal("0")),
                 ),
                 db=self.db,
                 sell_strategy=None,

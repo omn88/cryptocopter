@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import queue
+from decimal import Decimal
 from typing import List, Optional
 from binance.enums import (
     TIME_IN_FORCE_GTC,
@@ -61,7 +62,7 @@ class HPPositionSell:
 
         self.sell_positions: List[SellPosition] = []
         self.current_position: SellPosition = SellPosition(
-            Order(quantity=0),
+            Order(quantity=Decimal("0")),
             config=HPSellConfig(),
             state_info=StateInfo(side=PositionSide.SHORT),
             sell_type=SellType.DIRECT,
@@ -215,15 +216,14 @@ class HPPositionSell:
             self.current_position.sell_order.status = (
                 execution_report.current_order_status
             )
-            self.current_position.sell_order.realized_quantity = (
-                execution_report.cumulative_filled_quantity
+            self.current_position.sell_order.realized_quantity = Decimal(
+                str(execution_report.cumulative_filled_quantity)
             )
-            self.current_position.sell_order.quantity_stable = (
-                execution_report.last_executed_price
-                * execution_report.last_executed_quantity
-            )
-            self.current_position.sell_order.price = (
-                execution_report.last_executed_price
+            self.current_position.sell_order.quantity_stable = Decimal(
+                str(execution_report.last_executed_price)
+            ) * Decimal(str(execution_report.last_executed_quantity))
+            self.current_position.sell_order.price = Decimal(
+                str(execution_report.last_executed_price)
             )
             # Persist the updated sell order to the database
             await self.db.upsert_order(
@@ -244,11 +244,11 @@ class HPPositionSell:
             self.current_position.sell_order.status = (
                 execution_report.current_order_status
             )
-            self.current_position.sell_order.price = (
-                execution_report.last_executed_price
+            self.current_position.sell_order.price = Decimal(
+                str(execution_report.last_executed_price)
             )
-            self.current_position.sell_order.realized_quantity = (
-                execution_report.cumulative_filled_quantity
+            self.current_position.sell_order.realized_quantity = Decimal(
+                str(execution_report.cumulative_filled_quantity)
             )
             logger.info(
                 "Order: %s filled, symbol: %s, price: %s, status: %s",

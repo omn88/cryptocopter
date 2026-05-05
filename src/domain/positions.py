@@ -1,5 +1,6 @@
 import datetime
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import NamedTuple, Optional
 
 from src.common.symbol import Symbol
@@ -13,7 +14,7 @@ class StateInfo:
     open_time: str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     close_time: str = ""
     side: PositionSide = PositionSide.LONG
-    completeness: float = 0.0
+    completeness: Decimal = Decimal("0.0")
     ui_state: UiState = UiState.NEW
 
     def __str__(self):
@@ -27,9 +28,10 @@ class StateInfo:
         self.open_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     def get_completeness(self, order: Order):
-        self.completeness = round(
-            float(order.realized_quantity) / float(order.quantity), 2
-        )
+        if order.quantity == 0:
+            self.completeness = Decimal("0.0")
+            return
+        self.completeness = round(order.realized_quantity / order.quantity, 2)
 
 
 @dataclass
@@ -39,13 +41,17 @@ class HPBuyConfig:
     # Human-readable label assigned at creation time (e.g. "1001").
     # Distinct from the UUID primary key stored in the database.
     hp_id: str = "0"
-    buy_price: float = 0
-    order_trigger: float = 0
-    order_cancel: float = 0
-    budget: float = 0
+    buy_price: Decimal = Decimal(0)
+    order_trigger: Decimal = Decimal(0)
+    order_cancel: Decimal = Decimal(0)
+    budget: Decimal = Decimal(0)
 
     def __post_init__(self):
-        """Ensure order_cancel is always set correctly based on order_trigger"""
+        """Auto-convert float/int inputs to Decimal, then set order_cancel."""
+        for attr in ("buy_price", "order_trigger", "order_cancel", "budget"):
+            v = getattr(self, attr)
+            if isinstance(v, (int, float)):
+                setattr(self, attr, Decimal(str(v)))
         if self.order_trigger:
             self.order_cancel = 2 * self.order_trigger
 
@@ -73,12 +79,19 @@ class HPSellConfig:
     # Distinct from the UUID primary key stored in the database.
     hp_id: str = ""
     coin: str = ""
-    quantity: float = 0.0
-    buy_price: float = 0.0
-    sell_price: float = 0.0
+    quantity: Decimal = Decimal("0.0")
+    buy_price: Decimal = Decimal("0.0")
+    sell_price: Decimal = Decimal("0.0")
     end_currency: str = "USDC"
     is_child: bool = False
     parent_hp_id: Optional[str] = None
+
+    def __post_init__(self):
+        """Auto-convert float/int inputs to Decimal."""
+        for attr in ("quantity", "buy_price", "sell_price"):
+            v = getattr(self, attr)
+            if isinstance(v, (int, float)):
+                setattr(self, attr, Decimal(str(v)))
 
     def __str__(self):
         return (

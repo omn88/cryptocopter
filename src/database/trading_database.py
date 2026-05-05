@@ -10,6 +10,9 @@ This module provides a SQLite-based database implementation focused on:
 
 import sqlite3
 import logging
+from decimal import Decimal
+
+sqlite3.register_adapter(Decimal, float)
 import threading
 from pathlib import Path
 from typing import List, Dict, Any, AsyncGenerator, Optional

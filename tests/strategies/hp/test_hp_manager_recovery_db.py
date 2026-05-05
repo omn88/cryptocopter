@@ -1,4 +1,5 @@
 ﻿import asyncio
+from decimal import Decimal
 import logging
 from unittest.mock import AsyncMock
 
@@ -128,7 +129,7 @@ async def test_recovery_buy_position_partial_fill_then_cancel_then_resend(rec_bu
     await sim.assert_recovered_state(
         recovered, State.BUYING, expected_buy_state=State.PARTIALLY_BOUGHT
     )
-    assert recovered.buy.buy_order.realized_quantity == 0.12
+    assert recovered.buy.buy_order.realized_quantity == Decimal("0.12")
 
 
 async def test_recovery_setup_sell_position_for_bought_position(rec_sell_configured):
@@ -136,7 +137,7 @@ async def test_recovery_setup_sell_position_for_bought_position(rec_sell_configu
     sim, create_pair, simulate_crash = rec_sell_configured
     _, _, recovered = await sim.crash_and_recover("1000", create_pair, simulate_crash)
     assert recovered.state == State.BOUGHT
-    assert recovered.sell.current_position.sell_order.price == 4200.0
+    assert recovered.sell.current_position.sell_order.price == Decimal("4200.0")
     await sim.assert_db_state_matches_memory("1000")
 
 
@@ -254,7 +255,7 @@ async def test_recovery_fill_orders_for_previously_partially_bought_position(
     await sim.assert_recovered_state(
         recovered, State.BUYING, expected_buy_state=State.PARTIALLY_BOUGHT
     )
-    assert recovered.buy.buy_order.realized_quantity == 0.12
+    assert recovered.buy.buy_order.realized_quantity == Decimal("0.12")
     await sim.assert_db_state_matches_memory()
 
 
@@ -309,17 +310,17 @@ async def test_recovery_buy_partially_partially_sold_position(
 
     assert strategy.buy.buy_order.status == ORDER_STATUS_NEW
     assert (
-        strategy.buy.buy_order.realized_quantity == 0.12
+        strategy.buy.buy_order.realized_quantity == Decimal("0.12")
     )  # Carries forward from previous order
 
     strategy = await sim.simulate_partial_fill(last=0.14, cumulative=0.26, sold=0.06)
 
     await wait_for_condition(
-        condition_func=lambda: strategy.buy.buy_order.realized_quantity == 0.26
+        condition_func=lambda: strategy.buy.buy_order.realized_quantity == Decimal("0.26")
     )
 
     assert strategy.buy.buy_order.status == ORDER_STATUS_PARTIALLY_FILLED
-    assert strategy.buy.buy_order.realized_quantity == 0.26
+    assert strategy.buy.buy_order.realized_quantity == Decimal("0.26")
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
 
     assert strategy.buy.order_cancel_price == 1428.0
@@ -405,7 +406,7 @@ async def test_recovery_cancel_buy_to_part_sold_part_bought(
         condition_func=lambda: strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
     )
     await wait_for_condition(
-        condition_func=lambda: strategy.buy.buy_order.realized_quantity == 0.26
+        condition_func=lambda: strategy.buy.buy_order.realized_quantity == Decimal("0.26")
     )
 
     # Give database extra time to complete the CANCELED status update before crash
@@ -449,7 +450,7 @@ async def test_recovery_buy_fully_partially_sold_position(
 
     # Verify final state before crash
     assert strategy.buy.buy_order.status == ORDER_STATUS_FILLED
-    assert strategy.buy.buy_order.realized_quantity == 0.71429
+    assert strategy.buy.buy_order.realized_quantity == Decimal("0.71429")
     assert strategy.buy.data.state_info.state == State.BOUGHT
     assert strategy.state == State.PARTIALLY_SOLD
     assert strategy.sell.current_position.state_info.state == State.PARTIALLY_SOLD
@@ -526,7 +527,7 @@ async def test_recovery_buy_fully_partially_bought_position_when_sold_position(
     # Reopen buy position and fill remaining quantity
     await sim.resend_buy_order_after_cancel(strategy, trigger_price=1412)
     await wait_for_condition(lambda: strategy.state == State.BUYING)
-    assert strategy.buy.buy_order.realized_quantity == 0.12
+    assert strategy.buy.buy_order.realized_quantity == Decimal("0.12")
     await sim.fill_remaining_buy_order(strategy)
 
     # Wait for parent state transition to PARTIALLY_SOLD

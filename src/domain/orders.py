@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Dict, List, NamedTuple, Optional, Union
 
 from binance.enums import ORDER_STATUS_NEW, ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC
@@ -19,17 +20,23 @@ from src.domain.inventory import InventoryItem
 
 @dataclass
 class Order:
-    quantity: float
+    quantity: Decimal
     precision: int = 0
     price_precision: int = 0
-    price: float = 0
-    quantity_stable: float = 0
+    price: Decimal = Decimal(0)
+    quantity_stable: Decimal = Decimal(0)
     order_id: int = 0
-    realized_quantity: float = 0
+    realized_quantity: Decimal = Decimal(0)
     open_time = None
     time_in_force: str = TIME_IN_FORCE_GTC
     status: str = ORDER_STATUS_NEW
     order_type: str = ORDER_TYPE_LIMIT
+
+    def __post_init__(self) -> None:
+        for attr in ("quantity", "price", "quantity_stable", "realized_quantity"):
+            v = getattr(self, attr)
+            if isinstance(v, (int, float)):
+                setattr(self, attr, Decimal(str(v)))
 
     def __repr__(self) -> str:
         return (

@@ -1,6 +1,7 @@
 import asyncio
 import queue
 import logging
+from decimal import Decimal
 from typing import Any, Optional, Callable
 from transitions.extensions.asyncio import AsyncMachine
 from binance.enums import (
@@ -67,7 +68,7 @@ class HpStrategy:
         initial_state: State = State.NEW,
     ):
         self.client = client
-        self.balance = balance
+        self.balance = Decimal(str(balance))
         self.db = db
         self.stop_event: asyncio.Event = asyncio.Event()
         self.worker_queue = worker_queue
@@ -382,12 +383,12 @@ class HpStrategy:
             },
         ]
 
-    def calculate_remaining_quantity(self) -> float:
+    def calculate_remaining_quantity(self) -> Decimal:
         if not self.buy.buy_order:
             return self._calculate_from_sell_only()
         return self._calculate_from_buy_and_sell()
 
-    def _calculate_from_buy_and_sell(self) -> float:
+    def _calculate_from_buy_and_sell(self) -> Decimal:
         if self.buy.buy_order is None:
             raise RuntimeError("Buy order must exist")
         total_bought = self.buy.buy_order.realized_quantity
@@ -400,11 +401,11 @@ class HpStrategy:
             # Placeholding logic: use second leg’s executed quantity as final sold
             sold = self.sell.sell_positions[1].sell_order.realized_quantity
         else:
-            sold = 0
+            sold = Decimal(0)
 
-        return max(0.0, total_bought - sold)
+        return max(Decimal(0), total_bought - sold)
 
-    def _calculate_from_sell_only(self) -> float:
+    def _calculate_from_sell_only(self) -> Decimal:
         # Used when sell is started independently (inventory sell)
         # Return the original quantity, not remaining quantity
         return self.sell.current_position.config.quantity
@@ -417,7 +418,7 @@ class HpStrategy:
         """Build HP update data from current orders and positions."""
         # Determine the appropriate buy price
         if self.buy.buy_order:
-            if self.buy.buy_order.realized_quantity == 0.0:
+            if self.buy.buy_order.realized_quantity == 0:
                 buy_price = self.buy.data.config.buy_price
             else:
                 buy_price = self.buy.calculate_avg_buy_price()
@@ -432,7 +433,7 @@ class HpStrategy:
         quantity = symbol.adjust_quantity(self.calculate_remaining_quantity())
 
         quantity_usd = symbol.adjust_price(
-            float(quantity) * float(buy_price) if buy_price else 0.0
+            quantity * buy_price if buy_price else Decimal(0)
         )
 
         logger.info("quantity: %s, q usd: %s", quantity, quantity_usd)
@@ -441,9 +442,9 @@ class HpStrategy:
         net_percent = None
         if current_price and buy_price and quantity:
             # Calculate net profit/loss in USD
-            net = symbol.adjust_price((current_price - buy_price) * quantity)
+            net = symbol.adjust_price((Decimal(str(current_price)) - buy_price) * quantity)
             # Calculate percentage change
-            net_percent = round(((current_price / buy_price) - 1) * 100, 2)
+            net_percent = round(((Decimal(str(current_price)) / buy_price) - 1) * Decimal("100"), 2)
 
         hp_id = (
             self.sell.current_position.config.hp_id
@@ -486,7 +487,7 @@ class HpStrategy:
                 else:
                     # During initialization and processing, use 0.0 as parent realized_quantity
                     # since it represents what has been actually sold, not the inventory quantity
-                    sell_realized_quantity = 0.0
+                    sell_realized_quantity = Decimal("0.0")
             else:
                 # For regular positions, use the actual realized quantity
                 sell_realized_quantity = (
@@ -494,30 +495,30 @@ class HpStrategy:
                 )
 
         # Calculate expected quantity from budget and buy price
-        expected_qty = 0.0
+        expected_qty: Decimal = Decimal(0)
         if self.buy.data.config.budget > 0 and self.buy.data.config.buy_price > 0:
             expected_qty = self.buy.data.config.budget / self.buy.data.config.buy_price
 
         # Get buy order quantity
-        orders_total_qty = self.buy.buy_order.quantity if self.buy.buy_order else 0.0
+        orders_total_qty = self.buy.buy_order.quantity if self.buy.buy_order else Decimal(0)
 
         hp_update = HPUpdate(
             hp_id=hp_id,
             coin=coin,
             symbol=symbol,
-            quantity=quantity,
-            quantity_usd=quantity_usd,
-            realized_quantity=sell_realized_quantity,  # Add sell order realized quantity
-            total_quantity=total_quantity,  # Add total bought quantity
-            expected_quantity=expected_qty,  # Add total expected quantity based on budget
-            orders_total_quantity=orders_total_qty,  # Add sum of all buy order quantities
-            buy_price=buy_price,
-            sell_price=self.sell.current_position.config.sell_price,
+            quantity=float(quantity),
+            quantity_usd=float(quantity_usd),
+            realized_quantity=float(sell_realized_quantity) if sell_realized_quantity is not None else None,  # Add sell order realized quantity
+            total_quantity=float(total_quantity),  # Add total bought quantity
+            expected_quantity=float(expected_qty),  # Add total expected quantity based on budget
+            orders_total_quantity=float(orders_total_qty),  # Add sum of all buy order quantities
+            buy_price=float(buy_price),
+            sell_price=float(self.sell.current_position.config.sell_price),
             current_price=current_price,
-            net=net,
-            net_percent=net_percent,
+            net=float(net) if net is not None else None,
+            net_percent=float(net_percent) if net_percent is not None else None,
             state=self.state,
-            expected_return=expected_return,
+            expected_return=float(expected_return) if expected_return is not None else None,
             is_child=self.sell.current_position.config.is_child,
             side="BUY",  # Set side to BUY for buy positions
         )
@@ -582,19 +583,20 @@ class HpStrategy:
         )
         self.ui_queue.put_nowait(sell_data)
 
-    def calculate_trigger_send_order_price_buy(self):
+    def calculate_trigger_send_order_price_buy(self) -> float:
+        assert self.buy.buy_order is not None, "buy_order must be set before calculating trigger price"
         price = self.buy.data.config.symbol.adjust_price(
             self.buy.buy_order.price * (1 + self.buy.data.config.order_trigger / 100)
         )
         logger.info(
             "Buy order trigger: %s price: %s", self.buy.data.config.order_trigger, price
         )
-        return price
+        return float(price)
 
-    def get_remaining_quantity_buy(self, *args, **kwargs) -> float:
+    def get_remaining_quantity_buy(self, *args, **kwargs) -> Decimal:
         """Calculate remaining quantity for buy order."""
         if not self.buy.buy_order:
-            return 0.0
+            return Decimal(0)
         order = self.buy.buy_order
         rem_quant = order.quantity_stable - order.quantity_stable * (
             order.realized_quantity / order.quantity
@@ -811,7 +813,7 @@ class HpStrategy:
             return 0.0  # or raise an error depending on your logic
 
         adjusted = (
-            self.sell.original_position.config.symbol.adjust_price(0.96 * sell_price)
+            self.sell.original_position.config.symbol.adjust_price(Decimal("0.96") * sell_price)
             if self.sell.current_position.sell_type == SellType.DIRECT
             else self.sell.original_position.config.symbol.adjust_price(sell_price)
         )
@@ -855,7 +857,7 @@ class HpStrategy:
 
         # Update sell quantity if it was pre-configured as 0 before buy filled
         if (
-            self.sell.current_position.sell_order.quantity == 0.0
+            self.sell.current_position.sell_order.quantity == 0
             and self.buy.buy_order
             and self.buy.buy_order.realized_quantity > 0
         ):
@@ -902,7 +904,7 @@ class HpStrategy:
         if self.sell.current_position.sell_order.status == ORDER_STATUS_FILLED:
             self.sell.current_position.state_info.state = State.SOLD
             self.sell.current_position.state_info.ui_state = UiState.CLOSED
-            self.sell.current_position.state_info.completeness = 1.0
+            self.sell.current_position.state_info.completeness = Decimal("1.0")
 
             signal = Signal.HP_ALL_ORDERS_FILLED
             logger.info("All SELL orders filled, sending: %s", signal)
@@ -968,11 +970,11 @@ class HpStrategy:
             logger.info("Quote accepted: %s", accept)
 
             self.sell.current_position.sell_order.status = ORDER_STATUS_FILLED
-            self.sell.current_position.sell_order.realized_quantity = float(quantity)
+            self.sell.current_position.sell_order.realized_quantity = Decimal(quantity)
             self.sell.current_position.state_info.state = State.SOLD
             self.state = State.SOLD
             self.sell.current_position.state_info.ui_state = UiState.CLOSED
-            self.sell.current_position.state_info.completeness = 1.0
+            self.sell.current_position.state_info.completeness = Decimal("1.0")
 
             # Emit a partial fill event (treat full convert as a single fill) so portfolio can
             # reduce inventory immediately under the new "fills mutate inventory" rule.
@@ -1048,8 +1050,8 @@ class HpStrategy:
                 total_cost / total_quantity_bought if total_quantity_bought > 0 else 0
             )
         else:
-            total_quantity_bought = 0
-            average_buy_price = 0
+            total_quantity_bought = Decimal("0")
+            average_buy_price = Decimal("0")
 
         self.portfolio_event_helper.send_buy_position_filled_event(
             hp_id=self.buy.data.config.hp_id,
@@ -1297,9 +1299,9 @@ class HpStrategy:
         hp_sell_completed = HPSellPositionCompleted(
             hp_id=self.sell.current_position.config.hp_id,
             coin=self.sell.current_position.config.coin,
-            quantity_sold=self.sell.current_position.sell_order.realized_quantity,
-            buy_price=self.sell.current_position.config.buy_price,  # Add missing buy price
-            sell_price=self.sell.current_position.config.sell_price,  # Add missing sell price
+            quantity_sold=float(self.sell.current_position.sell_order.realized_quantity),
+            buy_price=float(self.sell.current_position.config.buy_price),  # Add missing buy price
+            sell_price=float(self.sell.current_position.config.sell_price),  # Add missing sell price
             end_currency=self.sell.current_position.config.end_currency,  # Use actual end_currency from config
         )
         await self.db.upsert_sell_price_level(
@@ -1341,7 +1343,7 @@ class HpStrategy:
         ):
             self.sell.original_position.state_info.state = State.SOLD
             self.sell.original_position.sell_order.status = ORDER_STATUS_FILLED
-            self.sell.original_position.state_info.completeness = 1.0
+            self.sell.original_position.state_info.completeness = Decimal("1.0")
 
             self.sell.current_position = SellPosition(
                 sell_order=self.sell.original_position.sell_order,
@@ -1375,9 +1377,9 @@ class HpStrategy:
             parent_hp_sell_completed = HPSellPositionCompleted(
                 hp_id=self.sell.original_position.config.hp_id,
                 coin=self.sell.original_position.config.coin,
-                quantity_sold=self.sell.original_position.config.quantity,
-                buy_price=self.sell.original_position.config.buy_price,
-                sell_price=self.sell.original_position.config.sell_price,
+                quantity_sold=float(self.sell.original_position.config.quantity),
+                buy_price=float(self.sell.original_position.config.buy_price),
+                sell_price=float(self.sell.original_position.config.sell_price),
                 end_currency=self.sell.original_position.config.end_currency,
             )
             self.portfolio_event_helper.send_sell_completion_event(
@@ -1556,9 +1558,9 @@ class HpStrategy:
         hp_sell_completed = HPSellPositionCompleted(
             hp_id=self.sell.current_position.config.hp_id,
             coin=self.sell.current_position.config.coin,
-            quantity_sold=self.sell.current_position.sell_order.realized_quantity,
-            buy_price=self.sell.current_position.config.buy_price,  # Add missing buy price
-            sell_price=self.sell.current_position.config.sell_price,  # Add missing sell price
+            quantity_sold=float(self.sell.current_position.sell_order.realized_quantity),
+            buy_price=float(self.sell.current_position.config.buy_price),  # Add missing buy price
+            sell_price=float(self.sell.current_position.config.sell_price),  # Add missing sell price
             # Use actual end_currency from config
             end_currency=self.sell.current_position.config.end_currency,
         )
@@ -1759,7 +1761,7 @@ class HpStrategy:
         if self.sell.current_position.sell_order.status == ORDER_STATUS_FILLED:
             self.sell.current_position.state_info.state = State.SOLD
             self.sell.current_position.state_info.ui_state = UiState.CLOSED
-            self.sell.current_position.state_info.completeness = 1.0
+            self.sell.current_position.state_info.completeness = Decimal("1.0")
 
             signal = Signal.HP_ALL_ORDERS_FILLED
             logger.info("All SELL orders filled, sending: %s", signal)
@@ -1917,7 +1919,7 @@ class HpStrategy:
 
     def calculate_trigger_cancel_orders_price_sell(self):
         return self.sell.original_position.config.symbol.adjust_price(
-            0.92 * self.sell.original_position.config.sell_price
+            Decimal("0.92") * self.sell.original_position.config.sell_price
         )
 
     async def allow_messages(self, *args, **kwargs) -> None:

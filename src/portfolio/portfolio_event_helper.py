@@ -9,7 +9,8 @@ This reduces code duplication and keeps event handling consistent across the app
 """
 
 import logging
-from typing import Callable, Optional, Any
+from decimal import Decimal
+from typing import Callable, Optional, Any, Union
 from src.domain.enums import EventName, State
 from src.domain.events import (
     HPBuyOrdersPlaced,
@@ -76,15 +77,15 @@ class PortfolioEventHelper:
         self,
         hp_id: str,
         coin: str,
-        budget: float,
-        buy_price: float,
+        budget: Union[Decimal, float],
+        buy_price: Union[Decimal, float],
     ) -> None:
         """Send HP buy position created event to portfolio."""
         hp_buy_created = HPBuyPositionCreated(
             hp_id=hp_id,
             coin=coin,
-            budget=budget,
-            buy_price=buy_price,
+            budget=float(budget),
+            buy_price=float(buy_price),
             end_currency="USDC",
         )
         self._send_portfolio_event(EventName.HP_BUY_POSITION_CREATED, hp_buy_created)
@@ -94,14 +95,14 @@ class PortfolioEventHelper:
         self,
         hp_id: str,
         coin: str,
-        budget_amount: float,
+        budget_amount: Union[Decimal, float],
         end_currency: str = "USDC",
     ) -> None:
         """Send HP buy orders placed event to portfolio."""
         hp_orders_placed = HPBuyOrdersPlaced(
             hp_id=hp_id,
             coin=coin,
-            budget_amount=budget_amount,
+            budget_amount=float(budget_amount),
             end_currency=end_currency,
         )
         self._send_portfolio_event(EventName.HP_BUY_ORDERS_PLACED, hp_orders_placed)
@@ -117,18 +118,18 @@ class PortfolioEventHelper:
         hp_id: str,
         coin: str,
         symbol: str,
-        quantity_bought: float,
-        buy_price: float,
-        total_cost: float,
+        quantity_bought: Union[Decimal, float],
+        buy_price: Union[Decimal, float],
+        total_cost: Union[Decimal, float],
     ) -> None:
         """Send HP buy position filled event to portfolio."""
         hp_buy_filled = HPBuyPositionFilled(
             hp_id=hp_id,
             coin=coin,
             symbol=symbol,
-            quantity_bought=quantity_bought,
-            buy_price=buy_price,
-            total_cost=total_cost,
+            quantity_bought=float(quantity_bought),
+            buy_price=float(buy_price),
+            total_cost=float(total_cost),
         )
         self._send_portfolio_event(EventName.HP_BUY_POSITION_FILLED, hp_buy_filled)
         logger.info("Sent HP buy position filled event for position: %s", hp_id)
@@ -162,18 +163,18 @@ class PortfolioEventHelper:
         self,
         hp_id: str,
         coin: str,
-        quantity: float,
-        buy_price: float,
-        sell_price: float,
+        quantity: Union[Decimal, float],
+        buy_price: Union[Decimal, float],
+        sell_price: Union[Decimal, float],
         end_currency: str,
     ) -> None:
         """Send HP sell position created event to portfolio."""
         hp_sell_created = HPSellPositionCreated(
             hp_id=hp_id,
             coin=coin,
-            quantity=quantity,
-            buy_price=buy_price,
-            sell_price=sell_price,
+            quantity=float(quantity),
+            buy_price=float(buy_price),
+            sell_price=float(sell_price),
             end_currency=end_currency,
         )
         self._send_portfolio_event(EventName.HP_SELL_POSITION_CREATED, hp_sell_created)
@@ -188,18 +189,18 @@ class PortfolioEventHelper:
         self,
         hp_id: str,
         coin: str,
-        quantity_sold: float,
-        buy_price: float,
-        sell_price: float,
+        quantity_sold: Union[Decimal, float],
+        buy_price: Union[Decimal, float],
+        sell_price: Union[Decimal, float],
         end_currency: str,
     ) -> None:
         """Send HP sell position completed event to portfolio."""
         hp_completed = HPSellPositionCompleted(
             hp_id=hp_id,
             coin=coin,
-            quantity_sold=quantity_sold,
-            buy_price=buy_price,
-            sell_price=sell_price,
+            quantity_sold=float(quantity_sold),
+            buy_price=float(buy_price),
+            sell_price=float(sell_price),
             end_currency=end_currency,
         )
         self._send_portfolio_event(EventName.HP_SELL_POSITION_COMPLETED, hp_completed)
@@ -230,14 +231,14 @@ class PortfolioEventHelper:
         self,
         hp_id: str,
         coin: str,
-        quantity: float,
+        quantity: Union[Decimal, float],
         position_type: str,
     ) -> None:
         """Send HP position cancelled event to portfolio."""
         hp_cancelled = HPPositionCancelled(
             hp_id=hp_id,
             coin=coin,
-            quantity=quantity,
+            quantity=float(quantity),
             position_type=position_type,
         )
         self._send_portfolio_event(EventName.HP_POSITION_CANCELLED, hp_cancelled)
@@ -259,7 +260,7 @@ class PortfolioEventHelper:
         )
 
     def handle_sell_cancellation(
-        self, close_data: HPClose, sell_quantity: float
+        self, close_data: HPClose, sell_quantity: Union[Decimal, float]
     ) -> None:
         """Handle sell position cancellation event.
 
@@ -275,7 +276,7 @@ class PortfolioEventHelper:
         )
 
     def handle_buy_cancellation(
-        self, close_data: HPClose, current_state: State, remaining_budget: float
+        self, close_data: HPClose, current_state: State, remaining_budget: Union[Decimal, float]
     ) -> None:
         """Handle buy position cancellation event.
 

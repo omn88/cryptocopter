@@ -90,9 +90,9 @@ class UsdPriceResolver:
         # Apply adjustment using symbol info if available
         try:
             symbol = self.symbols[f"{coin}USDT"]
-            price = symbol.adjust_price(raw_price)
-            # logger.info("Adjusted price for coin %s using symbol info: %s", coin, price)
-            return price
+            adjusted = symbol.adjust_price(raw_price)
+            # logger.info("Adjusted price for coin %s using symbol info: %s", coin, adjusted)
+            return float(adjusted)
         except KeyError:
             # logger.error("Key error while adjusting price for coin: %s", coin)
             return round(raw_price, 6)

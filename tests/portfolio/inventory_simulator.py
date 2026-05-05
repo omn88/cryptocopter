@@ -10,6 +10,7 @@ This simulator provides methods to test the complete inventory sell flow:
 """
 
 import logging
+from decimal import Decimal
 from typing import List, Optional
 from src.gui.hp_manager.hpfront import HpFront
 from src.strategy_executor import StrategyExecutor
@@ -173,9 +174,9 @@ class InventorySellSimulator:
         # Create sell configuration
         sell_config = HPSellConfig(
             coin=item.coin,
-            buy_price=weighted_avg_buy_price,
-            sell_price=sell_price,
-            quantity=sell_quantity,
+            buy_price=Decimal(str(weighted_avg_buy_price)),
+            sell_price=Decimal(str(sell_price)),
+            quantity=Decimal(str(sell_quantity)),
             end_currency=end_currency,
             symbol=self.strategy_executor.price_resolver.symbols[f"{coin}USDT"],
         )
@@ -254,7 +255,7 @@ class InventorySellSimulator:
         # The sell trigger price should be the sell price or slightly above
         sell_price = strategy.sell.current_position.config.sell_price
         strategy.ticker_update = TickerUpdate(
-            last_price=sell_price,
+            last_price=float(sell_price),
             symbol=strategy.sell.current_position.config.symbol.name,
         )
 
@@ -271,10 +272,10 @@ class InventorySellSimulator:
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
             order_id=sell_order.order_id,
-            last_executed_quantity=sell_order.quantity,
-            last_executed_price=sell_order.price,
-            cumulative_filled_quantity=sell_order.quantity,
-            price=sell_order.price,
+            last_executed_quantity=float(sell_order.quantity),
+            last_executed_price=float(sell_order.price),
+            cumulative_filled_quantity=float(sell_order.quantity),
+            price=float(sell_order.price),
         )
 
         # Send execution report to strategy worker

@@ -606,7 +606,7 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
                     coin=hp_config.coin,
                 ),
                 state_info=StateInfo(side=PositionSide.SHORT),
-                sell_order=Order(quantity=0.0),
+                sell_order=Order(quantity=Decimal("0")),
             ),
             sell_strategy=None,
             db=test_db,

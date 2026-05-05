@@ -278,10 +278,10 @@ class PositionManager:
                 symbol=symbol,
                 side=side.value,
                 status=self._convert_order_status(order.status),
-                price=order.price,
-                quantity=order.quantity,
-                quantity_stable=order.quantity_stable,
-                realized_quantity=order.realized_quantity,
+                price=float(order.price),
+                quantity=float(order.quantity),
+                quantity_stable=float(order.quantity_stable),
+                realized_quantity=float(order.realized_quantity),
                 time_in_force=order.time_in_force,
                 order_type=order.order_type,
             )
@@ -317,7 +317,7 @@ class PositionManager:
 
             # Calculate completeness
             if position.quantity > 0:
-                position.completeness = position.realized_quantity / position.quantity
+                position.completeness = position.realized_quantity / float(position.quantity)
 
             # Update status based on execution
             if execution_report.current_order_status == "FILLED":

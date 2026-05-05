@@ -48,7 +48,7 @@ class DirectSellStrategy(BaseSellStrategy):
         current_price = self.price_resolver.latest_prices.get(symbol.name)
         if current_price:
             spread_pct = (
-                ((sell_price - current_price) / current_price * 100)
+                ((float(sell_price) - current_price) / current_price * 100)
                 if current_price
                 else 0
             )

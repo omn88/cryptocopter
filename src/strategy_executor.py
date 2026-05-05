@@ -1,7 +1,8 @@
 import asyncio
 import logging
 import queue
-from typing import Dict, List, Optional
+from decimal import Decimal
+from typing import Dict, List, Optional, Union
 from binance.enums import (
     ORDER_STATUS_CANCELED,
     ORDER_STATUS_FILLED,
@@ -184,7 +185,7 @@ class StrategyExecutor:
                         coin=new_hp.config.coin,
                     ),
                     state_info=StateInfo(side=PositionSide.SHORT),
-                    sell_order=Order(quantity=0.0),
+                    sell_order=Order(quantity=Decimal("0")),
                 ),
                 db=self.db,
                 sell_strategy=None,  # No strategy for buy-only positions
@@ -248,7 +249,7 @@ class StrategyExecutor:
         total_quant = sum(order.realized_quantity for order in buy_orders)
         orders_total_quantity = sum(order.quantity for order in buy_orders)
         # Calculate expected quantity from budget and buy price
-        expected_qty = 0.0
+        expected_qty: Decimal = Decimal("0")
         if config.budget > 0 and config.buy_price > 0:
             expected_qty = config.budget / config.buy_price
 
@@ -260,10 +261,10 @@ class StrategyExecutor:
                     coin=config.coin,
                     symbol=config.symbol,
                     state=state,
-                    buy_price=config.buy_price,
+                    buy_price=float(config.buy_price),
                     quantity=float(total_quant) if total_quant else None,
-                    expected_quantity=expected_qty,
-                    orders_total_quantity=orders_total_quantity,
+                    expected_quantity=float(expected_qty),
+                    orders_total_quantity=float(orders_total_quantity) if orders_total_quantity else None,
                     side="BUY",  # Set side to BUY for buy positions
                 ),
             )
@@ -304,14 +305,14 @@ class StrategyExecutor:
                 data=HPSell(config=config, state_info=state_info),
                 hp_update=HPUpdate(
                     hp_id=config.hp_id,
-                    buy_price=buy_price,
-                    sell_price=config.sell_price,
+                    buy_price=float(buy_price),
+                    sell_price=float(config.sell_price),
                     coin=config.coin,
                     symbol=config.symbol,
                     state=state,
-                    quantity=config.quantity,
-                    quantity_usd=quantity_usd,
-                    expected_return=expected_return,
+                    quantity=float(config.quantity),
+                    quantity_usd=float(quantity_usd),
+                    expected_return=float(expected_return) if expected_return is not None else None,
                     side="SELL",  # Set side to SELL for sell positions
                 ),
             )
@@ -645,14 +646,14 @@ class StrategyExecutor:
                 )
 
             # Update positions and database
-            sell.current_position.config.sell_price = 0.0
+            sell.current_position.config.sell_price = Decimal("0")
             sell.current_position.state_info.ui_state = UiState.CLOSED
             sell.current_position.state_info.get_completeness(
                 sell.current_position.sell_order
             )
 
             if sell.current_position.config.is_child:
-                sell.original_position.config.sell_price = 0.0
+                sell.original_position.config.sell_price = Decimal("0")
                 self.send_sell_position_to_ui(
                     config=sell.original_position.config,
                     state_info=sell.original_position.state_info,
@@ -838,7 +839,7 @@ class StrategyExecutor:
         )
 
     def _calculate_sell_cancellation_state(
-        self, strategy: HpStrategy, sell_realized_qty: float, sell_order_qty: float
+        self, strategy: HpStrategy, sell_realized_qty: Union[Decimal, float], sell_order_qty: Union[Decimal, float]
     ) -> State:
         """Calculate strategy state after sell cancellation."""
         fully_bought = (
@@ -933,7 +934,7 @@ class StrategyExecutor:
         """Handle incoming sell position configuration."""
         # Create sell position first (needed for SellStrategyFactory)
         sell_position = SellPosition(
-            sell_order=Order(quantity=0),
+            sell_order=Order(quantity=Decimal("0")),
             config=strategy_data.config,
             state_info=strategy_data.state_info,
         )

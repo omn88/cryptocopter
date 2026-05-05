@@ -3,6 +3,7 @@ import os
 import queue
 import logging
 import time
+from decimal import Decimal
 from typing import Dict, List, Set, Optional
 from kivy.properties import ListProperty
 from kivy.uix.boxlayout import BoxLayout
@@ -269,9 +270,9 @@ Side: {side}"""
             config=HPBuyConfig(
                 coin=config.coin,
                 symbol=self.price_resolver.symbols[config.symbol],
-                buy_price=config.buy_price or 0.0,
-                budget=config.budget or 1000.0,
-                order_trigger=config.order_trigger if config.order_trigger else 1.0,
+                buy_price=Decimal(str(config.buy_price or 0.0)),
+                budget=Decimal(str(config.budget or 1000.0)),
+                order_trigger=Decimal(str(config.order_trigger if config.order_trigger else 1.0)),
             ),
             state_info=StateInfo(),
         )
@@ -471,7 +472,7 @@ Side: {side}"""
                         # Add side information to the update
                         data.hp_update.side = data.data.state_info.side.value
                         # Add sell completeness information for collapse logic
-                        data.hp_update.sell_completeness = (
+                        data.hp_update.sell_completeness = float(
                             data.data.state_info.completeness
                         )
                         data.hp_update.sell_state = data.data.state_info.state.value
@@ -492,7 +493,7 @@ Side: {side}"""
                                 data.data, "state_info"
                             ):
                                 data.hp_update.side = data.data.state_info.side.value
-                                data.hp_update.sell_completeness = (
+                                data.hp_update.sell_completeness = float(
                                     data.data.state_info.completeness
                                 )
                                 data.hp_update.sell_state = (

@@ -1,6 +1,7 @@
 """Multihop sell strategy - two-hop sell through intermediate pair."""
 
 import logging
+from decimal import Decimal
 from typing import Any, Dict, List
 
 from binance.enums import ORDER_STATUS_FILLED
@@ -97,7 +98,7 @@ class MultihopSellStrategy(BaseSellStrategy):
                 quantity=leg1_quantity,
                 sell_price=leg1_price,
                 coin=self.original_position.config.coin,
-                buy_price=self.original_position.config.buy_price / leg2_price,
+                buy_price=self.original_position.config.buy_price / Decimal(str(leg2_price)),
                 end_currency=self.original_position.config.end_currency,
             ),
             state_info=StateInfo(side=PositionSide.SHORT),
@@ -117,9 +118,9 @@ class MultihopSellStrategy(BaseSellStrategy):
                 parent_hp_id=self.original_position.config.hp_id,
                 symbol=leg2,
                 quantity=leg2_quantity,
-                sell_price=leg2_price,
+                sell_price=Decimal(str(leg2_price)),
                 coin=leg2.extract_coin_from_symbol(leg2.name),
-                buy_price=leg2_price,
+                buy_price=Decimal(str(leg2_price)),
                 end_currency=self.original_position.config.end_currency,
             ),
             state_info=StateInfo(side=PositionSide.SHORT, state=State.WAITING_CHILD),
@@ -202,14 +203,14 @@ class MultihopSellStrategy(BaseSellStrategy):
         leg1_position.sell_order.quantity_stable = leg1_quantity_stable
         leg1_position.config.sell_price = current_leg1_price
         leg1_position.config.buy_price = (
-            self.original_position.config.buy_price / current_leg2_price
+            self.original_position.config.buy_price / Decimal(str(current_leg2_price))
         )
 
         # Update leg2 position with fresh prices
         leg2_position.sell_order.price = current_leg2_price_adjusted
         leg2_position.sell_order.quantity = leg2_quantity
-        leg2_position.config.sell_price = current_leg2_price
-        leg2_position.config.buy_price = current_leg2_price
+        leg2_position.config.sell_price = Decimal(str(current_leg2_price))
+        leg2_position.config.buy_price = Decimal(str(current_leg2_price))
 
         logger.info(
             "[MULTIHOP RECALC] > New prices: Leg1=%.8f (Delta %.8f%%), Leg2=%.8f (Delta %.8f%%)",
@@ -272,7 +273,7 @@ class MultihopSellStrategy(BaseSellStrategy):
             )
             original_position.state_info.state = State.SOLD
             original_position.sell_order.status = ORDER_STATUS_FILLED
-            original_position.state_info.completeness = 1.0
+            original_position.state_info.completeness = Decimal("1.0")
 
             # Send completion events for leg2 AND parent
             completion_events = [

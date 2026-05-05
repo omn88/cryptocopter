@@ -989,9 +989,9 @@ class PortfolioUI(BoxLayout):
             try:
                 symbol_key = f"{coin_symbol}USDT"
                 if symbol_key in self.price_resolver.symbols:
-                    return self.price_resolver.symbols[symbol_key].adjust_price(
+                    return float(self.price_resolver.symbols[symbol_key].adjust_price(
                         avg_price
-                    )
+                    ))
             except (KeyError, AttributeError):
                 # Fallback to original precision if symbol info not available
                 pass
@@ -1442,7 +1442,7 @@ class PortfolioUI(BoxLayout):
             return
 
         # Lock quantities proportionally across lots based on their available amounts
-        remaining_to_lock = event.quantity
+        remaining_to_lock = float(event.quantity)
         for item in coin_items:
             if remaining_to_lock <= 0:
                 break
@@ -2129,7 +2129,7 @@ class PortfolioUI(BoxLayout):
             unlock_amount = event.quantity
 
         # Unlock quantities proportionally across lots based on their locked amounts
-        remaining_to_unlock = unlock_amount
+        remaining_to_unlock = float(unlock_amount)
         for item in coin_items:
             if remaining_to_unlock <= 0:
                 break

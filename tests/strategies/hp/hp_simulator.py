@@ -1,7 +1,9 @@
+from decimal import Decimal
 import asyncio
 import logging
 import time
 from typing import Callable, List, Dict, Tuple, Optional
+import pytest
 from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_CANCELED,
@@ -224,9 +226,9 @@ class HPSimulator:
             HPBuyConfig(
                 hp_id=hp_id,
                 symbol=Symbol(name=symbol, precision=5, price_precision=2),
-                buy_price=buy_price,
-                order_trigger=order_trigger,
-                budget=budget,
+                buy_price=Decimal(str(buy_price)),
+                order_trigger=Decimal(str(order_trigger)),
+                budget=Decimal(str(budget)),
                 coin=coin,
             ),
             state_info=StateInfo(),
@@ -489,10 +491,10 @@ class HPSimulator:
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
             order_id=buy_order.order_id,
-            last_executed_quantity=remaining_qty,
-            last_executed_price=buy_order.price,
-            cumulative_filled_quantity=new_cumulative,
-            price=buy_order.price,
+            last_executed_quantity=float(remaining_qty),
+            last_executed_price=float(buy_order.price),
+            cumulative_filled_quantity=float(new_cumulative),
+            price=float(buy_order.price),
         )
 
         strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
@@ -544,10 +546,10 @@ class HPSimulator:
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
             order_id=sell_order.order_id,
-            last_executed_quantity=remaining_qty,
-            last_executed_price=sell_order.price,
-            cumulative_filled_quantity=new_cumulative,
-            price=sell_order.price,
+            last_executed_quantity=float(remaining_qty),
+            last_executed_price=float(sell_order.price),
+            cumulative_filled_quantity=float(new_cumulative),
+            price=float(sell_order.price),
         )
 
         strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
@@ -579,9 +581,9 @@ class HPSimulator:
             config=HPSellConfig(
                 hp_id=hp_id,
                 coin=coin,
-                buy_price=buy_price,
-                sell_price=sell_price,
-                quantity=quantity,
+                buy_price=Decimal(str(buy_price)),
+                sell_price=Decimal(str(sell_price)),
+                quantity=Decimal(str(quantity)),
                 end_currency=end_currency,
                 symbol=Symbol(name=symbol, precision=5, price_precision=2),
             ),
@@ -629,8 +631,8 @@ class HPSimulator:
             condition_func=lambda: strategy.sell.current_position.sell_order.status
             == ORDER_STATUS_NEW
         )
-        assert strategy.sell.current_position.sell_order.quantity == 0.71429
-        assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
+        assert strategy.sell.current_position.sell_order.quantity == Decimal("0.71429")
+        assert strategy.sell.current_position.sell_order.realized_quantity == Decimal("0.0")
 
         # Wait for sell child to be created in hierarchical structure
         await wait_for_condition(
@@ -678,8 +680,8 @@ class HPSimulator:
             == ORDER_STATUS_CANCELED
         )
 
-        assert strategy.sell.current_position.sell_order.quantity == 0.71429
-        assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
+        assert strategy.sell.current_position.sell_order.quantity == Decimal("0.71429")
+        assert strategy.sell.current_position.sell_order.realized_quantity == Decimal("0.0")
 
         assert strategy.sell.current_position.state_info.state == State.NEW
         assert strategy.state == State.BOUGHT
@@ -805,8 +807,8 @@ class HPSimulator:
             == ORDER_STATUS_CANCELED
         )
 
-        assert strategy.sell.current_position.sell_order.quantity == 0.71429
-        assert strategy.sell.current_position.sell_order.realized_quantity == 0.42
+        assert strategy.sell.current_position.sell_order.quantity == Decimal("0.71429")
+        assert strategy.sell.current_position.sell_order.realized_quantity == Decimal("0.42")
 
         assert strategy.sell.current_position.state_info.state == State.PARTIALLY_SOLD
         assert strategy.state == State.PARTIALLY_SOLD
@@ -856,8 +858,8 @@ class HPSimulator:
             condition_func=lambda: strategy.sell.current_position.sell_order.status
             == ORDER_STATUS_NEW
         )
-        assert strategy.sell.current_position.sell_order.quantity == 0.71429
-        assert strategy.sell.current_position.sell_order.realized_quantity == 0.42
+        assert strategy.sell.current_position.sell_order.quantity == Decimal("0.71429")
+        assert strategy.sell.current_position.sell_order.realized_quantity == Decimal("0.42")
 
         # Wait for sell state to be SELLING after resending order
         await wait_for_condition(
@@ -914,8 +916,8 @@ class HPSimulator:
             condition_func=lambda: strategy.sell.current_position.sell_order.status
             == ORDER_STATUS_NEW
         )
-        assert strategy.sell.current_position.sell_order.quantity == 0.12
-        assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
+        assert strategy.sell.current_position.sell_order.quantity == Decimal("0.12")
+        assert strategy.sell.current_position.sell_order.realized_quantity == Decimal("0.0")
 
         # Wait for sell child to be created
         await wait_for_condition(
@@ -950,9 +952,9 @@ class HPSimulator:
             config=HPSellConfig(
                 hp_id=hp_id,
                 coin=coin,
-                buy_price=buy_price,
-                sell_price=sell_price,
-                quantity=quantity,
+                buy_price=Decimal(str(buy_price)),
+                sell_price=Decimal(str(sell_price)),
+                quantity=Decimal(str(quantity)),
                 end_currency=end_currency,
                 symbol=Symbol(name=symbol, precision=5, price_precision=2),
             ),
@@ -998,7 +1000,7 @@ class HPSimulator:
             == ORDER_STATUS_CANCELED
         )
 
-        assert strategy.buy.buy_order.realized_quantity == 0.12
+        assert strategy.buy.buy_order.realized_quantity == Decimal("0.12")
 
         assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
 
@@ -1036,8 +1038,8 @@ class HPSimulator:
             == ORDER_STATUS_CANCELED
         )
 
-        assert strategy.sell.current_position.sell_order.quantity == 0.12
-        assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
+        assert strategy.sell.current_position.sell_order.quantity == Decimal("0.12")
+        assert strategy.sell.current_position.sell_order.realized_quantity == Decimal("0.0")
 
         assert strategy.sell.current_position.state_info.state == State.NEW
         assert strategy.state == State.PARTIALLY_BOUGHT
@@ -1118,8 +1120,8 @@ class HPSimulator:
             == ORDER_STATUS_CANCELED
         )
 
-        assert strategy.sell.current_position.sell_order.quantity == 0.12
-        assert strategy.sell.current_position.sell_order.realized_quantity == 0.06
+        assert strategy.sell.current_position.sell_order.quantity == Decimal("0.12")
+        assert strategy.sell.current_position.sell_order.realized_quantity == Decimal("0.06")
 
         assert strategy.sell.current_position.state_info.state == State.PARTIALLY_SOLD
         assert strategy.state == State.PART_SOLD_PART_BOUGHT
@@ -1286,9 +1288,9 @@ class HPSimulator:
             config=HPSellConfig(
                 hp_id="",
                 coin=coin,
-                buy_price=0.2928,
-                sell_price=1.14,
-                quantity=quantity,
+                buy_price=Decimal("0.2928"),
+                sell_price=Decimal("1.14"),
+                quantity=Decimal(str(quantity)),
                 end_currency="PLN",
                 symbol=self.back.price_resolver.symbols[f"{coin}USDT"],
             ),
@@ -1342,8 +1344,8 @@ class HPSimulator:
         sell_order = strategy.sell.current_position.sell_order
 
         assert sell_order.quantity == quantity
-        assert sell_order.price == 0.00000356
-        assert sell_order.realized_quantity == 0.0
+        assert sell_order.price == Decimal("0.00000356")
+        assert sell_order.realized_quantity == Decimal("0.0")
         assert sell_order.order_id == 0
 
         assert strategy.state == State.BOUGHT
@@ -1378,9 +1380,9 @@ class HPSimulator:
         assert strategy.sell.current_position.state_info.state == State.NEW
         assert sell_order.order_id == 112800750, f"Order ID: {sell_order.order_id}"
         assert sell_order.status == ORDER_STATUS_NEW
-        assert sell_order.quantity == 1000.0
-        assert sell_order.price == 0.00000356
-        assert sell_order.realized_quantity == 0.0
+        assert sell_order.quantity == Decimal("1000.0")
+        assert sell_order.price == Decimal("0.00000356")
+        assert sell_order.realized_quantity == Decimal("0.0")
 
         # Find active and idle sell children using hierarchical approach
         active_sell_children = [
@@ -1507,9 +1509,9 @@ class HPSimulator:
 
         sell_order = strategy.sell.current_position.sell_order
 
-        assert sell_order.quantity == 0.00356
-        assert sell_order.price == 320000.0
-        assert sell_order.realized_quantity == 0.0
+        assert sell_order.quantity == Decimal("0.00356")
+        assert sell_order.price == Decimal("320000.0")
+        assert sell_order.realized_quantity == Decimal("0.0")
         assert sell_order.order_id == 842844787, f"Order ID: {sell_order.order_id}"
         await wait_for_condition(condition_func=lambda: strategy.state == State.SELLING)
         assert strategy.state == State.SELLING, f"State to: {strategy.state}"
@@ -1976,6 +1978,8 @@ class HPSimulator:
 
         for attr, expected_value in expected_data.items():
             actual_value = getattr(strategy.buy.buy_order, attr)
+            if isinstance(actual_value, Decimal) and isinstance(expected_value, float):
+                expected_value = Decimal(str(expected_value))
             assert (
                 actual_value == expected_value
             ), f"buy_order {attr}: expected {expected_value}, got {actual_value}"
@@ -2003,6 +2007,8 @@ class HPSimulator:
             order = sell_orders[i]
             for attr, expected_value in expected_data.items():
                 actual_value = getattr(order, attr)
+                if isinstance(actual_value, Decimal) and isinstance(expected_value, float):
+                    expected_value = Decimal(str(expected_value))
                 assert (
                     actual_value == expected_value
                 ), f"Sell order {i} {attr}: expected {expected_value}, got {actual_value}"
@@ -2248,8 +2254,8 @@ class HPSimulator:
             memory_symbol = sell_config.symbol.name
             memory_coin = sell_config.coin
             memory_buy_price = sell_config.buy_price
-            memory_budget = 0.0
-            memory_order_trigger = 0.0
+            memory_budget = Decimal("0")
+            memory_order_trigger = Decimal("0")
         else:
             buy_config = strategy.buy.data.config
             memory_hp_id = buy_config.hp_id
@@ -2275,15 +2281,15 @@ class HPSimulator:
         # Compare configuration fields
         if not is_sell_position:
             assert (
-                db_position.budget == memory_budget
+                db_position.budget == pytest.approx(float(memory_budget))
             ), f"Budget mismatch: DB={db_position.budget}, Memory={memory_budget}"
 
             assert (
-                db_position.order_trigger == memory_order_trigger
+                db_position.order_trigger == pytest.approx(float(memory_order_trigger))
             ), f"Order trigger mismatch: DB={db_position.order_trigger}, Memory={memory_order_trigger}"
 
         assert (
-            db_position.buy_price == memory_buy_price
+            db_position.buy_price == pytest.approx(float(memory_buy_price))
         ), f"Buy price mismatch: DB={db_position.buy_price}, Memory={memory_buy_price}"
 
         assert (
@@ -2713,7 +2719,7 @@ class HPSimulator:
             and strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
         )
         assert strategy.buy.buy_order is not None
-        assert strategy.buy.buy_order.realized_quantity == realized_qty
+        assert float(strategy.buy.buy_order.realized_quantity) == pytest.approx(realized_qty)
         assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
         assert strategy.state == State.PARTIALLY_BOUGHT
         if check_ui:
@@ -2747,7 +2753,7 @@ class HPSimulator:
             and strategy.buy.buy_order.status == ORDER_STATUS_NEW
         )
         assert strategy.buy.buy_order is not None
-        assert strategy.buy.buy_order.realized_quantity == realized_qty
+        assert float(strategy.buy.buy_order.realized_quantity) == pytest.approx(realized_qty)
         assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
         assert strategy.state == State.BUYING
         if check_ui:
@@ -2779,7 +2785,7 @@ class HPSimulator:
             == ORDER_STATUS_CANCELED
         )
         assert (
-            strategy.sell.current_position.sell_order.realized_quantity == realized_qty
+            float(strategy.sell.current_position.sell_order.realized_quantity) == pytest.approx(realized_qty)
         )
         # Strategy state is PART_SOLD_PART_BOUGHT, but sell position data state remains PARTIALLY_SOLD
         assert strategy.state == State.PART_SOLD_PART_BOUGHT
@@ -2812,7 +2818,7 @@ class HPSimulator:
             lambda: strategy.sell.current_position.sell_order.status == ORDER_STATUS_NEW
         )
         assert (
-            strategy.sell.current_position.sell_order.realized_quantity == realized_qty
+            float(strategy.sell.current_position.sell_order.realized_quantity) == pytest.approx(realized_qty)
         )
         # Strategy state is SELLING, sell position data state remains PARTIALLY_SOLD
         assert strategy.state == State.SELLING
@@ -2864,7 +2870,7 @@ class HPSimulator:
         )
         assert strategy.buy.buy_order is not None
         if realized_qty is not None:
-            assert strategy.buy.buy_order.realized_quantity == realized_qty
+            assert float(strategy.buy.buy_order.realized_quantity) == pytest.approx(realized_qty)
 
     async def assert_sell_order_state(
         self,
@@ -2887,8 +2893,8 @@ class HPSimulator:
         assert strategy.sell.current_position is not None
         if realized_qty is not None:
             assert (
-                strategy.sell.current_position.sell_order.realized_quantity
-                == realized_qty
+                float(strategy.sell.current_position.sell_order.realized_quantity)
+                == pytest.approx(realized_qty)
             )
 
     async def resend_buy_order_after_cancel(

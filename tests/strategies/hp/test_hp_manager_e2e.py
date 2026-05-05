@@ -1,3 +1,4 @@
+from decimal import Decimal
 import asyncio
 import logging
 import time
@@ -235,7 +236,7 @@ async def test_default_position_order_filled_partially_then_cancel_then_resend(
         lambda: strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
     )
 
-    assert strategy.buy.buy_order.realized_quantity == 0.12
+    assert strategy.buy.buy_order.realized_quantity == Decimal("0.12")
 
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.state == State.PARTIALLY_BOUGHT
@@ -276,7 +277,7 @@ async def test_default_position_order_filled_partially_then_cancel_then_resend(
 
     await wait_for_condition(lambda: strategy.buy.buy_order.status == ORDER_STATUS_NEW)
 
-    assert strategy.buy.buy_order.realized_quantity == 0.12
+    assert strategy.buy.buy_order.realized_quantity == Decimal("0.12")
 
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.state == State.BUYING
@@ -368,8 +369,8 @@ async def test_send_sell_order_for_bought_position(hp_sell_configured):
         condition_func=lambda: strategy.sell.current_position.sell_order.status
         == ORDER_STATUS_NEW
     )
-    assert strategy.sell.current_position.sell_order.quantity == 0.71429
-    assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
+    assert strategy.sell.current_position.sell_order.quantity == Decimal("0.71429")
+    assert strategy.sell.current_position.sell_order.realized_quantity == Decimal("0.0")
 
     # Validate sell child based on the hierarchical approach - try both patterns
     sim.validate_child_sell(
@@ -474,7 +475,7 @@ async def test_fill_order_for_previously_partially_bought_position(
 
     assert strategy.buy.buy_order.status == ORDER_STATUS_NEW
 
-    assert strategy.buy.buy_order.realized_quantity == 0.12
+    assert strategy.buy.buy_order.realized_quantity == Decimal("0.12")
 
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.state == State.BUYING
@@ -506,7 +507,7 @@ async def test_buy_partially_partially_sold_position(hp_partially_bought_selling
     # - Net inventory: 0.06 BTC remaining
 
     assert strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
-    assert strategy.buy.buy_order.realized_quantity == 0.12
+    assert strategy.buy.buy_order.realized_quantity == Decimal("0.12")
     assert strategy.state == State.PART_SOLD_PART_BOUGHT
 
     await wait_for_condition(
@@ -528,7 +529,7 @@ async def test_cancel_buy_to_part_sold_part_bought(hp_partially_bought_part_sold
     # - Net inventory: 0.06 BTC remaining
 
     assert strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
-    assert strategy.buy.buy_order.realized_quantity == 0.12
+    assert strategy.buy.buy_order.realized_quantity == Decimal("0.12")
     assert strategy.state == State.PART_SOLD_PART_BOUGHT
 
     await wait_for_condition(
@@ -550,7 +551,7 @@ async def test_buy_fully_partially_sold_position(hp_partially_bought_part_sold):
     # - Net inventory: 0.06 BTC remaining
 
     assert strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
-    assert strategy.buy.buy_order.realized_quantity == 0.12
+    assert strategy.buy.buy_order.realized_quantity == Decimal("0.12")
     assert strategy.state == State.PART_SOLD_PART_BOUGHT
 
     await wait_for_condition(
@@ -579,7 +580,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     # - State: SOLD_PART_BOUGHT (sold all of a partially bought position)
 
     assert strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
-    assert strategy.buy.buy_order.realized_quantity == 0.12
+    assert strategy.buy.buy_order.realized_quantity == Decimal("0.12")
     assert strategy.state == State.SOLD_PART_BOUGHT
 
     await wait_for_condition(
@@ -754,7 +755,7 @@ async def test_sell_order_send_if_buy_position_realized_partially(hp_idle):
         lambda: strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
     )
 
-    assert strategy.buy.buy_order.realized_quantity == 0.12
+    assert strategy.buy.buy_order.realized_quantity == Decimal("0.12")
 
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.state == State.PARTIALLY_BOUGHT
@@ -1017,7 +1018,7 @@ async def test_multihop_sell_price_recalculation_on_trigger(hp_sim):
 
     # Verify initial calculation is approximately correct
     assert (
-        abs(initial_leg1_price * initial_leg2_price - target_sell_price_usd) < 0.5
+        abs(float(initial_leg1_price * initial_leg2_price) - target_sell_price_usd) < 0.5
     ), f"Initial prices should multiply to ~{target_sell_price_usd}"
 
     # Step 3: CRITICAL - Simulate market movement BEFORE trigger
@@ -1086,13 +1087,13 @@ async def test_multihop_sell_price_recalculation_on_trigger(hp_sim):
     # 2. Recalculated prices should use the NEW BTC price (98000), not old (95000)
     # Leg2 should be close to new BTC price
     assert (
-        abs(recalculated_leg2_price - new_btc_price) < 100
+        abs(float(recalculated_leg2_price) - new_btc_price) < 100
     ), f"Leg2 should use new BTC price {new_btc_price}, but got {recalculated_leg2_price}"
 
     # 3. Product should still be approximately 14.0 USD (using NEW prices)
     recalculated_product = recalculated_leg1_price * recalculated_leg2_price
     assert (
-        abs(recalculated_product - target_sell_price_usd) < 0.5
+        abs(float(recalculated_product) - target_sell_price_usd) < 0.5
     ), f"Recalculated prices should multiply to ~{target_sell_price_usd}, but got {recalculated_product}"
 
     # 4. Verify order was actually sent with NEW prices

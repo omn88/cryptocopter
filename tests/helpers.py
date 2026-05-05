@@ -21,7 +21,7 @@ def get_new_order(order: Optional[Order], used_ids: Optional[set] = None):
     if order.status != ORDER_STATUS_FILLED:
         quantity = order.quantity - order.realized_quantity
         # Start with a hash-based candidate, but increment until unused
-        base_id = int(abs(hash((order.price * quantity)))) % 1_000_000_000
+        base_id = int(abs(hash((float(order.price) * float(quantity))))) % 1_000_000_000
         candidate_id = base_id
         while candidate_id in used_ids:
             candidate_id += 1
