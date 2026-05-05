@@ -989,9 +989,9 @@ class PortfolioUI(BoxLayout):
             try:
                 symbol_key = f"{coin_symbol}USDT"
                 if symbol_key in self.price_resolver.symbols:
-                    return float(self.price_resolver.symbols[symbol_key].adjust_price(
-                        avg_price
-                    ))
+                    return float(
+                        self.price_resolver.symbols[symbol_key].adjust_price(avg_price)
+                    )
             except (KeyError, AttributeError):
                 # Fallback to original precision if symbol info not available
                 pass

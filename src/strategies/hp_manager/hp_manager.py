@@ -30,7 +30,6 @@ from src.domain.events import (
     HPBuyPositionFilled,
     HPBuyPositionPartiallyFilled,
     HPPositionCancelled,
-    HPSellPositionCompleted,
     HPSellPositionPartiallyFilled,
 )
 from src.domain.orders import AccountPosition, Event, ExecutionReport, TickerUpdate
@@ -442,9 +441,13 @@ class HpStrategy:
         net_percent = None
         if current_price and buy_price and quantity:
             # Calculate net profit/loss in USD
-            net = symbol.adjust_price((Decimal(str(current_price)) - buy_price) * quantity)
+            net = symbol.adjust_price(
+                (Decimal(str(current_price)) - buy_price) * quantity
+            )
             # Calculate percentage change
-            net_percent = round(((Decimal(str(current_price)) / buy_price) - 1) * Decimal("100"), 2)
+            net_percent = round(
+                ((Decimal(str(current_price)) / buy_price) - 1) * Decimal("100"), 2
+            )
 
         hp_id = (
             self.sell.current_position.config.hp_id
@@ -500,7 +503,9 @@ class HpStrategy:
             expected_qty = self.buy.data.config.budget / self.buy.data.config.buy_price
 
         # Get buy order quantity
-        orders_total_qty = self.buy.buy_order.quantity if self.buy.buy_order else Decimal(0)
+        orders_total_qty = (
+            self.buy.buy_order.quantity if self.buy.buy_order else Decimal(0)
+        )
 
         hp_update = HPUpdate(
             hp_id=hp_id,
@@ -508,17 +513,27 @@ class HpStrategy:
             symbol=symbol,
             quantity=float(quantity),
             quantity_usd=float(quantity_usd),
-            realized_quantity=float(sell_realized_quantity) if sell_realized_quantity is not None else None,  # Add sell order realized quantity
+            realized_quantity=(
+                float(sell_realized_quantity)
+                if sell_realized_quantity is not None
+                else None
+            ),  # Add sell order realized quantity
             total_quantity=float(total_quantity),  # Add total bought quantity
-            expected_quantity=float(expected_qty),  # Add total expected quantity based on budget
-            orders_total_quantity=float(orders_total_qty),  # Add sum of all buy order quantities
+            expected_quantity=float(
+                expected_qty
+            ),  # Add total expected quantity based on budget
+            orders_total_quantity=float(
+                orders_total_qty
+            ),  # Add sum of all buy order quantities
             buy_price=float(buy_price),
             sell_price=float(self.sell.current_position.config.sell_price),
             current_price=current_price,
             net=float(net) if net is not None else None,
             net_percent=float(net_percent) if net_percent is not None else None,
             state=self.state,
-            expected_return=float(expected_return) if expected_return is not None else None,
+            expected_return=(
+                float(expected_return) if expected_return is not None else None
+            ),
             is_child=self.sell.current_position.config.is_child,
             side="BUY",  # Set side to BUY for buy positions
         )
@@ -584,7 +599,9 @@ class HpStrategy:
         self.ui_queue.put_nowait(sell_data)
 
     def calculate_trigger_send_order_price_buy(self) -> float:
-        assert self.buy.buy_order is not None, "buy_order must be set before calculating trigger price"
+        assert (
+            self.buy.buy_order is not None
+        ), "buy_order must be set before calculating trigger price"
         price = self.buy.data.config.symbol.adjust_price(
             self.buy.buy_order.price * (1 + self.buy.data.config.order_trigger / 100)
         )
@@ -813,7 +830,9 @@ class HpStrategy:
             return 0.0  # or raise an error depending on your logic
 
         adjusted = (
-            self.sell.original_position.config.symbol.adjust_price(Decimal("0.96") * sell_price)
+            self.sell.original_position.config.symbol.adjust_price(
+                Decimal("0.96") * sell_price
+            )
             if self.sell.current_position.sell_type == SellType.DIRECT
             else self.sell.original_position.config.symbol.adjust_price(sell_price)
         )
@@ -996,7 +1015,7 @@ class HpStrategy:
             self.portfolio_event_helper.send_sell_completion_event(
                 hp_id=self.sell.current_position.config.hp_id,
                 coin=self.sell.current_position.config.coin,
-                quantity_sold=float(quantity),
+                quantity_sold=Decimal(quantity),
                 buy_price=self.sell.current_position.config.buy_price,
                 sell_price=self.sell.current_position.config.sell_price,
                 end_currency=to_asset,
@@ -1047,7 +1066,9 @@ class HpStrategy:
             total_quantity_bought = self.buy.buy_order.realized_quantity
             total_cost = self.buy.buy_order.realized_quantity * self.buy.buy_order.price
             average_buy_price = (
-                total_cost / total_quantity_bought if total_quantity_bought > 0 else 0
+                total_cost / total_quantity_bought
+                if total_quantity_bought > 0
+                else Decimal("0")
             )
         else:
             total_quantity_bought = Decimal("0")
@@ -1296,14 +1317,6 @@ class HpStrategy:
         self.sell.current_position.state_info.get_completeness(
             self.sell.current_position.sell_order
         )
-        hp_sell_completed = HPSellPositionCompleted(
-            hp_id=self.sell.current_position.config.hp_id,
-            coin=self.sell.current_position.config.coin,
-            quantity_sold=float(self.sell.current_position.sell_order.realized_quantity),
-            buy_price=float(self.sell.current_position.config.buy_price),  # Add missing buy price
-            sell_price=float(self.sell.current_position.config.sell_price),  # Add missing sell price
-            end_currency=self.sell.current_position.config.end_currency,  # Use actual end_currency from config
-        )
         await self.db.upsert_sell_price_level(
             data=self.sell.current_position, strategy_state=self.state
         )
@@ -1322,12 +1335,12 @@ class HpStrategy:
             else:
                 # For direct sell (single position), send completion event instead of HPClose
                 self.portfolio_event_helper.send_sell_completion_event(
-                    hp_id=hp_sell_completed.hp_id,
-                    coin=hp_sell_completed.coin,
-                    quantity_sold=hp_sell_completed.quantity_sold,
-                    buy_price=hp_sell_completed.buy_price,
-                    sell_price=hp_sell_completed.sell_price,
-                    end_currency=hp_sell_completed.end_currency,
+                    hp_id=self.sell.current_position.config.hp_id,
+                    coin=self.sell.current_position.config.coin,
+                    quantity_sold=self.sell.current_position.sell_order.realized_quantity,
+                    buy_price=self.sell.current_position.config.buy_price,
+                    sell_price=self.sell.current_position.config.sell_price,
+                    end_currency=self.sell.current_position.config.end_currency,
                 )
 
             # Also send HPClose to complete the position lifecycle
@@ -1365,34 +1378,26 @@ class HpStrategy:
             # For successful multihop completion, send HPSellPositionCompleted but NOT HPClose
             # HPClose would trigger cancellation logic instead of completion
             self.portfolio_event_helper.send_sell_completion_event(
-                hp_id=hp_sell_completed.hp_id,
-                coin=hp_sell_completed.coin,
-                quantity_sold=hp_sell_completed.quantity_sold,
-                buy_price=hp_sell_completed.buy_price,
-                sell_price=hp_sell_completed.sell_price,
-                end_currency=hp_sell_completed.end_currency,
+                hp_id=self.sell.sell_positions[1].config.hp_id,
+                coin=self.sell.sell_positions[1].config.coin,
+                quantity_sold=self.sell.sell_positions[1].sell_order.realized_quantity,
+                buy_price=self.sell.sell_positions[1].config.buy_price,
+                sell_price=self.sell.sell_positions[1].config.sell_price,
+                end_currency=self.sell.sell_positions[1].config.end_currency,
             )
 
             # Also send completion event for parent position (original multihop position)
-            parent_hp_sell_completed = HPSellPositionCompleted(
+            self.portfolio_event_helper.send_sell_completion_event(
                 hp_id=self.sell.original_position.config.hp_id,
                 coin=self.sell.original_position.config.coin,
-                quantity_sold=float(self.sell.original_position.config.quantity),
-                buy_price=float(self.sell.original_position.config.buy_price),
-                sell_price=float(self.sell.original_position.config.sell_price),
+                quantity_sold=self.sell.original_position.config.quantity,
+                buy_price=self.sell.original_position.config.buy_price,
+                sell_price=self.sell.original_position.config.sell_price,
                 end_currency=self.sell.original_position.config.end_currency,
-            )
-            self.portfolio_event_helper.send_sell_completion_event(
-                hp_id=parent_hp_sell_completed.hp_id,
-                coin=parent_hp_sell_completed.coin,
-                quantity_sold=parent_hp_sell_completed.quantity_sold,
-                buy_price=parent_hp_sell_completed.buy_price,
-                sell_price=parent_hp_sell_completed.sell_price,
-                end_currency=parent_hp_sell_completed.end_currency,
             )
             logger.info(
                 "Sent HP sell position completed for PARENT multihop position: %s",
-                parent_hp_sell_completed.hp_id,
+                self.sell.original_position.config.hp_id,
             )
 
         if (
@@ -1555,26 +1560,17 @@ class HpStrategy:
 
         self.sell.current_position.state_info.state = State.SOLD
 
-        hp_sell_completed = HPSellPositionCompleted(
+        self.portfolio_event_helper.send_sell_completion_event(
             hp_id=self.sell.current_position.config.hp_id,
             coin=self.sell.current_position.config.coin,
-            quantity_sold=float(self.sell.current_position.sell_order.realized_quantity),
-            buy_price=float(self.sell.current_position.config.buy_price),  # Add missing buy price
-            sell_price=float(self.sell.current_position.config.sell_price),  # Add missing sell price
-            # Use actual end_currency from config
+            quantity_sold=self.sell.current_position.sell_order.realized_quantity,
+            buy_price=self.sell.current_position.config.buy_price,
+            sell_price=self.sell.current_position.config.sell_price,
             end_currency=self.sell.current_position.config.end_currency,
-        )
-        self.portfolio_event_helper.send_sell_completion_event(
-            hp_id=hp_sell_completed.hp_id,
-            coin=hp_sell_completed.coin,
-            quantity_sold=hp_sell_completed.quantity_sold,
-            buy_price=hp_sell_completed.buy_price,
-            sell_price=hp_sell_completed.sell_price,
-            end_currency=hp_sell_completed.end_currency,
         )
         logger.info(
             "Sent HP sell position completed from SOLD POSITION WHICH IS PART BOUGHT: %s",
-            hp_sell_completed.hp_id,
+            self.sell.current_position.config.hp_id,
         )
 
         self.sell.current_position.state_info.get_completeness(

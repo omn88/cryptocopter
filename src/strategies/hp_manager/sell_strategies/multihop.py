@@ -98,7 +98,8 @@ class MultihopSellStrategy(BaseSellStrategy):
                 quantity=leg1_quantity,
                 sell_price=leg1_price,
                 coin=self.original_position.config.coin,
-                buy_price=self.original_position.config.buy_price / Decimal(str(leg2_price)),
+                buy_price=self.original_position.config.buy_price
+                / Decimal(str(leg2_price)),
                 end_currency=self.original_position.config.end_currency,
             ),
             state_info=StateInfo(side=PositionSide.SHORT),

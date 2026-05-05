@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from decimal import Decimal
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List
 
 from src.domain.orders import Order
 from src.domain.positions import SellPosition
@@ -83,7 +83,9 @@ class BaseSellStrategy(ABC):
         """
         pass
 
-    def _generate_order(self, symbol: Symbol, price: Union[Decimal, float], quantity: Union[Decimal, float]) -> Order:
+    def _generate_order(
+        self, symbol: Symbol, price: Decimal, quantity: Decimal
+    ) -> Order:
         """Helper to generate an Order with proper precision.
 
         Args:

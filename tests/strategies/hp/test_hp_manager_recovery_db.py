@@ -309,14 +309,15 @@ async def test_recovery_buy_partially_partially_sold_position(
     await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
 
     assert strategy.buy.buy_order.status == ORDER_STATUS_NEW
-    assert (
-        strategy.buy.buy_order.realized_quantity == Decimal("0.12")
+    assert strategy.buy.buy_order.realized_quantity == Decimal(
+        "0.12"
     )  # Carries forward from previous order
 
     strategy = await sim.simulate_partial_fill(last=0.14, cumulative=0.26, sold=0.06)
 
     await wait_for_condition(
-        condition_func=lambda: strategy.buy.buy_order.realized_quantity == Decimal("0.26")
+        condition_func=lambda: strategy.buy.buy_order.realized_quantity
+        == Decimal("0.26")
     )
 
     assert strategy.buy.buy_order.status == ORDER_STATUS_PARTIALLY_FILLED
@@ -406,7 +407,8 @@ async def test_recovery_cancel_buy_to_part_sold_part_bought(
         condition_func=lambda: strategy.buy.buy_order.status == ORDER_STATUS_CANCELED
     )
     await wait_for_condition(
-        condition_func=lambda: strategy.buy.buy_order.realized_quantity == Decimal("0.26")
+        condition_func=lambda: strategy.buy.buy_order.realized_quantity
+        == Decimal("0.26")
     )
 
     # Give database extra time to complete the CANCELED status update before crash

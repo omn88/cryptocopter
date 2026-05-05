@@ -752,10 +752,10 @@ class Database:
                 ),
                 symbol=data.config.symbol.name,
                 coin=data.config.coin,
-                budget=data.config.budget,
-                buy_price=data.config.buy_price,
-                order_trigger=data.config.order_trigger,
-                completeness=data.state_info.completeness,
+                budget=float(data.config.budget),
+                buy_price=float(data.config.buy_price),
+                order_trigger=float(data.config.order_trigger),
+                completeness=float(data.state_info.completeness),
                 trade_type=TradeType.DIRECT,
                 created_at=(
                     datetime.strptime(data.state_info.open_time, "%Y-%m-%d %H:%M:%S")
@@ -802,9 +802,9 @@ class Database:
                 ),
                 symbol=config.symbol.name,
                 coin=config.coin,
-                quantity=config.quantity,
-                buy_price=config.buy_price,
-                sell_price=config.sell_price,
+                quantity=float(config.quantity),
+                buy_price=float(config.buy_price),
+                sell_price=float(config.sell_price),
                 end_currency=config.end_currency,
                 parent_position_id=config.parent_hp_id,  # Map parent_hp_id to parent_position_id
                 trade_type=(
@@ -816,7 +816,7 @@ class Database:
                         else TradeType.CONVERT
                     )
                 ),
-                completeness=state_info.completeness,
+                completeness=float(state_info.completeness),
                 created_at=(
                     datetime.strptime(state_info.open_time, "%Y-%m-%d %H:%M:%S")
                     if state_info.open_time

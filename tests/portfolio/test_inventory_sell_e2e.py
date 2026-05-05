@@ -165,8 +165,8 @@ async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
 
     # Verify strategy configuration
     assert strategy.sell.current_position.config.coin == "AXL"
-    assert (
-        strategy.sell.current_position.config.sell_price == Decimal("0.00000469")
+    assert strategy.sell.current_position.config.sell_price == Decimal(
+        "0.00000469"
     )  # First hop price
     assert (
         strategy.sell.current_position.config.end_currency == "PLN"
@@ -648,7 +648,9 @@ async def test_inventory_sell_execute_partial_fill_exchange_driven_locking(
     assert (
         abs(lot2.quantity - 0.2) < 1e-8
     ), f"btc_lot2 should be reduced to 0.2, got {lot2.quantity}"
-    assert abs(lot3.quantity - 0.3) < 1e-8, f"btc_lot3 should remain 0.3, got {lot3.quantity}"
+    assert (
+        abs(lot3.quantity - 0.3) < 1e-8
+    ), f"btc_lot3 should remain 0.3, got {lot3.quantity}"
 
     # Note: In test environment, locking may not complete immediately due to timing
     # The important validation is that inventory quantities are correct (FIFO logic worked)

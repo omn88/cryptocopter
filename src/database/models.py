@@ -7,9 +7,8 @@ focusing on recovery and multihop trade support.
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from decimal import Decimal
 from enum import Enum
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any
 import uuid
 
 from src.domain.inventory import (
@@ -77,11 +76,11 @@ class Position:
 
     # Pricing and quantities
     target_price: float = 0.0
-    buy_price: Union[Decimal, float] = 0.0
-    sell_price: Union[Decimal, float] = 0.0
-    quantity: Union[Decimal, float] = 0.0
+    buy_price: float = 0.0
+    sell_price: float = 0.0
+    quantity: float = 0.0
     realized_quantity: float = 0.0
-    budget: Union[Decimal, float] = 0.0
+    budget: float = 0.0
 
     # Multihop support
     parent_position_id: Optional[str] = None
@@ -90,11 +89,11 @@ class Position:
     hop_sequence: int = 0  # 0=original, 1=first hop, 2=second hop
 
     # Configuration
-    order_trigger: Union[Decimal, float] = 0.0
+    order_trigger: float = 0.0
     end_currency: str = "USDC"
 
     # State tracking
-    completeness: Union[Decimal, float] = 0.0
+    completeness: float = 0.0
     next_monitor_time: Optional[datetime] = None
 
     # Metadata

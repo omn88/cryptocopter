@@ -152,9 +152,7 @@ class HPPositionBuy:
             self.buy_order.quantity_stable -= Decimal(
                 str(execution_report.last_executed_price)
             ) * Decimal(str(execution_report.last_executed_quantity))
-            self.buy_order.price = Decimal(
-                str(execution_report.last_executed_price)
-            )
+            self.buy_order.price = Decimal(str(execution_report.last_executed_price))
 
             await self.db.upsert_order(
                 order=self.buy_order,
@@ -171,9 +169,7 @@ class HPPositionBuy:
             raise RuntimeError("Buy order not prepared")
         if execution_report.order_id == self.buy_order.order_id:
             self.buy_order.status = execution_report.current_order_status
-            self.buy_order.price = Decimal(
-                str(execution_report.last_executed_price)
-            )
+            self.buy_order.price = Decimal(str(execution_report.last_executed_price))
             self.buy_order.realized_quantity = Decimal(
                 str(execution_report.cumulative_filled_quantity)
             )
@@ -223,9 +219,11 @@ class HPPositionBuy:
             raise RuntimeError("Buy order not prepared")
         if self.buy_order.status == ORDER_STATUS_FILLED:
             return 0.0
-        return float(self.data.config.symbol.adjust_price(
-            self.buy_order.price * (1 + (2 * self.data.config.order_trigger / 100))
-        ))
+        return float(
+            self.data.config.symbol.adjust_price(
+                self.buy_order.price * (1 + (2 * self.data.config.order_trigger / 100))
+            )
+        )
 
     def calculate_avg_buy_price(self) -> Decimal:
         """

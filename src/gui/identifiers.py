@@ -39,10 +39,19 @@ class HPUpdate:
     def __post_init__(self) -> None:
         """Convert any Decimal fields to float (GUI layer boundary)."""
         _float_fields = (
-            "buy_price", "quantity", "quantity_usd", "realized_quantity",
-            "total_quantity", "expected_quantity", "orders_total_quantity",
-            "sell_price", "expected_return", "current_price",
-            "net", "net_percent", "sell_completeness",
+            "buy_price",
+            "quantity",
+            "quantity_usd",
+            "realized_quantity",
+            "total_quantity",
+            "expected_quantity",
+            "orders_total_quantity",
+            "sell_price",
+            "expected_return",
+            "current_price",
+            "net",
+            "net_percent",
+            "sell_completeness",
         )
         for attr in _float_fields:
             v = getattr(self, attr)

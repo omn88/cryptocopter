@@ -57,9 +57,9 @@ class PositionManager:
                 status=self._convert_state_to_status(buy_data.state_info.state),
                 symbol=buy_data.config.symbol.name,
                 coin=buy_data.config.coin,
-                budget=buy_data.config.budget,
-                order_trigger=buy_data.config.order_trigger,
-                completeness=buy_data.state_info.completeness,
+                budget=float(buy_data.config.budget),
+                order_trigger=float(buy_data.config.order_trigger),
+                completeness=float(buy_data.state_info.completeness),
                 trade_type=TradeType.DIRECT,
                 created_at=(
                     datetime.strptime(
@@ -99,13 +99,13 @@ class PositionManager:
                 status=self._convert_state_to_status(sell_data.state_info.state),
                 symbol=sell_data.config.symbol.name,
                 coin=sell_data.config.coin,
-                quantity=sell_data.config.quantity,
-                buy_price=sell_data.config.buy_price,
-                sell_price=sell_data.config.sell_price,
+                quantity=float(sell_data.config.quantity),
+                buy_price=float(sell_data.config.buy_price),
+                sell_price=float(sell_data.config.sell_price),
                 end_currency=sell_data.config.end_currency,
                 parent_position_id=parent_hp_id,
                 trade_type=TradeType.DIRECT,  # Will be updated for multihop
-                completeness=sell_data.state_info.completeness,
+                completeness=float(sell_data.state_info.completeness),
                 created_at=(
                     datetime.strptime(
                         sell_data.state_info.open_time, "%Y-%m-%d %H:%M:%S"
@@ -166,16 +166,16 @@ class PositionManager:
                     status=self._convert_state_to_status(sell_pos.state_info.state),
                     symbol=sell_pos.config.symbol.name,
                     coin=sell_pos.config.coin,
-                    quantity=sell_pos.config.quantity,
-                    buy_price=sell_pos.config.buy_price,
-                    sell_price=sell_pos.config.sell_price,
+                    quantity=float(sell_pos.config.quantity),
+                    buy_price=float(sell_pos.config.buy_price),
+                    sell_price=float(sell_pos.config.sell_price),
                     end_currency=sell_pos.config.end_currency,
                     parent_position_id=(
                         parent_hp_id if i == 0 else sell_positions[i - 1].config.hp_id
                     ),
                     trade_type=trade_type,
                     hop_sequence=i + 1,  # Start from 1 (parent is 0)
-                    completeness=sell_pos.state_info.completeness,
+                    completeness=float(sell_pos.state_info.completeness),
                 )
 
                 position_id = await self.database.save_position(position)
@@ -216,9 +216,9 @@ class PositionManager:
                     strategy_state=State.BOUGHT.value,  # For pure sell parent, set as BOUGHT for DB consistency
                     symbol=f"{first_pos.config.coin}{last_pos.config.end_currency}",
                     coin=first_pos.config.coin,
-                    quantity=first_pos.config.quantity,
-                    buy_price=first_pos.config.buy_price,
-                    sell_price=last_pos.config.sell_price,
+                    quantity=float(first_pos.config.quantity),
+                    buy_price=float(first_pos.config.buy_price),
+                    sell_price=float(last_pos.config.sell_price),
                     end_currency=last_pos.config.end_currency,
                     trade_type=(
                         TradeType.TWOHOP
@@ -317,7 +317,9 @@ class PositionManager:
 
             # Calculate completeness
             if position.quantity > 0:
-                position.completeness = position.realized_quantity / float(position.quantity)
+                position.completeness = position.realized_quantity / float(
+                    position.quantity
+                )
 
             # Update status based on execution
             if execution_report.current_order_status == "FILLED":

@@ -66,7 +66,9 @@ class Symbol:
             price = Decimal(str(price))
         return round(price, self.price_precision)
 
-    def validate_order(self, price: Union[Decimal, float], quantity: Union[Decimal, float]) -> None:
+    def validate_order(
+        self, price: Union[Decimal, float], quantity: Union[Decimal, float]
+    ) -> None:
         notional = float(price) * float(quantity)
         if notional < self.min_notional:
             price_str = f"{price:.{self.price_precision}f}"

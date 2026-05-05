@@ -2,7 +2,7 @@ import asyncio
 import logging
 import queue
 from decimal import Decimal
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 from binance.enums import (
     ORDER_STATUS_CANCELED,
     ORDER_STATUS_FILLED,
@@ -264,7 +264,9 @@ class StrategyExecutor:
                     buy_price=float(config.buy_price),
                     quantity=float(total_quant) if total_quant else None,
                     expected_quantity=float(expected_qty),
-                    orders_total_quantity=float(orders_total_quantity) if orders_total_quantity else None,
+                    orders_total_quantity=(
+                        float(orders_total_quantity) if orders_total_quantity else None
+                    ),
                     side="BUY",  # Set side to BUY for buy positions
                 ),
             )
@@ -312,7 +314,9 @@ class StrategyExecutor:
                     state=state,
                     quantity=float(config.quantity),
                     quantity_usd=float(quantity_usd),
-                    expected_return=float(expected_return) if expected_return is not None else None,
+                    expected_return=(
+                        float(expected_return) if expected_return is not None else None
+                    ),
                     side="SELL",  # Set side to SELL for sell positions
                 ),
             )
@@ -839,7 +843,7 @@ class StrategyExecutor:
         )
 
     def _calculate_sell_cancellation_state(
-        self, strategy: HpStrategy, sell_realized_qty: Union[Decimal, float], sell_order_qty: Union[Decimal, float]
+        self, strategy: HpStrategy, sell_realized_qty: Decimal, sell_order_qty: Decimal
     ) -> State:
         """Calculate strategy state after sell cancellation."""
         fully_bought = (

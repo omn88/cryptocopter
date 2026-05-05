@@ -1018,7 +1018,8 @@ async def test_multihop_sell_price_recalculation_on_trigger(hp_sim):
 
     # Verify initial calculation is approximately correct
     assert (
-        abs(float(initial_leg1_price * initial_leg2_price) - target_sell_price_usd) < 0.5
+        abs(float(initial_leg1_price * initial_leg2_price) - target_sell_price_usd)
+        < 0.5
     ), f"Initial prices should multiply to ~{target_sell_price_usd}"
 
     # Step 3: CRITICAL - Simulate market movement BEFORE trigger

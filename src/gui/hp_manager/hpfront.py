@@ -272,7 +272,9 @@ Side: {side}"""
                 symbol=self.price_resolver.symbols[config.symbol],
                 buy_price=Decimal(str(config.buy_price or 0.0)),
                 budget=Decimal(str(config.budget or 1000.0)),
-                order_trigger=Decimal(str(config.order_trigger if config.order_trigger else 1.0)),
+                order_trigger=Decimal(
+                    str(config.order_trigger if config.order_trigger else 1.0)
+                ),
             ),
             state_info=StateInfo(),
         )
