@@ -1,0 +1,82 @@
+[project]
+name = "cryptocopter"
+version = "0.1.0"
+description = "Async Binance spot trading bot with HP Manager and Buy Dip strategies"
+requires-python = ">=3.12"
+dependencies = [
+    "python-binance==1.0.36",
+    "bta-lib==1.0.0",
+    "pandas==2.2.3",
+    "numpy==2.2.6",
+    "transitions==0.9.2",
+    "kivy==2.3.1",
+    "aiosqlite==0.20.0",
+    "sqlalchemy==2.0.41",
+    "cryptography==45.0.3",
+    "psutil==7.0.0",
+    "python-decouple==3.8.0",
+    "websockets==13.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black==25.1.0",
+    "mypy==1.15.0",
+    "pylint==3.3.3",
+    "pre-commit==4.2.0",
+    "pyyaml==6.0.1",
+    "matplotlib==3.10.3",
+    "matplotlib-inline==0.1.7",
+    "pytest==8.3.5",
+    "pytest-asyncio==1.0.0",
+    "pytest-mock==3.14.1",
+    "pytest-cov==4.1.0",
+    "coverage==7.6.10",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+log_cli = true
+log_format = "%(asctime)s  %(name)s  %(levelname)s %(message)s"
+log_date_format = "%Y-%m-%d %H:%M:%S"
+log_cli_level = "INFO"
+addopts = ""
+filterwarnings = [
+    "ignore::FutureWarning",
+    "ignore:.*WebSocketClientProtocol.*:DeprecationWarning",
+    "ignore:.*websockets\\.legacy.*:DeprecationWarning",
+]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "db: tests that use crash-recovery and heavy DB fixtures (slow, run separately)",
+]
+
+# ---------------------------------------------------------------------------
+# mypy
+# ---------------------------------------------------------------------------
+[tool.mypy]
+ignore_missing_imports = true
+# TODO: enable disallow_untyped_defs incrementally once all public functions
+#       in src/ have type annotations (GUI / Kivy callbacks are the main blocker).
+warn_return_any = true
+warn_unused_ignores = true
+strict_optional = true
+
+[[tool.mypy.overrides]]
+module = [
+    "src.backtest.*",
+    "src.features.*",
+    "src.strategies.buy_dip.backtester.*",
+]
+ignore_errors = true
