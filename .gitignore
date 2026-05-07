@@ -21,3 +21,4 @@ ASSESSMENT.md
 .coverage
 htmlcov/
 *.xml
+*.egg-info/
