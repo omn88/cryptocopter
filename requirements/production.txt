@@ -1,4 +1,4 @@
 # Production dependencies are declared in pyproject.toml [project.dependencies].
 # Install with: pip install .
--e ..
+-e .
 
