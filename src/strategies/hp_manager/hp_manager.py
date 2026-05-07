@@ -683,7 +683,9 @@ class HpStrategy:
 
         self.send_buy_position_to_ui()
 
-    def conditions_for_cancelling_unfilled_buy_orders(self, *args: Any, **kwargs: Any) -> bool:
+    def conditions_for_cancelling_unfilled_buy_orders(
+        self, *args: Any, **kwargs: Any
+    ) -> bool:
         condition = (
             self.buy.data.state_info.state == State.NEW
             and self.sell.current_position.state_info.state == State.NEW
@@ -1161,7 +1163,9 @@ class HpStrategy:
         #     )
         return condition
 
-    def conditions_for_cancelling_unfilled_sell_orders(self, *args: Any, **kwargs: Any) -> bool:
+    def conditions_for_cancelling_unfilled_sell_orders(
+        self, *args: Any, **kwargs: Any
+    ) -> bool:
         sell_cancel_order_price: float = (
             self.calculate_trigger_cancel_orders_price_sell()
         )
@@ -1184,7 +1188,9 @@ class HpStrategy:
 
         return condition
 
-    def conditions_for_resending_partially_sold_orders(self, *args: Any, **kwargs: Any) -> bool:
+    def conditions_for_resending_partially_sold_orders(
+        self, *args: Any, **kwargs: Any
+    ) -> bool:
         trigger_send_orders_price = self.calculate_trigger_send_orders_price_sell()
         condition = (
             self.sell.current_position.state_info.state == State.PARTIALLY_SOLD
@@ -1248,7 +1254,9 @@ class HpStrategy:
 
         self.send_sell_position_to_ui()
 
-    def conditions_for_cancelling_partially_sold_orders(self, *args: Any, **kwargs: Any) -> bool:
+    def conditions_for_cancelling_partially_sold_orders(
+        self, *args: Any, **kwargs: Any
+    ) -> bool:
         condition = (
             self.ticker_update.last_price
             <= self.calculate_trigger_cancel_orders_price_sell()
@@ -1441,7 +1449,9 @@ class HpStrategy:
 
         return condition
 
-    async def cancel_sell_part_sold_part_bought(self, *args: Any, **kwargs: Any) -> None:
+    async def cancel_sell_part_sold_part_bought(
+        self, *args: Any, **kwargs: Any
+    ) -> None:
         logger.info("Cancelling %s", self.sell.current_position.state_info.side.value)
         await self.sell.cancel_position()
         self.state = State.PARTIALLY_SOLD
@@ -1550,7 +1560,9 @@ class HpStrategy:
             )
         return condition
 
-    async def close_sold_position_which_is_part_bought(self, *args: Any, **kwargs: Any) -> None:
+    async def close_sold_position_which_is_part_bought(
+        self, *args: Any, **kwargs: Any
+    ) -> None:
         logger.info("Close sold position which is partially bought")
 
         self.sell.current_position.state_info.state = State.SOLD
@@ -1679,7 +1691,9 @@ class HpStrategy:
                 Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
             )
 
-    def conditions_for_order_partially_filled_buy(self, *args: Any, **kwargs: Any) -> bool:
+    def conditions_for_order_partially_filled_buy(
+        self, *args: Any, **kwargs: Any
+    ) -> bool:
         condition = (
             self.execution_report.order_type == ORDER_TYPE_LIMIT
             and self.execution_report.current_order_status
@@ -1696,7 +1710,9 @@ class HpStrategy:
             )
         return bool(condition)
 
-    async def handle_order_partially_filled_buy(self, *args: Any, **kwargs: Any) -> None:
+    async def handle_order_partially_filled_buy(
+        self, *args: Any, **kwargs: Any
+    ) -> None:
         """Handle partially filled buy order."""
         self.buy.data.state_info.state = State.PARTIALLY_BOUGHT
 
@@ -1769,7 +1785,9 @@ class HpStrategy:
                 Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
             )
 
-    def conditions_for_order_partially_filled_sell(self, *args: Any, **kwargs: Any) -> bool:
+    def conditions_for_order_partially_filled_sell(
+        self, *args: Any, **kwargs: Any
+    ) -> bool:
         condition = (
             self.execution_report.order_type == ORDER_TYPE_LIMIT
             and self.execution_report.current_order_status
@@ -1786,7 +1804,9 @@ class HpStrategy:
             )
         return condition
 
-    async def handle_order_partially_filled_sell(self, *args: Any, **kwargs: Any) -> None:
+    async def handle_order_partially_filled_sell(
+        self, *args: Any, **kwargs: Any
+    ) -> None:
         """Handle partially filled sell order."""
         self.sell.current_position.state_info.state = State.PARTIALLY_SOLD
 
