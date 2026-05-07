@@ -1,3 +1,0 @@
-# Dev dependencies are declared in pyproject.toml [project.optional-dependencies.dev].
-# Install with: pip install -e ..[dev]
--e .[dev]
