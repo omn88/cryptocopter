@@ -6,7 +6,7 @@ This module contains functions to handle different types of WebSocket messages:
 """
 
 import logging
-from typing import Dict, List
+from typing import Callable, Dict, List, Optional
 
 from src.domain.enums import EventName, SubscriptionTarget, SubscriptionType
 from src.domain.orders import (
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 def handle_user_message(
     msg: Dict,
     subscriptions: Dict[str, List[SubscriptionInfo]],
-    websocket_error_callback=None,
+    websocket_error_callback: Optional[Callable[..., None]] = None,
 ) -> None:
     """Handle user-specific WebSocket messages.
 
@@ -92,8 +92,8 @@ def handle_user_message(
 def handle_ticker_message(
     msg: List[Dict],
     subscriptions: Dict[str, List[SubscriptionInfo]],
-    last_ticker_time_callback=None,
-    websocket_error_callback=None,
+    last_ticker_time_callback: Optional[Callable[..., None]] = None,
+    websocket_error_callback: Optional[Callable[..., None]] = None,
 ) -> None:
     """Handle all market ticker WebSocket messages.
 

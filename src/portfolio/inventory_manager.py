@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, Iterator, List, Optional
 from src.domain.inventory import InventoryItem
 
 
@@ -102,7 +102,7 @@ class InventoryManager:
         """Return the number of inventory items."""
         return len(self.inventory)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[InventoryItem]:
         """Make InventoryManager iterable."""
         return iter(self.inventory)
 

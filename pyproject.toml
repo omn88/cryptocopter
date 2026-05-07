@@ -72,6 +72,7 @@ ignore_missing_imports = true
 warn_return_any = true
 warn_unused_ignores = true
 strict_optional = true
+disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
 module = [
@@ -80,3 +81,12 @@ module = [
     "src.strategies.buy_dip.backtester.*",
 ]
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = [
+    "src.gui.*",
+    "src.portfolio.portfolio_gui",
+    "src.strategies.buy_dip.config_gui",
+    "src.strategies.buy_dip.ui.*",
+]
+disallow_untyped_defs = false

@@ -69,7 +69,7 @@ class WebSocketConfig:
             max_errors_before_resubscribe=5,  # Lower threshold for resubscribe
         )
 
-    def log_config(self):
+    def log_config(self) -> None:
         """Log the current configuration"""
         logger.debug("WebSocket Configuration:")
         logger.debug("  Connection timeout: %ss", self.connection_timeout)

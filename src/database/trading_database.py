@@ -19,6 +19,7 @@ from contextlib import asynccontextmanager
 import aiosqlite
 
 from src.domain.enums import SellType, State
+from src.domain.inventory import InventoryItem
 from src.domain.positions import HPBuy, HPSellConfig, SellPosition, StateInfo
 
 from .models import (
@@ -60,7 +61,12 @@ class Database:
         self._local = threading.local()
         self._ensure_db_exists()
 
-    async def insert_inventory_item(self, item) -> None:
+    async def insert_inventory_item(self, item: InventoryItem) -> None:
+        timestamp_value = (
+            item.timestamp.isoformat()
+            if item.timestamp is not None and hasattr(item.timestamp, "isoformat")
+            else str(item.timestamp)
+        )
         async with self.get_connection() as conn:
             await conn.execute(
                 """
@@ -75,17 +81,18 @@ class Database:
                     item.available_quantity,
                     item.locked_quantity,
                     item.source,
-                    (
-                        item.timestamp.isoformat()
-                        if hasattr(item.timestamp, "isoformat")
-                        else str(item.timestamp)
-                    ),
+                    timestamp_value,
                     item.notes,
                 ),
             )
             await conn.commit()
 
-    async def update_inventory_item(self, item) -> None:
+    async def update_inventory_item(self, item: InventoryItem) -> None:
+        timestamp_value = (
+            item.timestamp.isoformat()
+            if item.timestamp is not None and hasattr(item.timestamp, "isoformat")
+            else str(item.timestamp)
+        )
         async with self.get_connection() as conn:
             await conn.execute(
                 """
@@ -99,11 +106,7 @@ class Database:
                     item.available_quantity,
                     item.locked_quantity,
                     item.source,
-                    (
-                        item.timestamp.isoformat()
-                        if hasattr(item.timestamp, "isoformat")
-                        else str(item.timestamp)
-                    ),
+                    timestamp_value,
                     item.notes,
                     item.id,
                 ),
@@ -118,7 +121,7 @@ class Database:
             )
             await conn.commit()
 
-    async def fetch_all_inventory_items(self):
+    async def fetch_all_inventory_items(self) -> List[Dict[str, Any]]:
         """Fetch all inventory items from database.
 
         Note: available_quantity and locked_quantity are initialized to 0 and will be

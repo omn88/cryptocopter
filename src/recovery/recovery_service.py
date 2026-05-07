@@ -117,11 +117,11 @@ class RecoveryService:
         self,
         buy_data: HPBuy,
         client: BinanceClient,
-        ui_queue,
-        balance,
-        config_queue,
-        price_resolver,
-        portfolio_ui_queue=None,
+        ui_queue: queue.Queue,
+        balance: float,
+        config_queue: queue.Queue,
+        price_resolver: Any,
+        portfolio_ui_queue: Optional[queue.Queue] = None,
     ) -> HpStrategy:
         """
         Restore a buy position from crash recovery with its existing HP ID and state.
@@ -292,11 +292,11 @@ class RecoveryService:
         self,
         sell_data: HPSell,
         client: BinanceClient,
-        ui_queue,
-        balance,
-        config_queue,
-        price_resolver,
-        portfolio_ui_queue=None,
+        ui_queue: queue.Queue,
+        balance: float,
+        config_queue: queue.Queue,
+        price_resolver: Any,
+        portfolio_ui_queue: Optional[queue.Queue] = None,
     ) -> HpStrategy:
         """
         Restore a sell position from crash recovery with its existing HP ID and state.

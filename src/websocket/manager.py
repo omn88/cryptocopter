@@ -211,7 +211,7 @@ class WebSocketManager:
         logger.info("Websocket tasks started successfully")
 
     async def _handle_socket(
-        self, socket, message_handler: Callable, reconnect_attempts: int = 10
+        self, socket: Any, message_handler: Callable, reconnect_attempts: int = 10
     ) -> None:
         """Handle incoming data from WebSocket with reconnection logic.
 
