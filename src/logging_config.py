@@ -67,7 +67,7 @@ logging.getLogger("aiosqlite").setLevel(
 class WebSocketErrorFilter(logging.Filter):
     """Filter to suppress noisy WebSocket keepalive timeout messages"""
 
-    def filter(self, record):
+    def filter(self, record: logging.LogRecord) -> bool:
         message = record.getMessage()
         # Suppress keepalive timeout messages
         if "keepalive ping timeout" in message:

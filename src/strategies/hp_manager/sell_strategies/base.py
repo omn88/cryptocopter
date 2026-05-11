@@ -21,7 +21,7 @@ class BaseSellStrategy(ABC):
         self,
         original_position: SellPosition,
         sell_path: List[Symbol],
-        price_resolver,
+        price_resolver: Any,
     ):
         """Initialize base sell strategy.
 

@@ -250,7 +250,7 @@ class BuyDipExecutor:
 
         logger.info("BuyDipExecutor worker loop stopped")
 
-    async def _process_event(self, event) -> None:
+    async def _process_event(self, event: Any) -> None:
         """
         Process an event from the worker queue.
 

@@ -14,7 +14,7 @@ class UsdPriceResolver:
         self.symbols = symbols
         self.latest_prices: Dict[str, float] = {}
 
-    def update_price(self, symbol: str, price: float):
+    def update_price(self, symbol: str, price: float) -> None:
         self.latest_prices[symbol] = price
 
     async def fetch_all_prices(self) -> None:

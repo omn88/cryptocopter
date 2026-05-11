@@ -7,7 +7,7 @@ handling subscriptions, and coordinating with WebSocket streams.
 import asyncio
 import queue
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from src.common.client import BinanceClient
 from src.domain.enums import SubscriptionTarget, SubscriptionType
@@ -54,7 +54,7 @@ class BrokerSpot:
         return self._ws_manager._connection_health_task if self._ws_manager else None
 
     @property
-    def _ws_config(self):
+    def _ws_config(self) -> Any:
         """WebSocket configuration (delegated to WebSocketManager)."""
         return self._ws_manager._ws_config if self._ws_manager else None
 
@@ -82,10 +82,10 @@ class BrokerSpot:
         # Await all tasks
         await asyncio.gather(*self.tasks, return_exceptions=True)
 
-    def _create_user_message_handler(self):
+    def _create_user_message_handler(self) -> Any:
         """Create user message handler with error callback."""
 
-        def handler(msg):
+        def handler(msg: Any) -> None:
             handle_user_message(
                 msg,
                 self.subscriptions,
@@ -94,10 +94,10 @@ class BrokerSpot:
 
         return handler
 
-    def _create_ticker_message_handler(self):
+    def _create_ticker_message_handler(self) -> Any:
         """Create ticker message handler with callbacks."""
 
-        def handler(msg):
+        def handler(msg: Any) -> None:
             handle_ticker_message(
                 msg,
                 self.subscriptions,
@@ -107,20 +107,20 @@ class BrokerSpot:
 
         return handler
 
-    def _create_kline_message_handler(self):
+    def _create_kline_message_handler(self) -> Any:
         """Create kline message handler."""
 
-        def handler(msg):
+        def handler(msg: Any) -> None:
             handle_kline_message(msg, self.subscriptions)
 
         return handler
 
-    def _handle_websocket_error_callback(self, error_msg):
+    def _handle_websocket_error_callback(self, error_msg: Any) -> None:
         """Callback for handling websocket errors from message handlers."""
         if self._ws_manager:
             self._ws_manager.handle_error_from_message_handler(error_msg)
 
-    def _update_last_ticker_time_callback(self):
+    def _update_last_ticker_time_callback(self) -> None:
         """Callback for updating last ticker time from message handler."""
         if self._ws_manager:
             self._ws_manager.update_last_ticker_time()

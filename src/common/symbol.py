@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Any, Dict
 
 
 class Symbol:
@@ -24,7 +24,7 @@ class Symbol:
         self.price_precision = price_precision
         self.is_convert_only = is_convert_only
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"Symbol(name={self.name}, min_notional={self.min_notional}, "
             f"lot_size={self.lot_size}, min_qty={self.min_qty}, max_qty={self.max_qty}, "
@@ -84,14 +84,14 @@ class Symbol:
         raise ValueError(f"Symbol '{symbol}' does not end with a known quote currency")
 
     @staticmethod
-    def calculate_precision(step_size):
+    def calculate_precision(step_size: object) -> int:
         step_size_str = str(step_size).rstrip("0")
         if "." in step_size_str:
             return len(step_size_str.split(".")[1])
         return 0
 
 
-async def fetch_symbols(client) -> Dict[str, Symbol]:
+async def fetch_symbols(client: Any) -> Dict[str, Symbol]:
     exchange_info = await client.get_exchange_info()
     symbols = {}
     for symbol in exchange_info["symbols"]:
