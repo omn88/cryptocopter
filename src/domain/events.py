@@ -46,7 +46,7 @@ class HPSellPositionCompleted:
     end_currency: str
     end_currency_received: float = field(init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.end_currency_received = self.quantity_sold * self.sell_price
 
 

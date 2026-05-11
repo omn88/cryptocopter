@@ -214,7 +214,7 @@ class HPPositionBuy:
         )
         self.buy_order = order
 
-    def calculate_trigger_cancel_order_price(self):
+    def calculate_trigger_cancel_order_price(self) -> float:
         if self.buy_order is None:
             raise RuntimeError("Buy order not prepared")
         if self.buy_order.status == ORDER_STATUS_FILLED:

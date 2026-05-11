@@ -67,8 +67,7 @@ markers = [
 # ---------------------------------------------------------------------------
 [tool.mypy]
 ignore_missing_imports = true
-# TODO: enable disallow_untyped_defs incrementally once all public functions
-#       in src/ have type annotations (GUI / Kivy callbacks are the main blocker).
+disallow_untyped_defs = true
 warn_return_any = true
 warn_unused_ignores = true
 strict_optional = true
@@ -79,4 +78,27 @@ module = [
     "src.features.*",
     "src.strategies.buy_dip.backtester.*",
 ]
+ignore_errors = true
+
+# GUI / Kivy modules: callbacks are driven by the framework and cannot be
+# annotated without Kivy stubs.  Exempt from disallow_untyped_defs.
+[[tool.mypy.overrides]]
+module = [
+    "src.gui.*",
+    "src.portfolio.portfolio_gui",
+    "src.strategies.buy_dip.config_gui",
+    "src.strategies.buy_dip.ui.*",
+]
+disallow_untyped_defs = false
+
+# Tests and examples: strict annotations are not required here.
+[[tool.mypy.overrides]]
+module = [
+    "tests.*",
+    "examples.*",
+]
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["examples.backtest_buy_dip"]
 ignore_errors = true

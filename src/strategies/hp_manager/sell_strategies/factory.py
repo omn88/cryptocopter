@@ -1,7 +1,7 @@
 """Factory for creating sell strategy instances."""
 
 import logging
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from src.domain.positions import HPSellConfig, SellPosition
 from src.common.symbol import Symbol
@@ -36,7 +36,7 @@ class SellStrategyFactory:
         config: HPSellConfig,
         symbols: Dict[str, Symbol],
         original_position: SellPosition,
-        price_resolver,
+        price_resolver: Any,
     ) -> BaseSellStrategy:
         """Create sell strategy by determining path and instantiating appropriate strategy.
 
@@ -183,7 +183,7 @@ class SellStrategyFactory:
     def create(
         original_position: SellPosition,
         sell_path: List[Symbol],
-        price_resolver,
+        price_resolver: Any,
     ) -> BaseSellStrategy:
         """Create appropriate sell strategy based on sell path.
 

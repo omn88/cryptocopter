@@ -259,7 +259,7 @@ class InventorySellSimulator:
         )
 
         # Process ticker to move from BOUGHT to SELLING
-        await strategy.process_ticker()  # type: ignore
+        await strategy.process_ticker()  # type: ignore[attr-defined]
         logger.info(f"Strategy {hp_id} transitioned to state: {strategy.state}")
 
         # Step 2: Simulate sell order execution
@@ -282,7 +282,7 @@ class InventorySellSimulator:
         logger.info(f"Sent execution report for HP {hp_id}: {exc_report}")
 
         # Step 3: Process the execution report
-        await strategy.process_order()  # type: ignore
+        await strategy.process_order()  # type: ignore[attr-defined]
 
         # Step 4: Wait for order status to be filled
         await wait_for_condition(
@@ -299,7 +299,7 @@ class InventorySellSimulator:
             ):
                 if event.content.signal == Signal.HP_ALL_ORDERS_FILLED:
                     strategy.signal_update = event.content
-                    await strategy.process_signal()  # type: ignore
+                    await strategy.process_signal()  # type: ignore[attr-defined]
                     logger.info(f"Processed HP_ALL_ORDERS_FILLED signal for HP {hp_id}")
 
     async def verify_sell_execution_complete(self, hp_id: str, expected_state: State):
