@@ -235,7 +235,9 @@ class BuyDipStrategy:
 
                         # Use a small wrapper so we can log when the scheduled callback runs
                         def _execute_scheduled_placement(
-                            p_id: str = pos_id, p_price: float = dca_price, p_oid: str = order_id
+                            p_id: str = pos_id,
+                            p_price: float = dca_price,
+                            p_oid: str = order_id,
                         ) -> None:
                             logger.debug(
                                 "Executing scheduled placement for %s (pos=%s price=%s)",
@@ -260,10 +262,7 @@ class BuyDipStrategy:
                                     return
                                 # Respect realtime cooldown if set
                                 _cooldown = getattr(pos, "cooldown_until", None)
-                                if (
-                                    _cooldown is not None
-                                    and time.time() < _cooldown
-                                ):
+                                if _cooldown is not None and time.time() < _cooldown:
                                     logger.debug(
                                         "Scheduled placement delayed: cooldown active until %s for %s",
                                         pos.cooldown_until,
