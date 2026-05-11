@@ -16,17 +16,17 @@ class StateInfo:
     completeness: float = 0.0
     ui_state: UiState = UiState.NEW
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"StateInfo(state={self.state},"
             f"open_time='{self.open_time}', close_time='{self.close_time}', side={self.side}, ui_state={self.ui_state}, "
             f"completeness={self.completeness:.2f})"
         )
 
-    def generate_open_time(self):
+    def generate_open_time(self) -> None:
         self.open_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    def get_completeness(self, order: Order):
+    def get_completeness(self, order: Order) -> None:
         self.completeness = round(
             float(order.realized_quantity) / float(order.quantity), 2
         )
@@ -44,12 +44,12 @@ class HPBuyConfig:
     order_cancel: float = 0
     budget: float = 0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Ensure order_cancel is always set correctly based on order_trigger"""
         if self.order_trigger:
             self.order_cancel = 2 * self.order_trigger
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"HPBuyConfig(hp_id={self.hp_id}, symbol={self.symbol}"
             f"buy_price={self.buy_price}, "
@@ -62,7 +62,7 @@ class HPBuy:
     config: HPBuyConfig
     state_info: StateInfo
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"HPBuy(config={self.config}, state_info={self.state_info})"
 
 
@@ -80,7 +80,7 @@ class HPSellConfig:
     is_child: bool = False
     parent_hp_id: Optional[str] = None
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"HPSellConfig(hp_id={self.hp_id}, coin={self.coin}, "
             f"quantity={self.quantity}, buy_price={self.buy_price}, "
@@ -101,7 +101,7 @@ class HPSell:
     config: HPSellConfig
     state_info: StateInfo
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"HPSell(config={self.config}, state_info={self.state_info})"
 
 
@@ -110,5 +110,5 @@ class RemoveRecord(NamedTuple):
     symbol: str
     side: PositionSide
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"RemoveRecord(hp_id='{self.hp_id}', symbol='{self.symbol}', side='{self.side}')"

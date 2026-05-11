@@ -25,7 +25,7 @@ def generate_hp_id(hp_list: List[str]) -> str:
     return next_id
 
 
-def create_directory_with_timestamp():
+def create_directory_with_timestamp() -> str:
     mydir = os.path.join(
         os.getcwd() + "/artifacts",
         datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
@@ -39,7 +39,7 @@ def create_directory_with_timestamp():
     return mydir
 
 
-def convert_time(timestamp):
+def convert_time(timestamp: int) -> str:
     # Binance timestamp is in milliseconds, convert it to seconds
     timestamp_s = timestamp / 1000
 

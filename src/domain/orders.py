@@ -76,7 +76,7 @@ class ExecutionReport:
     working_time: int = 0
     self_trade_prevention_mode: str = ""
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"ExecutionReport(symbol={self.symbol}, client_order_id={self.client_order_id}, side={self.side}, "
             f"order_type={self.order_type}, time_in_force={self.time_in_force}, quantity={self.quantity}, "
@@ -99,7 +99,7 @@ class Balance:
     free: float = 0.0
     locked: float = 0.0
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Balance(coin={self.coin}, free={self.free}, locked={self.locked})"
 
 
@@ -109,7 +109,7 @@ class AccountPosition:
     last_update_time: int = 0
     balances: List[Balance] = field(default_factory=list)
 
-    def __str__(self):
+    def __str__(self) -> str:
         balances_str = ", ".join(str(balance) for balance in self.balances)
         return (
             f"AccountPosition(event_time={self.event_time}, last_update_time={self.last_update_time}, "
@@ -138,7 +138,7 @@ class TickerUpdate(NamedTuple):
     low_price: float = 0
     volume: float = 0
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"TickerUpdate(symbol={self.symbol}, last_price={self.last_price}, best_bid_price={self.best_bid_price}, "
             f"best_ask_price={self.best_ask_price}, high_price={self.high_price}, "

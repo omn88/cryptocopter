@@ -5,7 +5,7 @@ import logging
 import os
 import queue
 import time
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 import uuid
 from src.database.trading_database import Database
 from src.common.client import BinanceClient
@@ -515,7 +515,7 @@ class PortfolioManager:
             )
         )
 
-    async def update_inventory(self, new_inventory: List[InventoryItem]):
+    async def update_inventory(self, new_inventory: List[InventoryItem]) -> None:
         """Update the inventory, update inventory manager, and notify the UI."""
         self.inventory = new_inventory
         self.inventory_manager.inventory = new_inventory  # Update the manager
@@ -524,7 +524,7 @@ class PortfolioManager:
             Event(name=EventName.PORTFOLIO_INVENTORY, content=self.inventory)
         )
 
-    def add_inventory_item(self, item: InventoryItem):
+    def add_inventory_item(self, item: InventoryItem) -> None:
         """Add a new inventory item and notify the UI."""
         self.inventory.append(item)
         self.inventory_manager.add_item(item)  # Update the manager
@@ -532,7 +532,7 @@ class PortfolioManager:
             Event(name=EventName.PORTFOLIO_INVENTORY, content=self.inventory)
         )
 
-    def remove_inventory_item(self, item_id: str):
+    def remove_inventory_item(self, item_id: str) -> None:
         """Remove an inventory item by id and notify the UI."""
         self.inventory = [i for i in self.inventory if i.id != item_id]
         self.inventory_manager.remove_item(item_id)  # Update the manager
@@ -540,7 +540,7 @@ class PortfolioManager:
             Event(name=EventName.PORTFOLIO_INVENTORY, content=self.inventory)
         )
 
-    async def load_inventory_from_db(self, db) -> None:
+    async def load_inventory_from_db(self, db: Any) -> None:
         """Load inventory from the database and update in-memory inventory, then notify UI."""
         items = await db.fetch_all_inventory_items()
         self.inventory = [InventoryItem(**item) for item in items]
@@ -549,7 +549,7 @@ class PortfolioManager:
             Event(name=EventName.PORTFOLIO_INVENTORY, content=self.inventory)
         )
 
-    async def add_inventory_item_db(self, db, item: InventoryItem) -> None:
+    async def add_inventory_item_db(self, db: Any, item: InventoryItem) -> None:
         """Add inventory item to DB and in-memory, then notify UI."""
         await db.insert_inventory_item(item)
         self.inventory.append(item)
@@ -558,7 +558,7 @@ class PortfolioManager:
             Event(name=EventName.PORTFOLIO_INVENTORY, content=self.inventory)
         )
 
-    async def update_inventory_item_db(self, db, item: InventoryItem) -> None:
+    async def update_inventory_item_db(self, db: Any, item: InventoryItem) -> None:
         """Update inventory item in DB and in-memory, then notify UI."""
         await db.update_inventory_item(item)
         for idx, inv in enumerate(self.inventory):
@@ -570,7 +570,7 @@ class PortfolioManager:
             Event(name=EventName.PORTFOLIO_INVENTORY, content=self.inventory)
         )
 
-    async def remove_inventory_item_db(self, db, item_id: str) -> None:
+    async def remove_inventory_item_db(self, db: Any, item_id: str) -> None:
         """Remove inventory item from DB and in-memory, then notify UI."""
         await db.delete_inventory_item(item_id)
         self.inventory = [i for i in self.inventory if i.id != item_id]

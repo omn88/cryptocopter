@@ -11,7 +11,7 @@ import queue
 import time
 from collections import defaultdict
 from decimal import Decimal
-from typing import Dict, Optional, List
+from typing import Any, Callable, Dict, Optional, List
 
 from src.strategies.buy_dip.broker_adapter import BuyDipBrokerAdapter
 from src.strategies.buy_dip.budget_manager import BudgetManager
@@ -42,9 +42,9 @@ class BuyDipStrategy:
         config: BuyDipConfig,
         total_budget: Decimal,
         order_budget_pct: Decimal,
-        broker=None,
+        broker: Any = None,
         broker_adapter: Optional[BuyDipBrokerAdapter] = None,
-        on_position_update=None,
+        on_position_update: Optional[Callable[..., None]] = None,
     ):
         """
         Initialize strategy with configuration.
@@ -235,8 +235,10 @@ class BuyDipStrategy:
 
                         # Use a small wrapper so we can log when the scheduled callback runs
                         def _execute_scheduled_placement(
-                            p_id=pos_id, p_price=dca_price, p_oid=order_id
-                        ):
+                            p_id: str = pos_id,
+                            p_price: float = dca_price,
+                            p_oid: str = order_id,
+                        ) -> None:
                             logger.debug(
                                 "Executing scheduled placement for %s (pos=%s price=%s)",
                                 p_oid,
@@ -259,10 +261,8 @@ class BuyDipStrategy:
                                     )
                                     return
                                 # Respect realtime cooldown if set
-                                if (
-                                    getattr(pos, "cooldown_until", None)
-                                    and time.time() < pos.cooldown_until
-                                ):
+                                _cooldown = getattr(pos, "cooldown_until", None)
+                                if _cooldown is not None and time.time() < _cooldown:
                                     logger.debug(
                                         "Scheduled placement delayed: cooldown active until %s for %s",
                                         pos.cooldown_until,
@@ -278,7 +278,7 @@ class BuyDipStrategy:
 
                         # Schedule placement by creating an asyncio task that sleeps for
                         # the configured cooldown, then re-checks state and places the order.
-                        async def _delayed_place():
+                        async def _delayed_place() -> None:
                             try:
                                 await asyncio.sleep(
                                     float(

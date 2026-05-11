@@ -351,7 +351,7 @@ class TopInvalidationHandler:
         try:
             pos_id = position.position_id
 
-            async def _delayed_replacement():
+            async def _delayed_replacement() -> None:
                 """Place replacement order after cooldown."""
                 try:
                     # Wait for cooldown

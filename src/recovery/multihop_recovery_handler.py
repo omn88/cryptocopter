@@ -6,6 +6,7 @@ must complete before the second leg activates.
 """
 
 import logging
+from typing import Any
 from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_NEW
 
 from src.domain.enums import PositionSide
@@ -59,7 +60,7 @@ class MultihopRecoveryHandler:
         # Set current_position based on child leg order status
         self._set_current_position_based_on_status(strategy, sell_positions)
 
-    async def _restore_child_position_order(self, position) -> None:
+    async def _restore_child_position_order(self, position: Any) -> None:
         """Restore order data from database for a child position."""
         orders = await self.db.fetch_orders_for_price_level(
             hp_id=position.config.hp_id, side=PositionSide.SHORT.value

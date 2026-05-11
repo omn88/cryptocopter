@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import queue
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from binance.enums import (
     ORDER_STATUS_CANCELED,
     ORDER_STATUS_FILLED,
@@ -318,7 +318,7 @@ class StrategyExecutor:
         )
 
     async def setup_sell_position(
-        self, strategy_data: SellPosition, sell_strategy  # BaseSellStrategy object
+        self, strategy_data: SellPosition, sell_strategy: Any  # BaseSellStrategy object
     ) -> None:
         logger.info(
             "Setting up sell position for existing HP: %s", strategy_data.config.hp_id
@@ -375,7 +375,7 @@ class StrategyExecutor:
     async def setup_sell_position_with_new_hp(
         self,
         strategy_data: SellPosition,
-        sell_strategy,  # BaseSellStrategy object
+        sell_strategy: Any,  # BaseSellStrategy object
     ) -> None:
         # For restoration, preserve existing HP ID; for new positions, generate new one
         parent_hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
