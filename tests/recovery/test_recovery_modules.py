@@ -30,6 +30,7 @@ from src.recovery.position_verifier import PositionVerifier
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_position(
     status: PositionStatus = PositionStatus.NEW,
     completeness: float = 0.0,
@@ -75,9 +76,7 @@ def _make_order(
 
 
 def _make_converter(symbol: str = "BTCUSDC") -> PositionConverter:
-    symbols = {
-        symbol: Symbol(name=symbol, precision=5, price_precision=2)
-    }
+    symbols = {symbol: Symbol(name=symbol, precision=5, price_precision=2)}
     return PositionConverter(symbols=symbols)
 
 
@@ -92,40 +91,55 @@ def _make_verifier() -> tuple[PositionVerifier, AsyncMock]:
 # PositionConverter
 # ===========================================================================
 
+
 class TestPositionConverter:
     def test_convert_to_state_info_state_filled(self):
         conv = _make_converter()
-        state = conv.convert_to_state_info_state(PositionStatus.FILLED, 1.0, PositionSide.LONG)
+        state = conv.convert_to_state_info_state(
+            PositionStatus.FILLED, 1.0, PositionSide.LONG
+        )
         assert state == State.BOUGHT
 
     def test_convert_to_state_info_state_filled_sell(self):
         conv = _make_converter()
-        state = conv.convert_to_state_info_state(PositionStatus.FILLED, 1.0, PositionSide.SHORT)
+        state = conv.convert_to_state_info_state(
+            PositionStatus.FILLED, 1.0, PositionSide.SHORT
+        )
         assert state == State.SOLD
 
     def test_convert_to_state_info_state_partially_filled_buy(self):
         conv = _make_converter()
-        state = conv.convert_to_state_info_state(PositionStatus.PARTIALLY_FILLED, 0.5, PositionSide.LONG)
+        state = conv.convert_to_state_info_state(
+            PositionStatus.PARTIALLY_FILLED, 0.5, PositionSide.LONG
+        )
         assert state == State.PARTIALLY_BOUGHT
 
     def test_convert_to_state_info_state_open_buy(self):
         conv = _make_converter()
-        state = conv.convert_to_state_info_state(PositionStatus.OPEN, 0.0, PositionSide.LONG)
+        state = conv.convert_to_state_info_state(
+            PositionStatus.OPEN, 0.0, PositionSide.LONG
+        )
         assert state == State.BUYING
 
     def test_convert_to_state_info_state_new(self):
         conv = _make_converter()
-        state = conv.convert_to_state_info_state(PositionStatus.NEW, 0.0, PositionSide.LONG)
+        state = conv.convert_to_state_info_state(
+            PositionStatus.NEW, 0.0, PositionSide.LONG
+        )
         assert state == State.NEW
 
     def test_convert_to_state_info_state_canceled(self):
         conv = _make_converter()
-        state = conv.convert_to_state_info_state(PositionStatus.CANCELED, 0.0, PositionSide.LONG)
+        state = conv.convert_to_state_info_state(
+            PositionStatus.CANCELED, 0.0, PositionSide.LONG
+        )
         assert state == State.CLOSED
 
     def test_convert_to_state_info_state_waiting_child(self):
         conv = _make_converter()
-        state = conv.convert_to_state_info_state(PositionStatus.WAITING_CHILD, 0.0, PositionSide.LONG)
+        state = conv.convert_to_state_info_state(
+            PositionStatus.WAITING_CHILD, 0.0, PositionSide.LONG
+        )
         assert state == State.WAITING_CHILD
 
     def test_convert_exchange_status_filled(self):
@@ -188,6 +202,7 @@ class TestPositionConverter:
 # PositionVerifier._all_orders_filled
 # ===========================================================================
 
+
 class TestAllOrdersFilled:
     def setup_method(self):
         self.verifier, _ = _make_verifier()
@@ -211,6 +226,7 @@ class TestAllOrdersFilled:
 # ===========================================================================
 # PositionVerifier.verify_positions_with_exchange
 # ===========================================================================
+
 
 class TestVerifyPositionsWithExchange:
     @pytest.mark.asyncio
@@ -281,7 +297,9 @@ class TestVerifyPositionsWithExchange:
         mock_client.get_order = AsyncMock()
 
         position = _make_position()
-        order_no_exchange_id = _make_order(status=OrderStatus.NEW, exchange_order_id=None)
+        order_no_exchange_id = _make_order(
+            status=OrderStatus.NEW, exchange_order_id=None
+        )
         db.get_position_orders = AsyncMock(return_value=[order_no_exchange_id])
 
         await verifier.verify_positions_with_exchange(mock_client, [position])

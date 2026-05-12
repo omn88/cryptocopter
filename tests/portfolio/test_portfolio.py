@@ -27,7 +27,10 @@ from src.portfolio.usd_price_resolver import UsdPriceResolver
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_item(coin: str = "BTC", quantity: float = 1.0, buy_price: float = 50000.0) -> InventoryItem:
+
+def _make_item(
+    coin: str = "BTC", quantity: float = 1.0, buy_price: float = 50000.0
+) -> InventoryItem:
     return InventoryItem(
         id="test-id",
         coin=coin,
@@ -40,15 +43,17 @@ def _make_item(coin: str = "BTC", quantity: float = 1.0, buy_price: float = 5000
     )
 
 
-def _make_portfolio(db_items: list | None = None, client_account: dict | None = None) -> PortfolioManager:
+def _make_portfolio(
+    db_items: list | None = None, client_account: dict | None = None
+) -> PortfolioManager:
     """Return a PortfolioManager with fully mocked dependencies."""
     mock_broker = MagicMock()
     mock_client = AsyncMock()
-    mock_client.get_account = AsyncMock(
-        return_value=client_account or {"balances": []}
-    )
+    mock_client.get_account = AsyncMock(return_value=client_account or {"balances": []})
     mock_db = AsyncMock()
-    mock_db.fetch_all_inventory_items = AsyncMock(return_value=db_items if db_items is not None else [])
+    mock_db.fetch_all_inventory_items = AsyncMock(
+        return_value=db_items if db_items is not None else []
+    )
     mock_db.insert_inventory_item = AsyncMock()
 
     price_resolver = MagicMock(spec=UsdPriceResolver)
@@ -66,6 +71,7 @@ def _make_portfolio(db_items: list | None = None, client_account: dict | None = 
 # ---------------------------------------------------------------------------
 # init_portfolio_source
 # ---------------------------------------------------------------------------
+
 
 class TestInitPortfolioSource:
     @pytest.mark.asyncio
@@ -97,7 +103,9 @@ class TestInitPortfolioSource:
         pm = _make_portfolio(db_items=[])
 
         # Patch CSV loader to pretend file does not exist
-        with patch.object(pm, "_try_load_inventory_csv", new=AsyncMock(return_value=False)):
+        with patch.object(
+            pm, "_try_load_inventory_csv", new=AsyncMock(return_value=False)
+        ):
             await pm.init_portfolio_source()
 
         assert pm.inventory == []
@@ -108,9 +116,13 @@ class TestInitPortfolioSource:
         pm = _make_portfolio(db_items=[])
 
         # Force DB to raise
-        pm.db.fetch_all_inventory_items = AsyncMock(side_effect=RuntimeError("DB offline"))
+        pm.db.fetch_all_inventory_items = AsyncMock(
+            side_effect=RuntimeError("DB offline")
+        )
 
-        with patch.object(pm, "_try_load_inventory_csv", new=AsyncMock(return_value=False)):
+        with patch.object(
+            pm, "_try_load_inventory_csv", new=AsyncMock(return_value=False)
+        ):
             await pm.init_portfolio_source()
 
         assert pm.initialization_complete.is_set()
@@ -144,6 +156,7 @@ class TestInitPortfolioSource:
 # handle_account_position
 # ---------------------------------------------------------------------------
 
+
 class TestHandleAccountPosition:
     @pytest.mark.asyncio
     async def test_distributes_balance_proportionally_across_lots(self):
@@ -154,7 +167,9 @@ class TestHandleAccountPosition:
         pm.inventory = [lot1, lot2]
 
         balances = [Balance(coin="BTC", free=0.8, locked=0.2)]
-        account_pos = AccountPosition(event_time=0, last_update_time=0, balances=balances)
+        account_pos = AccountPosition(
+            event_time=0, last_update_time=0, balances=balances
+        )
 
         await pm.handle_account_position(account_pos)
 
@@ -178,7 +193,9 @@ class TestHandleAccountPosition:
         pm.inventory = [item]
 
         balances: List[Balance] = []  # no DOGE on exchange
-        account_pos = AccountPosition(event_time=0, last_update_time=0, balances=balances)
+        account_pos = AccountPosition(
+            event_time=0, last_update_time=0, balances=balances
+        )
 
         await pm.handle_account_position(account_pos)
 
@@ -192,7 +209,9 @@ class TestHandleAccountPosition:
         pm.inventory = []
 
         balances = [Balance(coin="BTC", free=1.0, locked=0.0)]
-        account_pos = AccountPosition(event_time=0, last_update_time=0, balances=balances)
+        account_pos = AccountPosition(
+            event_time=0, last_update_time=0, balances=balances
+        )
 
         await pm.handle_account_position(account_pos)  # should not raise
 
@@ -200,6 +219,7 @@ class TestHandleAccountPosition:
 # ---------------------------------------------------------------------------
 # update_inventory / add / remove
 # ---------------------------------------------------------------------------
+
 
 class TestInventoryMutations:
     @pytest.mark.asyncio
@@ -255,6 +275,7 @@ class TestInventoryMutations:
 # run_loop — event routing
 # ---------------------------------------------------------------------------
 
+
 class TestRunLoop:
     @pytest.mark.asyncio
     async def test_routes_account_position_event(self):
@@ -263,7 +284,9 @@ class TestRunLoop:
         pm.handle_account_position = AsyncMock()
 
         account_pos = AccountPosition(event_time=0, last_update_time=0, balances=[])
-        pm.worker_queue.put_nowait(Event(name=EventName.ACCOUNT_POSITION, content=account_pos))
+        pm.worker_queue.put_nowait(
+            Event(name=EventName.ACCOUNT_POSITION, content=account_pos)
+        )
 
         # Run loop as a task; stop it after the event is consumed
         task = asyncio.create_task(pm.run_loop())
@@ -280,7 +303,9 @@ class TestRunLoop:
         pm.update_inventory = AsyncMock()
 
         items = [_make_item("BTC")]
-        pm.worker_queue.put_nowait(Event(name=EventName.PORTFOLIO_INVENTORY, content=items))
+        pm.worker_queue.put_nowait(
+            Event(name=EventName.PORTFOLIO_INVENTORY, content=items)
+        )
 
         task = asyncio.create_task(pm.run_loop())
         await asyncio.sleep(0.05)
