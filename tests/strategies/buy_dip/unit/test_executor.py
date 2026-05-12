@@ -32,6 +32,7 @@ from src.strategies.buy_dip.executor import BuyDipExecutor
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_config() -> BuyDipConfig:
     return BuyDipConfig(
         min_consecutive_rising=3,
@@ -77,6 +78,7 @@ def _make_executor(symbols: list[str] | None = None) -> BuyDipExecutor:
 # Constructor
 # ---------------------------------------------------------------------------
 
+
 class TestBuyDipExecutorInit:
     def test_initialises_with_known_symbol(self):
         ex = _make_executor(["BTCUSDC"])
@@ -118,6 +120,7 @@ class TestBuyDipExecutorInit:
 # ---------------------------------------------------------------------------
 # _process_event: Event objects
 # ---------------------------------------------------------------------------
+
 
 class TestProcessEventEventObjects:
     @pytest.mark.asyncio
@@ -163,6 +166,7 @@ class TestProcessEventEventObjects:
 # ---------------------------------------------------------------------------
 # _process_event: raw dict (WebSocket) events
 # ---------------------------------------------------------------------------
+
 
 class TestProcessEventDictEvents:
     @pytest.mark.asyncio
@@ -216,7 +220,9 @@ class TestProcessEventDictEvents:
 
         await ex._process_event(exec_event)
 
-        ex.broker_adapters["BTCUSDC"].handle_user_stream_update.assert_called_once_with(exec_event)
+        ex.broker_adapters["BTCUSDC"].handle_user_stream_update.assert_called_once_with(
+            exec_event
+        )
 
     @pytest.mark.asyncio
     async def test_non_dict_non_event_is_silently_skipped(self):
@@ -230,6 +236,7 @@ class TestProcessEventDictEvents:
 # ---------------------------------------------------------------------------
 # _handle_config_update
 # ---------------------------------------------------------------------------
+
 
 class TestHandleConfigUpdate:
     def test_update_budget_and_order_pct(self):
@@ -263,6 +270,7 @@ class TestHandleConfigUpdate:
 # Callbacks
 # ---------------------------------------------------------------------------
 
+
 class TestCallbacks:
     def test_on_order_filled_buy_triggers_handle_order_fill(self):
         ex = _make_executor()
@@ -270,7 +278,9 @@ class TestCallbacks:
 
         ex._on_order_filled("order_btc_123", 50000.0)
 
-        ex.strategy.handle_order_fill.assert_called_once_with("order_btc_123", 50000.0, 1.0)
+        ex.strategy.handle_order_fill.assert_called_once_with(
+            "order_btc_123", 50000.0, 1.0
+        )
 
     def test_on_order_filled_sell_triggers_handle_sell_fill(self):
         ex = _make_executor()
@@ -278,7 +288,9 @@ class TestCallbacks:
 
         ex._on_order_filled("order_btc_sell_456", 51000.0)
 
-        ex.strategy.handle_sell_fill.assert_called_once_with("order_btc_sell_456", 51000.0)
+        ex.strategy.handle_sell_fill.assert_called_once_with(
+            "order_btc_sell_456", 51000.0
+        )
 
     def test_on_order_cancelled_does_not_raise(self):
         ex = _make_executor()

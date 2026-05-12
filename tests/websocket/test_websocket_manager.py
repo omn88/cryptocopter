@@ -21,6 +21,7 @@ from src.websocket.manager import WebSocketManager
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_manager() -> WebSocketManager:
     client = MagicMock(spec=BinanceClient)
     stop_event = asyncio.Event()
@@ -34,6 +35,7 @@ def _make_manager() -> WebSocketManager:
 # ---------------------------------------------------------------------------
 # Constructor
 # ---------------------------------------------------------------------------
+
 
 class TestWebSocketManagerInit:
     def test_attributes_set(self):
@@ -64,6 +66,7 @@ class TestWebSocketManagerInit:
 # ---------------------------------------------------------------------------
 # _parse_message
 # ---------------------------------------------------------------------------
+
 
 class TestParseMessage:
     def setup_method(self):
