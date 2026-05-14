@@ -137,9 +137,9 @@ class TestProcessEventDictEvents:
         exec_event = {"e": "executionReport", "s": "BTCUSDC", "X": "FILLED"}
         await executor._process_event(exec_event)
 
-        executor.broker_adapters["BTCUSDC"].handle_user_stream_update.assert_called_once_with(
-            exec_event
-        )
+        executor.broker_adapters[
+            "BTCUSDC"
+        ].handle_user_stream_update.assert_called_once_with(exec_event)
 
     async def test_non_dict_non_event_is_silently_skipped(self, executor):
         await executor._process_event(12345)
@@ -203,4 +203,3 @@ class TestCallbacks:
 
     def test_on_order_cancelled_does_not_raise(self, executor):
         executor._on_order_cancelled("order_123")  # should not raise
-

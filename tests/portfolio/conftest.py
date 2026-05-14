@@ -16,6 +16,7 @@ from tests.portfolio.inventory_simulator import InventorySellSimulator
 @pytest.fixture
 def make_item():
     """Factory fixture: create an InventoryItem with sensible defaults."""
+
     def _factory(
         coin: str = "BTC", quantity: float = 1.0, buy_price: float = 50000.0
     ) -> InventoryItem:
@@ -29,12 +30,14 @@ def make_item():
             source="TEST",
             timestamp=time.time(),
         )
+
     return _factory
 
 
 @pytest.fixture
 def make_portfolio():
     """Factory fixture: create a PortfolioManager with fully mocked dependencies."""
+
     def _factory(
         db_items: list | None = None, client_account: dict | None = None
     ) -> PortfolioManager:
@@ -56,6 +59,7 @@ def make_portfolio():
             db=mock_db,
             client=mock_client,
         )
+
     return _factory
 
 

@@ -18,6 +18,7 @@ from src.recovery.position_verifier import PositionVerifier
 @pytest.fixture
 def make_position():
     """Factory fixture: create a Position with sensible defaults."""
+
     def _factory(
         status: PositionStatus = PositionStatus.NEW,
         completeness: float = 0.0,
@@ -39,12 +40,14 @@ def make_position():
             created_at=datetime.now(),
             updated_at=datetime.now(),
         )
+
     return _factory
 
 
 @pytest.fixture
 def make_order():
     """Factory fixture: create a DatabaseOrder with sensible defaults."""
+
     def _factory(
         status: OrderStatus = OrderStatus.FILLED,
         quantity: float = 0.001,
@@ -64,15 +67,18 @@ def make_order():
             created_at=datetime.now(),
             updated_at=datetime.now(),
         )
+
     return _factory
 
 
 @pytest.fixture
 def make_converter():
     """Factory fixture: create a PositionConverter for a given symbol."""
+
     def _factory(symbol: str = "BTCUSDC") -> PositionConverter:
         symbols = {symbol: Symbol(name=symbol, precision=5, price_precision=2)}
         return PositionConverter(symbols=symbols)
+
     return _factory
 
 

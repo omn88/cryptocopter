@@ -136,9 +136,7 @@ class TestHandleAccountPosition:
         item.available_quantity = 500.0
         pm.inventory = [item]
 
-        account_pos = AccountPosition(
-            event_time=0, last_update_time=0, balances=[]
-        )
+        account_pos = AccountPosition(event_time=0, last_update_time=0, balances=[])
 
         await pm.handle_account_position(account_pos)
 

@@ -39,6 +39,7 @@ def symbols_dict() -> Dict[str, Any]:
 @pytest.fixture
 def make_executor(buy_dip_config, symbols_dict):
     """Factory fixture: build a BuyDipExecutor for given symbols."""
+
     def _factory(symbols: list[str] | None = None) -> BuyDipExecutor:
         return BuyDipExecutor(
             db=MagicMock(spec=Database),
@@ -51,6 +52,7 @@ def make_executor(buy_dip_config, symbols_dict):
             symbols=symbols or ["BTCUSDC"],
             symbols_dict=symbols_dict,
         )
+
     return _factory
 
 

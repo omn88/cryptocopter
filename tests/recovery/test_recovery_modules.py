@@ -82,9 +82,7 @@ class TestPositionConverter:
         status = conv.convert_exchange_status("PARTIALLY_FILLED")
         assert status == OrderStatus.PARTIALLY_FILLED
 
-    async def test_convert_to_buy_data_missing_symbol_returns_none(
-        self, make_position
-    ):
+    async def test_convert_to_buy_data_missing_symbol_returns_none(self, make_position):
         conv = PositionConverter(symbols={})  # no symbols
         position = make_position()
         result = await conv.convert_to_buy_data(position)
@@ -243,4 +241,3 @@ class TestVerifyPositionsWithExchange:
         result = await verifier.verify_positions_with_exchange(mock_client, positions)
 
         assert len(result) == 3
-
