@@ -13,7 +13,7 @@ import asyncio
 import logging
 import time
 from decimal import Decimal
-from typing import Dict, TYPE_CHECKING, Optional
+from typing import Dict, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.strategies.buy_dip.strategy import BuyDipStrategy
@@ -151,7 +151,7 @@ class TopInvalidationHandler:
             prev_top = float(position.top_price)
             new_top = float(new_top_price)
             pct_delta = (new_top - prev_top) / prev_top * 100.0
-        except Exception:
+        except (ValueError, TypeError, ZeroDivisionError):
             pct_delta = 0.0
 
         # Check if delta is below threshold (too small to be significant)
@@ -193,7 +193,7 @@ class TopInvalidationHandler:
         # Calculate and release locked funds
         try:
             order_amount = float(pending_order.price * pending_order.quantity)
-        except Exception:
+        except (ValueError, TypeError):
             order_amount = 0.0
 
         if order_amount > 0:
@@ -229,8 +229,6 @@ class TopInvalidationHandler:
             broker = self.strategy.broker_adapter or self.strategy.broker
             if broker:
                 # Use asyncio.create_task to avoid blocking
-                import asyncio
-
                 asyncio.create_task(broker.cancel_order(order_id))
         except Exception as e:
             logger.warning(f"Failed to cancel order {order_id} in broker: {e}")
@@ -241,7 +239,7 @@ class TopInvalidationHandler:
         # Calculate and release locked funds
         try:
             order_amount = float(pending_order.price * pending_order.quantity)
-        except Exception:
+        except (ValueError, TypeError):
             order_amount = 0.0
 
         if order_amount > 0:
@@ -283,7 +281,7 @@ class TopInvalidationHandler:
                 position.last_invalidation_ts = int(ts_value)
             else:
                 position.last_invalidation_ts = None
-        except Exception:
+        except (ValueError, TypeError):
             position.last_invalidation_ts = None
 
         # Set cooldown to prevent immediate replacement
@@ -291,7 +289,7 @@ class TopInvalidationHandler:
             position.cooldown_until = time.time() + float(
                 self.strategy.config.invalidation_cooldown_seconds
             )
-        except Exception:
+        except (ValueError, TypeError):
             position.cooldown_until = None
 
         logger.debug(
@@ -311,15 +309,13 @@ class TopInvalidationHandler:
         try:
             # Ensure any pending broker cancellation completes
             # (The cancel was initiated in _cancel_pending_order)
-            import asyncio
-
             try:
                 # Give the cancel task time to complete (important for backtesting)
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     # Can't block in running loop, but task should complete quickly
                     pass
-            except Exception:
+            except RuntimeError:
                 pass
 
             # Generate order details
@@ -338,6 +334,7 @@ class TopInvalidationHandler:
             logger.exception(
                 "Failed to place immediate replacement for %s", position.position_id
             )
+            raise
 
     def _schedule_replacement_order(self, position: BuyDipPosition) -> None:
         """Schedule delayed replacement order after cooldown.
@@ -401,6 +398,7 @@ class TopInvalidationHandler:
             logger.exception(
                 "Failed to schedule replacement for %s", position.position_id
             )
+            raise
 
     def _is_eligible_for_replacement(self, position: BuyDipPosition) -> bool:
         """Check if position is eligible for replacement order.

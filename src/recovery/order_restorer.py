@@ -242,9 +242,10 @@ class OrderRestorer:
                         order.order_id,
                     )
             except Exception as e:
-                logger.error(
+                logger.exception(
                     "Failed to verify order %s with exchange: %s", order.order_id, e
                 )
+                raise
 
     async def _verify_single_order_with_exchange(
         self,
@@ -290,6 +291,7 @@ class OrderRestorer:
                     db_order["order_id"],
                 )
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "Failed to verify order %s with exchange: %s", db_order["order_id"], e
             )
+            raise

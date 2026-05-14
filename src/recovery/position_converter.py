@@ -8,7 +8,7 @@ data structures used by the trading system.
 import logging
 from typing import Optional, Dict
 
-from src.domain.enums import Mode, PositionSide, State
+from src.domain.enums import PositionSide, State
 from src.domain.positions import HPBuy, HPBuyConfig, HPSell, HPSellConfig, StateInfo
 from src.common.symbol import Symbol
 from src.database.models import Position, PositionStatus, OrderStatus
@@ -134,10 +134,10 @@ class PositionConverter:
             return HPBuy(config=config, state_info=state_info)
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "Failed to convert position %s to buy data: %s", position.hp_id, e
             )
-            return None
+            raise
 
     async def convert_to_sell_data(self, position: Position) -> Optional[HPSell]:
         """Convert database Position to HPSell for the trading system."""
@@ -174,10 +174,10 @@ class PositionConverter:
             return HPSell(config=config, state_info=state_info)
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "Failed to convert position %s to sell data: %s", position.hp_id, e
             )
-            return None
+            raise
 
     def convert_to_state(self, status: PositionStatus) -> State:
         """Convert database PositionStatus to trading system State."""

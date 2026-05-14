@@ -219,7 +219,8 @@ class BuyDipExecutor:
         except asyncio.CancelledError:
             logger.info("BuyDipExecutor worker task cancelled")
         except Exception as e:
-            logger.error(f"BuyDipExecutor worker task error: {e}")
+            logger.error("BuyDipExecutor worker task error: %s", e)
+            raise
 
     async def _worker_loop(self) -> None:
         """
