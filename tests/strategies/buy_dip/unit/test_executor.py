@@ -10,13 +10,9 @@ Coverage targets (A10):
 - _on_order_filled / _on_order_cancelled callbacks
 """
 
-import asyncio
 import queue
 from decimal import Decimal
-from typing import Dict, Any
 from unittest.mock import AsyncMock, MagicMock
-
-import pytest
 
 from src.broker import BrokerSpot
 from src.common.client import BinanceClient
@@ -26,57 +22,6 @@ from src.domain.enums import EventName
 from src.domain.orders import Event, TickerUpdate
 from src.strategies.buy_dip.config import BuyDipConfig
 from src.strategies.buy_dip.executor import BuyDipExecutor
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def buy_dip_config() -> BuyDipConfig:
-    return BuyDipConfig(
-        min_consecutive_rising=3,
-        min_total_gain_pct=1.0,
-        dca_distances_pct=[2.0, 4.0],
-    )
-
-
-@pytest.fixture
-def symbols_dict() -> Dict[str, Any]:
-    return {
-        "BTCUSDC": Symbol(
-            name="BTCUSDC",
-            precision=5,
-            price_precision=2,
-            min_notional=10.0,
-            lot_size=0.00001,
-            price_filter=0.01,
-        )
-    }
-
-
-@pytest.fixture
-def make_executor(buy_dip_config, symbols_dict):
-    """Factory fixture: build a BuyDipExecutor for given symbols."""
-    def _factory(symbols: list[str] | None = None) -> BuyDipExecutor:
-        return BuyDipExecutor(
-            db=MagicMock(spec=Database),
-            broker=MagicMock(spec=BrokerSpot),
-            client=AsyncMock(spec=BinanceClient),
-            ui_queue=queue.Queue(),
-            config=buy_dip_config,
-            total_budget=Decimal("1000"),
-            order_budget_pct=Decimal("10"),
-            symbols=symbols or ["BTCUSDC"],
-            symbols_dict=symbols_dict,
-        )
-    return _factory
-
-
-@pytest.fixture
-def executor(make_executor) -> BuyDipExecutor:
-    return make_executor()
 
 
 # ---------------------------------------------------------------------------

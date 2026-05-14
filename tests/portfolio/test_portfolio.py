@@ -9,70 +9,12 @@ Coverage targets:
 """
 
 import asyncio
-import queue
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from unittest.mock import AsyncMock, patch
 
 from src.domain.enums import EventName
 from src.domain.inventory import InventoryItem
 from src.domain.orders import AccountPosition, Balance, Event
-from src.portfolio.portfolio import PortfolioManager
-from src.portfolio.usd_price_resolver import UsdPriceResolver
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def make_item():
-    """Factory fixture: create an InventoryItem with sensible defaults."""
-    def _factory(
-        coin: str = "BTC", quantity: float = 1.0, buy_price: float = 50000.0
-    ) -> InventoryItem:
-        return InventoryItem(
-            id="test-id",
-            coin=coin,
-            buy_price=buy_price,
-            quantity=quantity,
-            available_quantity=quantity,
-            locked_quantity=0.0,
-            source="TEST",
-            timestamp=time.time(),
-        )
-    return _factory
-
-
-@pytest.fixture
-def make_portfolio():
-    """Factory fixture: create a PortfolioManager with fully mocked dependencies."""
-    def _factory(
-        db_items: list | None = None, client_account: dict | None = None
-    ) -> PortfolioManager:
-        mock_broker = MagicMock()
-        mock_client = AsyncMock()
-        mock_client.get_account = AsyncMock(
-            return_value=client_account or {"balances": []}
-        )
-        mock_db = AsyncMock()
-        mock_db.fetch_all_inventory_items = AsyncMock(
-            return_value=db_items if db_items is not None else []
-        )
-        mock_db.insert_inventory_item = AsyncMock()
-
-        price_resolver = MagicMock(spec=UsdPriceResolver)
-
-        return PortfolioManager(
-            broker=mock_broker,
-            ui_queue=queue.Queue(),
-            price_resolver=price_resolver,
-            db=mock_db,
-            client=mock_client,
-        )
-    return _factory
 
 
 # ---------------------------------------------------------------------------
