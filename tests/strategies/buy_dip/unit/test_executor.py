@@ -14,7 +14,7 @@ import asyncio
 import queue
 from decimal import Decimal
 from typing import Dict, Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -29,11 +29,12 @@ from src.strategies.buy_dip.executor import BuyDipExecutor
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Fixtures
 # ---------------------------------------------------------------------------
 
 
-def _make_config() -> BuyDipConfig:
+@pytest.fixture
+def buy_dip_config() -> BuyDipConfig:
     return BuyDipConfig(
         min_consecutive_rising=3,
         min_total_gain_pct=1.0,
@@ -41,7 +42,8 @@ def _make_config() -> BuyDipConfig:
     )
 
 
-def _make_symbols_dict() -> Dict[str, Any]:
+@pytest.fixture
+def symbols_dict() -> Dict[str, Any]:
     return {
         "BTCUSDC": Symbol(
             name="BTCUSDC",
@@ -54,24 +56,27 @@ def _make_symbols_dict() -> Dict[str, Any]:
     }
 
 
-def _make_executor(symbols: list[str] | None = None) -> BuyDipExecutor:
-    symbols = symbols or ["BTCUSDC"]
-    mock_db = MagicMock(spec=Database)
-    mock_broker = MagicMock(spec=BrokerSpot)
-    mock_client = AsyncMock(spec=BinanceClient)
-    ui_queue: queue.Queue = queue.Queue()
+@pytest.fixture
+def make_executor(buy_dip_config, symbols_dict):
+    """Factory fixture: build a BuyDipExecutor for given symbols."""
+    def _factory(symbols: list[str] | None = None) -> BuyDipExecutor:
+        return BuyDipExecutor(
+            db=MagicMock(spec=Database),
+            broker=MagicMock(spec=BrokerSpot),
+            client=AsyncMock(spec=BinanceClient),
+            ui_queue=queue.Queue(),
+            config=buy_dip_config,
+            total_budget=Decimal("1000"),
+            order_budget_pct=Decimal("10"),
+            symbols=symbols or ["BTCUSDC"],
+            symbols_dict=symbols_dict,
+        )
+    return _factory
 
-    return BuyDipExecutor(
-        db=mock_db,
-        broker=mock_broker,
-        client=mock_client,
-        ui_queue=ui_queue,
-        config=_make_config(),
-        total_budget=Decimal("1000"),
-        order_budget_pct=Decimal("10"),
-        symbols=symbols,
-        symbols_dict=_make_symbols_dict(),
-    )
+
+@pytest.fixture
+def executor(make_executor) -> BuyDipExecutor:
+    return make_executor()
 
 
 # ---------------------------------------------------------------------------
@@ -80,24 +85,19 @@ def _make_executor(symbols: list[str] | None = None) -> BuyDipExecutor:
 
 
 class TestBuyDipExecutorInit:
-    def test_initialises_with_known_symbol(self):
-        ex = _make_executor(["BTCUSDC"])
-        assert "BTCUSDC" in ex.broker_adapters
-        assert ex.strategy is not None
-        assert not ex.stop_event.is_set()
+    def test_initialises_with_known_symbol(self, executor):
+        assert "BTCUSDC" in executor.broker_adapters
+        assert executor.strategy is not None
+        assert not executor.stop_event.is_set()
 
-    def test_initialises_with_unknown_symbol_uses_defaults(self):
+    def test_initialises_with_unknown_symbol_uses_defaults(self, buy_dip_config):
         """Symbol not in symbols_dict → default Symbol created without error."""
-        mock_db = MagicMock(spec=Database)
-        mock_broker = MagicMock(spec=BrokerSpot)
-        mock_client = AsyncMock(spec=BinanceClient)
-
         ex = BuyDipExecutor(
-            db=mock_db,
-            broker=mock_broker,
-            client=mock_client,
+            db=MagicMock(spec=Database),
+            broker=MagicMock(spec=BrokerSpot),
+            client=AsyncMock(spec=BinanceClient),
             ui_queue=queue.Queue(),
-            config=_make_config(),
+            config=buy_dip_config,
             total_budget=Decimal("500"),
             order_budget_pct=Decimal("5"),
             symbols=["XYZUSDC"],
@@ -105,16 +105,11 @@ class TestBuyDipExecutorInit:
         )
         assert "XYZUSDC" in ex.broker_adapters
 
-    def test_start_creates_task(self):
+    async def test_start_creates_task(self, executor):
         """start() should create a task on the running loop."""
-        ex = _make_executor()
-
-        async def _run():
-            ex.start()
-            assert ex._task is not None
-            ex.stop()
-
-        asyncio.get_event_loop().run_until_complete(_run())
+        executor.start()
+        assert executor._task is not None
+        executor.stop()
 
 
 # ---------------------------------------------------------------------------
@@ -123,44 +118,33 @@ class TestBuyDipExecutorInit:
 
 
 class TestProcessEventEventObjects:
-    @pytest.mark.asyncio
-    async def test_ticker_event_updates_price_cache(self):
-        ex = _make_executor()
-        ex.strategy.process_ticker = AsyncMock()
-        ex.strategy.check_for_invalidation = MagicMock()
+    async def test_ticker_event_updates_price_cache(self, executor):
+        executor.strategy.process_ticker = AsyncMock()
+        executor.strategy.check_for_invalidation = MagicMock()
 
         ticker = TickerUpdate(symbol="BTCUSDC", last_price=50000.0)
         event = Event(name=EventName.TICKER, content=ticker)
 
-        await ex._process_event(event)
+        await executor._process_event(event)
 
-        assert ex._current_prices["BTCUSDC"] == 50000.0
-        ex.strategy.process_ticker.assert_awaited_once_with("BTCUSDC", 50000.0)
+        assert executor._current_prices["BTCUSDC"] == 50000.0
+        executor.strategy.process_ticker.assert_awaited_once_with("BTCUSDC", 50000.0)
 
-    @pytest.mark.asyncio
-    async def test_ticker_event_wrong_content_type_skipped(self):
-        ex = _make_executor()
-        ex.strategy.process_ticker = AsyncMock()
+    async def test_ticker_event_wrong_content_type_skipped(self, executor):
+        executor.strategy.process_ticker = AsyncMock()
 
         event = Event(name=EventName.TICKER, content="not-a-ticker-update")
+        await executor._process_event(event)
 
-        await ex._process_event(event)
+        executor.strategy.process_ticker.assert_not_called()
 
-        ex.strategy.process_ticker.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_account_position_event_is_ignored_gracefully(self):
-        ex = _make_executor()
+    async def test_account_position_event_is_ignored_gracefully(self, executor):
         event = Event(name=EventName.ACCOUNT_POSITION, content=MagicMock())
-        # Should not raise
-        await ex._process_event(event)
+        await executor._process_event(event)  # should not raise
 
-    @pytest.mark.asyncio
-    async def test_unknown_event_name_is_logged_gracefully(self):
-        ex = _make_executor()
+    async def test_unknown_event_name_is_logged_gracefully(self, executor):
         event = Event(name=EventName.SIGNAL, content=MagicMock())
-        # Should not raise (unhandled Event types are just logged)
-        await ex._process_event(event)
+        await executor._process_event(event)  # should not raise
 
 
 # ---------------------------------------------------------------------------
@@ -169,16 +153,14 @@ class TestProcessEventEventObjects:
 
 
 class TestProcessEventDictEvents:
-    @pytest.mark.asyncio
-    async def test_closed_kline_triggers_process_candle(self):
-        ex = _make_executor()
-        ex.strategy.process_candle = AsyncMock()
+    async def test_closed_kline_triggers_process_candle(self, executor):
+        executor.strategy.process_candle = AsyncMock()
 
         kline_event = {
             "e": "kline",
             "s": "BTCUSDC",
             "k": {
-                "x": True,  # closed
+                "x": True,
                 "t": 1000000,
                 "T": 1000900,
                 "o": "49000",
@@ -189,48 +171,35 @@ class TestProcessEventDictEvents:
             },
         }
 
-        await ex._process_event(kline_event)
+        await executor._process_event(kline_event)
 
-        ex.strategy.process_candle.assert_awaited_once()
-        call_args = ex.strategy.process_candle.call_args
+        executor.strategy.process_candle.assert_awaited_once()
+        call_args = executor.strategy.process_candle.call_args
         assert call_args[0][0] == "BTCUSDC"
         assert call_args[0][1]["close"] == 50000.0
 
-    @pytest.mark.asyncio
-    async def test_open_kline_does_not_trigger_process_candle(self):
-        ex = _make_executor()
-        ex.strategy.process_candle = AsyncMock()
+    async def test_open_kline_does_not_trigger_process_candle(self, executor):
+        executor.strategy.process_candle = AsyncMock()
 
-        kline_event = {
-            "e": "kline",
-            "s": "BTCUSDC",
-            "k": {"x": False},  # not closed
-        }
+        kline_event = {"e": "kline", "s": "BTCUSDC", "k": {"x": False}}
+        await executor._process_event(kline_event)
 
-        await ex._process_event(kline_event)
+        executor.strategy.process_candle.assert_not_called()
 
-        ex.strategy.process_candle.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_execution_report_routes_to_adapter(self):
-        ex = _make_executor()
-        ex.broker_adapters["BTCUSDC"].handle_user_stream_update = MagicMock()
+    async def test_execution_report_routes_to_adapter(self, executor):
+        executor.broker_adapters["BTCUSDC"].handle_user_stream_update = MagicMock()
 
         exec_event = {"e": "executionReport", "s": "BTCUSDC", "X": "FILLED"}
+        await executor._process_event(exec_event)
 
-        await ex._process_event(exec_event)
-
-        ex.broker_adapters["BTCUSDC"].handle_user_stream_update.assert_called_once_with(
+        executor.broker_adapters["BTCUSDC"].handle_user_stream_update.assert_called_once_with(
             exec_event
         )
 
-    @pytest.mark.asyncio
-    async def test_non_dict_non_event_is_silently_skipped(self):
-        ex = _make_executor()
-        # Should not raise
-        await ex._process_event(12345)
-        await ex._process_event(None)
-        await ex._process_event("raw-string")
+    async def test_non_dict_non_event_is_silently_skipped(self, executor):
+        await executor._process_event(12345)
+        await executor._process_event(None)
+        await executor._process_event("raw-string")
 
 
 # ---------------------------------------------------------------------------
@@ -239,21 +208,18 @@ class TestProcessEventDictEvents:
 
 
 class TestHandleConfigUpdate:
-    def test_update_budget_and_order_pct(self):
-        ex = _make_executor()
+    def test_update_budget_and_order_pct(self, executor):
         update = {
             "type": "update_config",
             "total_budget": 2000.0,
             "order_budget_pct": 5.0,
             "symbol": None,
         }
-        # Should not raise
-        ex._handle_config_update(update)
+        executor._handle_config_update(update)  # should not raise
 
-    def test_update_with_new_symbol_calls_add_symbol(self):
-        ex = _make_executor()
-        ex.strategy.add_symbol = MagicMock()
-        ex.strategy._create_placeholder_watching_position = MagicMock()
+    def test_update_with_new_symbol_calls_add_symbol(self, executor):
+        executor.strategy.add_symbol = MagicMock()
+        executor.strategy._create_placeholder_watching_position = MagicMock()
 
         update = {
             "type": "update_config",
@@ -261,9 +227,9 @@ class TestHandleConfigUpdate:
             "order_budget_pct": 10.0,
             "symbol": "ETHUSDC",
         }
-        ex._handle_config_update(update)
+        executor._handle_config_update(update)
 
-        ex.strategy.add_symbol.assert_called_with("ETHUSDC")
+        executor.strategy.add_symbol.assert_called_with("ETHUSDC")
 
 
 # ---------------------------------------------------------------------------
@@ -272,26 +238,24 @@ class TestHandleConfigUpdate:
 
 
 class TestCallbacks:
-    def test_on_order_filled_buy_triggers_handle_order_fill(self):
-        ex = _make_executor()
-        ex.strategy.handle_order_fill = MagicMock()
+    def test_on_order_filled_buy_triggers_handle_order_fill(self, executor):
+        executor.strategy.handle_order_fill = MagicMock()
 
-        ex._on_order_filled("order_btc_123", 50000.0)
+        executor._on_order_filled("order_btc_123", 50000.0)
 
-        ex.strategy.handle_order_fill.assert_called_once_with(
+        executor.strategy.handle_order_fill.assert_called_once_with(
             "order_btc_123", 50000.0, 1.0
         )
 
-    def test_on_order_filled_sell_triggers_handle_sell_fill(self):
-        ex = _make_executor()
-        ex.strategy.handle_sell_fill = MagicMock()
+    def test_on_order_filled_sell_triggers_handle_sell_fill(self, executor):
+        executor.strategy.handle_sell_fill = MagicMock()
 
-        ex._on_order_filled("order_btc_sell_456", 51000.0)
+        executor._on_order_filled("order_btc_sell_456", 51000.0)
 
-        ex.strategy.handle_sell_fill.assert_called_once_with(
+        executor.strategy.handle_sell_fill.assert_called_once_with(
             "order_btc_sell_456", 51000.0
         )
 
-    def test_on_order_cancelled_does_not_raise(self):
-        ex = _make_executor()
-        ex._on_order_cancelled("order_123")  # should not raise
+    def test_on_order_cancelled_does_not_raise(self, executor):
+        executor._on_order_cancelled("order_123")  # should not raise
+

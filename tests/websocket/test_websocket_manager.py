@@ -13,22 +13,21 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.common.client import BinanceClient
-from src.domain.subscriptions import SubscriptionInfo
 from src.websocket.manager import WebSocketManager
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Fixtures
 # ---------------------------------------------------------------------------
 
 
-def _make_manager() -> WebSocketManager:
-    client = MagicMock(spec=BinanceClient)
-    stop_event = asyncio.Event()
+@pytest.fixture
+def manager() -> WebSocketManager:
+    """Bare WebSocketManager with mocked client and a fresh stop event."""
     return WebSocketManager(
-        client=client,
+        client=MagicMock(spec=BinanceClient),
         subscriptions={},
-        stop_event=stop_event,
+        stop_event=asyncio.Event(),
     )
 
 
@@ -50,17 +49,16 @@ class TestWebSocketManagerInit:
         assert mgr._user_message_handler is None
         assert mgr._ticker_message_handler is None
 
-    def test_set_message_handlers(self):
-        mgr = _make_manager()
+    def test_set_message_handlers(self, manager):
         user_fn = MagicMock()
         ticker_fn = MagicMock()
         kline_fn = MagicMock()
 
-        mgr.set_message_handlers(user_fn, ticker_fn, kline_fn)
+        manager.set_message_handlers(user_fn, ticker_fn, kline_fn)
 
-        assert mgr._user_message_handler is user_fn
-        assert mgr._ticker_message_handler is ticker_fn
-        assert mgr._kline_message_handler is kline_fn
+        assert manager._user_message_handler is user_fn
+        assert manager._ticker_message_handler is ticker_fn
+        assert manager._kline_message_handler is kline_fn
 
 
 # ---------------------------------------------------------------------------
@@ -69,47 +67,44 @@ class TestWebSocketManagerInit:
 
 
 class TestParseMessage:
-    def setup_method(self):
-        self.mgr = _make_manager()
-
-    def test_valid_json_string_returns_dict(self):
-        result = self.mgr._parse_message('{"e": "trade", "s": "BTCUSDT"}')
+    def test_valid_json_string_returns_dict(self, manager):
+        result = manager._parse_message('{"e": "trade", "s": "BTCUSDT"}')
         assert result == {"e": "trade", "s": "BTCUSDT"}
 
-    def test_valid_json_array_string_returns_list(self):
-        result = self.mgr._parse_message('[{"a": 1}, {"b": 2}]')
+    def test_valid_json_array_string_returns_list(self, manager):
+        result = manager._parse_message('[{"a": 1}, {"b": 2}]')
         assert result == [{"a": 1}, {"b": 2}]
 
-    def test_invalid_json_string_returns_none(self):
-        result = self.mgr._parse_message("not-valid-json{")
+    def test_invalid_json_string_returns_none(self, manager):
+        result = manager._parse_message("not-valid-json{")
         assert result is None
 
-    def test_empty_string_returns_none(self):
-        result = self.mgr._parse_message("")
+    def test_empty_string_returns_none(self, manager):
+        result = manager._parse_message("")
         assert result is None
 
-    def test_dict_passthrough(self):
+    def test_dict_passthrough(self, manager):
         msg = {"type": "ticker", "price": "100"}
-        result = self.mgr._parse_message(msg)
+        result = manager._parse_message(msg)
         assert result is msg
 
-    def test_list_of_dicts_passthrough(self):
+    def test_list_of_dicts_passthrough(self, manager):
         msg = [{"a": 1}, {"b": 2}]
-        result = self.mgr._parse_message(msg)
+        result = manager._parse_message(msg)
         assert result is msg
 
-    def test_list_with_non_dict_items_returns_none(self):
-        result = self.mgr._parse_message([1, 2, 3])
+    def test_list_with_non_dict_items_returns_none(self, manager):
+        result = manager._parse_message([1, 2, 3])
         assert result is None
 
-    def test_none_returns_none(self):
-        result = self.mgr._parse_message(None)
+    def test_none_returns_none(self, manager):
+        result = manager._parse_message(None)
         assert result is None
 
-    def test_integer_returns_none(self):
-        result = self.mgr._parse_message(42)
+    def test_integer_returns_none(self, manager):
+        result = manager._parse_message(42)
         assert result is None
 
-    def test_bytes_returns_none(self):
-        result = self.mgr._parse_message(b"bytes-data")
+    def test_bytes_returns_none(self, manager):
+        result = manager._parse_message(b"bytes-data")
         assert result is None

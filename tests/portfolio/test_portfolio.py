@@ -11,61 +11,68 @@ Coverage targets:
 import asyncio
 import queue
 import time
-from typing import List
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from src.domain.enums import EventName
 from src.domain.inventory import InventoryItem
-from src.domain.orders import AccountPosition, AllTickers, Balance, Event, PriceUpdates
+from src.domain.orders import AccountPosition, Balance, Event
 from src.portfolio.portfolio import PortfolioManager
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Fixtures
 # ---------------------------------------------------------------------------
 
 
-def _make_item(
-    coin: str = "BTC", quantity: float = 1.0, buy_price: float = 50000.0
-) -> InventoryItem:
-    return InventoryItem(
-        id="test-id",
-        coin=coin,
-        buy_price=buy_price,
-        quantity=quantity,
-        available_quantity=quantity,
-        locked_quantity=0.0,
-        source="TEST",
-        timestamp=time.time(),
-    )
+@pytest.fixture
+def make_item():
+    """Factory fixture: create an InventoryItem with sensible defaults."""
+    def _factory(
+        coin: str = "BTC", quantity: float = 1.0, buy_price: float = 50000.0
+    ) -> InventoryItem:
+        return InventoryItem(
+            id="test-id",
+            coin=coin,
+            buy_price=buy_price,
+            quantity=quantity,
+            available_quantity=quantity,
+            locked_quantity=0.0,
+            source="TEST",
+            timestamp=time.time(),
+        )
+    return _factory
 
 
-def _make_portfolio(
-    db_items: list | None = None, client_account: dict | None = None
-) -> PortfolioManager:
-    """Return a PortfolioManager with fully mocked dependencies."""
-    mock_broker = MagicMock()
-    mock_client = AsyncMock()
-    mock_client.get_account = AsyncMock(return_value=client_account or {"balances": []})
-    mock_db = AsyncMock()
-    mock_db.fetch_all_inventory_items = AsyncMock(
-        return_value=db_items if db_items is not None else []
-    )
-    mock_db.insert_inventory_item = AsyncMock()
+@pytest.fixture
+def make_portfolio():
+    """Factory fixture: create a PortfolioManager with fully mocked dependencies."""
+    def _factory(
+        db_items: list | None = None, client_account: dict | None = None
+    ) -> PortfolioManager:
+        mock_broker = MagicMock()
+        mock_client = AsyncMock()
+        mock_client.get_account = AsyncMock(
+            return_value=client_account or {"balances": []}
+        )
+        mock_db = AsyncMock()
+        mock_db.fetch_all_inventory_items = AsyncMock(
+            return_value=db_items if db_items is not None else []
+        )
+        mock_db.insert_inventory_item = AsyncMock()
 
-    price_resolver = MagicMock(spec=UsdPriceResolver)
+        price_resolver = MagicMock(spec=UsdPriceResolver)
 
-    pm = PortfolioManager(
-        broker=mock_broker,
-        ui_queue=queue.Queue(),
-        price_resolver=price_resolver,
-        db=mock_db,
-        client=mock_client,
-    )
-    return pm
+        return PortfolioManager(
+            broker=mock_broker,
+            ui_queue=queue.Queue(),
+            price_resolver=price_resolver,
+            db=mock_db,
+            client=mock_client,
+        )
+    return _factory
 
 
 # ---------------------------------------------------------------------------
@@ -74,8 +81,7 @@ def _make_portfolio(
 
 
 class TestInitPortfolioSource:
-    @pytest.mark.asyncio
-    async def test_loads_from_db_when_items_present(self):
+    async def test_loads_from_db_when_items_present(self, make_portfolio):
         """When DB returns items, inventory is populated from them."""
         raw = [
             {
@@ -90,19 +96,17 @@ class TestInitPortfolioSource:
                 "notes": "",
             }
         ]
-        pm = _make_portfolio(db_items=raw, client_account={"balances": []})
+        pm = make_portfolio(db_items=raw, client_account={"balances": []})
 
         await pm.init_portfolio_source()
 
         assert len(pm.inventory) == 1
         assert pm.inventory[0].coin == "BTC"
 
-    @pytest.mark.asyncio
-    async def test_empty_db_starts_empty_when_no_csv(self):
+    async def test_empty_db_starts_empty_when_no_csv(self, make_portfolio):
         """Empty DB with no CSV → empty inventory (no error)."""
-        pm = _make_portfolio(db_items=[])
+        pm = make_portfolio(db_items=[])
 
-        # Patch CSV loader to pretend file does not exist
         with patch.object(
             pm, "_try_load_inventory_csv", new=AsyncMock(return_value=False)
         ):
@@ -110,12 +114,9 @@ class TestInitPortfolioSource:
 
         assert pm.inventory == []
 
-    @pytest.mark.asyncio
-    async def test_initialization_complete_event_is_set(self):
+    async def test_initialization_complete_event_is_set(self, make_portfolio):
         """initialization_complete event is always set after init, even on error."""
-        pm = _make_portfolio(db_items=[])
-
-        # Force DB to raise
+        pm = make_portfolio(db_items=[])
         pm.db.fetch_all_inventory_items = AsyncMock(
             side_effect=RuntimeError("DB offline")
         )
@@ -126,10 +127,9 @@ class TestInitPortfolioSource:
             await pm.init_portfolio_source()
 
         assert pm.initialization_complete.is_set()
-        assert pm.inventory == []  # fallback to empty
+        assert pm.inventory == []
 
-    @pytest.mark.asyncio
-    async def test_inventory_manager_updated_when_loading_from_db(self):
+    async def test_inventory_manager_updated_when_loading_from_db(self, make_portfolio):
         """InventoryManager reflects DB-loaded items."""
         raw = [
             {
@@ -144,7 +144,7 @@ class TestInitPortfolioSource:
                 "notes": "",
             }
         ]
-        pm = _make_portfolio(db_items=raw, client_account={"balances": []})
+        pm = make_portfolio(db_items=raw, client_account={"balances": []})
 
         await pm.init_portfolio_source()
 
@@ -158,12 +158,13 @@ class TestInitPortfolioSource:
 
 
 class TestHandleAccountPosition:
-    @pytest.mark.asyncio
-    async def test_distributes_balance_proportionally_across_lots(self):
+    async def test_distributes_balance_proportionally_across_lots(
+        self, make_portfolio, make_item
+    ):
         """Two lots of the same coin get available/locked in proportion to their quantity."""
-        pm = _make_portfolio()
-        lot1 = _make_item("BTC", quantity=0.25)
-        lot2 = _make_item("BTC", quantity=0.75)
+        pm = make_portfolio()
+        lot1 = make_item("BTC", quantity=0.25)
+        lot2 = make_item("BTC", quantity=0.75)
         pm.inventory = [lot1, lot2]
 
         balances = [Balance(coin="BTC", free=0.8, locked=0.2)]
@@ -180,32 +181,30 @@ class TestHandleAccountPosition:
         assert abs(lot2.available_quantity - 0.6) < 1e-9
         assert abs(lot2.locked_quantity - 0.15) < 1e-9
 
-    @pytest.mark.asyncio
-    async def test_coin_not_in_exchange_is_left_unchanged(self):
+    async def test_coin_not_in_exchange_is_left_unchanged(
+        self, make_portfolio, make_item
+    ):
         """Inventory coin absent from exchange balances is LEFT UNCHANGED.
 
         AccountPosition may only contain coins that changed, so missing coins
         should not be zeroed out.
         """
-        pm = _make_portfolio()
-        item = _make_item("DOGE", quantity=1000.0)
+        pm = make_portfolio()
+        item = make_item("DOGE", quantity=1000.0)
         item.available_quantity = 500.0
         pm.inventory = [item]
 
-        balances: List[Balance] = []  # no DOGE on exchange
         account_pos = AccountPosition(
-            event_time=0, last_update_time=0, balances=balances
+            event_time=0, last_update_time=0, balances=[]
         )
 
         await pm.handle_account_position(account_pos)
 
-        # Coin not in AccountPosition is left unchanged (partial update semantics)
         assert item.available_quantity == 500.0
 
-    @pytest.mark.asyncio
-    async def test_empty_inventory_is_handled(self):
+    async def test_empty_inventory_is_handled(self, make_portfolio):
         """No error when inventory is empty."""
-        pm = _make_portfolio()
+        pm = make_portfolio()
         pm.inventory = []
 
         balances = [Balance(coin="BTC", free=1.0, locked=0.0)]
@@ -222,29 +221,28 @@ class TestHandleAccountPosition:
 
 
 class TestInventoryMutations:
-    @pytest.mark.asyncio
-    async def test_update_inventory_replaces_list(self):
-        pm = _make_portfolio()
-        pm.inventory = [_make_item("BTC")]
-        new_items = [_make_item("ETH"), _make_item("SOL")]
+    async def test_update_inventory_replaces_list(self, make_portfolio, make_item):
+        pm = make_portfolio()
+        pm.inventory = [make_item("BTC")]
+        new_items = [make_item("ETH"), make_item("SOL")]
 
         await pm.update_inventory(new_items)
 
         assert len(pm.inventory) == 2
         assert pm.inventory[0].coin == "ETH"
 
-    def test_add_inventory_item_appends(self):
-        pm = _make_portfolio()
+    def test_add_inventory_item_appends(self, make_portfolio, make_item):
+        pm = make_portfolio()
         pm.inventory = []
 
-        item = _make_item("ADA")
+        item = make_item("ADA")
         pm.add_inventory_item(item)
 
         assert len(pm.inventory) == 1
         assert pm.inventory[0].coin == "ADA"
 
-    def test_remove_inventory_item_by_id(self):
-        pm = _make_portfolio()
+    def test_remove_inventory_item_by_id(self, make_portfolio, make_item):
+        pm = make_portfolio()
         item = InventoryItem(
             id="remove-me",
             coin="BTC",
@@ -255,16 +253,16 @@ class TestInventoryMutations:
             source="TEST",
             timestamp=time.time(),
         )
-        pm.inventory = [item, _make_item("ETH")]
+        pm.inventory = [item, make_item("ETH")]
 
         pm.remove_inventory_item("remove-me")
 
         assert len(pm.inventory) == 1
         assert pm.inventory[0].coin == "ETH"
 
-    def test_remove_nonexistent_id_is_safe(self):
-        pm = _make_portfolio()
-        pm.inventory = [_make_item("BTC")]
+    def test_remove_nonexistent_id_is_safe(self, make_portfolio, make_item):
+        pm = make_portfolio()
+        pm.inventory = [make_item("BTC")]
 
         pm.remove_inventory_item("does-not-exist")
 
@@ -277,10 +275,9 @@ class TestInventoryMutations:
 
 
 class TestRunLoop:
-    @pytest.mark.asyncio
-    async def test_routes_account_position_event(self):
+    async def test_routes_account_position_event(self, make_portfolio):
         """ACCOUNT_POSITION event triggers handle_account_position."""
-        pm = _make_portfolio()
+        pm = make_portfolio()
         pm.handle_account_position = AsyncMock()
 
         account_pos = AccountPosition(event_time=0, last_update_time=0, balances=[])
@@ -288,21 +285,19 @@ class TestRunLoop:
             Event(name=EventName.ACCOUNT_POSITION, content=account_pos)
         )
 
-        # Run loop as a task; stop it after the event is consumed
         task = asyncio.create_task(pm.run_loop())
-        await asyncio.sleep(0.05)  # let loop process the queued event
+        await asyncio.sleep(0.05)
         pm.stop_event.set()
         await asyncio.wait_for(task, timeout=1.0)
 
         pm.handle_account_position.assert_awaited_once_with(account_pos)
 
-    @pytest.mark.asyncio
-    async def test_routes_portfolio_inventory_event(self):
+    async def test_routes_portfolio_inventory_event(self, make_portfolio, make_item):
         """PORTFOLIO_INVENTORY event triggers update_inventory."""
-        pm = _make_portfolio()
+        pm = make_portfolio()
         pm.update_inventory = AsyncMock()
 
-        items = [_make_item("BTC")]
+        items = [make_item("BTC")]
         pm.worker_queue.put_nowait(
             Event(name=EventName.PORTFOLIO_INVENTORY, content=items)
         )
@@ -314,14 +309,12 @@ class TestRunLoop:
 
         pm.update_inventory.assert_awaited_once_with(items)
 
-    @pytest.mark.asyncio
-    async def test_stops_on_stop_event(self):
+    async def test_stops_on_stop_event(self, make_portfolio):
         """run_loop exits when stop_event is set and queue is empty."""
-        pm = _make_portfolio()
+        pm = make_portfolio()
 
         task = asyncio.create_task(pm.run_loop())
         await asyncio.sleep(0.05)
         pm.stop_event.set()
 
-        # Should complete without hanging
         await asyncio.wait_for(task, timeout=1.0)
