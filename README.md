@@ -1,6 +1,12 @@
 # Cryptocopter
 
+[![CI](https://github.com/omn88/cryptocopter/actions/workflows/ci.yml/badge.svg)](https://github.com/omn88/cryptocopter/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.12%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 An async Python trading bot for Binance spot markets. It runs two independent DCA strategies, persists all position state to SQLite, recovers cleanly from crashes, and exposes a Kivy desktop GUI for configuration and monitoring.
+
+> **Warning — real money risk.** Always verify the bot works correctly on the Binance testnet before pointing it at a live account. The author provides no warranty. Use at your own risk.
 
 ---
 
@@ -106,6 +112,12 @@ API_SECRET=your_binance_api_secret
 
 When the file is absent (CI, tests) both values default to empty strings — imports never raise.
 
+**Required API permissions:** Enable *Spot & Margin Trading* on the API key. Withdrawal permission is not needed and should be left disabled.
+
+**Testnet:** Binance provides a [Spot Testnet](https://testnet.binance.vision/) with paper-money credentials. Use it to validate the bot before switching to a live key.
+
+The bot stores all position state in `trading.db` (SQLite, created automatically in the working directory). Back up this file before wiping it — it's the only source of truth for in-flight positions.
+
 ### Run
 
 ```bash
@@ -189,4 +201,13 @@ GitHub Actions runs three jobs on every push:
 | Linting | `mypy` + `pylint` | Type errors, code quality (threshold 8.0) |
 | Tests | `pytest --cov` | Full test suite + coverage report artifact |
 
+---
+
+## Known Limitations
+
+- **Binance-only.** The broker layer wraps `python-binance` directly; no exchange abstraction exists.
+- **Spot only.** Futures and margin trading are not supported.
+- **Single account.** No multi-account or sub-account support.
+- **Windows / Linux.** Tested on both; macOS not validated (Kivy SDL2 dependency may require extra setup).
+- `websockets` is pinned to 13.1 due to a `python-binance` incompatibility with 14+.
 
