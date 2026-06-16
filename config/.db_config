@@ -1,7 +1,0 @@
-DB_HOST="localhost"
-DB_PORT="3306"
-DB_USER="root"
-DB_PASSWORD="miket"
-DB_NAME="cryptocopter"
-
-DB_TEST_NAME="e2e_test"

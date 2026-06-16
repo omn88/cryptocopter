@@ -5,6 +5,7 @@ data
 sample_data.txt
 .pytest_cache/
 .env
+config/.db_config
 .claude
 .coverage
 *.txt

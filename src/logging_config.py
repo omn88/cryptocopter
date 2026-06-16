@@ -4,14 +4,8 @@ from logging.handlers import RotatingFileHandler
 import os
 from pathlib import Path
 
-# Get the environment variable
-env = os.getenv("ENVIRONMENT")
-
-# Set the log directory
-if env == "GITLAB":
-    LOG_DIR = "/builds/omn88/rsi_based_futures/artifacts"
-else:
-    LOG_DIR = str(Path(__file__).parent.parent / "artifacts")
+# Set the log directory — use local artifacts/ folder in all environments
+LOG_DIR = str(Path(__file__).parent.parent / "artifacts")
 
 os.makedirs(LOG_DIR, exist_ok=True)
 
