@@ -16,7 +16,7 @@ from src.broker import BrokerSpot
 from src.database.trading_database import Database
 from src.strategies.hp_manager.sell_strategies.factory import SellStrategyFactory
 from src.common.client import BinanceClient
-from src.domain.enums import PositionSide, SellType, State, UiState
+from src.domain.enums import PositionSide, State, UiState
 from src.domain.orders import Order
 from src.domain.positions import (
     HPBuy,

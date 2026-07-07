@@ -66,9 +66,8 @@ class PositionVerifier:
                     verified_positions.append(position)
 
             except Exception as e:
-                logger.error("Failed to verify position %s: %s", position.hp_id, e)
-                # Add position anyway for manual review
-                verified_positions.append(position)
+                logger.exception("Failed to verify position %s: %s", position.hp_id, e)
+                raise
 
         return verified_positions
 
@@ -115,12 +114,12 @@ class PositionVerifier:
                 updated_orders.append(order)
 
             except Exception as e:
-                logger.warning(
+                logger.exception(
                     "Could not verify order %s: %s",
                     order.exchange_order_id,
                     e,
                 )
-                updated_orders.append(order)
+                raise
 
         return updated_orders
 
@@ -240,8 +239,9 @@ class PositionVerifier:
                             return
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "Error in PARTIALLY_SOLD check for hp_id=%s: %s",
                 getattr(position, "hp_id", None),
                 e,
             )
+            raise

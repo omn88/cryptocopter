@@ -10,7 +10,7 @@ from src.common.helpers import generate_hp_id
 from src.strategies.hp_manager.sell_strategies.factory import SellStrategyFactory
 from src.database import Database
 from src.common.client import BinanceClient
-from src.domain.enums import PositionSide, SellType, State, UiState
+from src.domain.enums import PositionSide, State, UiState
 from src.domain.inventory import InventoryItem
 from src.domain.orders import Order
 from src.domain.positions import (
@@ -22,7 +22,6 @@ from src.domain.positions import (
     SellPosition,
     StateInfo,
 )
-from src.common.symbol import Symbol
 from src.gui.identifiers import (
     HPClose,
     HPGuiDataBuy,

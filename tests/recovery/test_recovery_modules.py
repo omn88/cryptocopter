@@ -7,6 +7,8 @@ Unit tests for recovery modules (A12):
 
 from unittest.mock import AsyncMock
 
+import pytest
+
 from src.database.models import OrderStatus, PositionStatus, PositionType
 from src.domain.enums import PositionSide, State
 from src.recovery.position_converter import PositionConverter
@@ -199,19 +201,17 @@ class TestVerifyPositionsWithExchange:
 
         assert result == [position]
 
-    async def test_exception_during_verify_keeps_position_in_result(
+    async def test_exception_during_verify_propagates(
         self, verifier, db_mock, make_position
     ):
-        """If an exception is raised, the position is still returned for manual review."""
+        """Unexpected exceptions during verification propagate to the caller."""
         mock_client = AsyncMock()
 
         position = make_position()
         db_mock.get_position_orders = AsyncMock(side_effect=RuntimeError("DB error"))
 
-        result = await verifier.verify_positions_with_exchange(mock_client, [position])
-
-        assert len(result) == 1
-        assert result[0] is position
+        with pytest.raises(RuntimeError, match="DB error"):
+            await verifier.verify_positions_with_exchange(mock_client, [position])
 
     async def test_order_without_exchange_id_is_kept_without_api_call(
         self, verifier, db_mock, make_position, make_order
