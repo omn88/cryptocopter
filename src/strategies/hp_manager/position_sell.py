@@ -28,7 +28,6 @@ from src.domain.subscriptions import SubscriptionInfo
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.strategies.hp_manager.sell_strategies.base import BaseSellStrategy
 
-
 logger = logging.getLogger(__name__)
 
 

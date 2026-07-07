@@ -13,7 +13,6 @@ from src.domain.positions import HPBuy, HPBuyConfig, HPSell, HPSellConfig, State
 from src.common.symbol import Symbol
 from src.database.models import Position, PositionStatus, OrderStatus
 
-
 logger = logging.getLogger(__name__)
 
 

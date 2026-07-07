@@ -16,7 +16,6 @@ from src.domain.enums import Mode, State, UiState
 from src.domain.orders import ExecutionReport, Order
 from src.domain.positions import HPBuy
 
-
 logger = logging.getLogger(__name__)
 
 

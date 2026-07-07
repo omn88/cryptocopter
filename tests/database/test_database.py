@@ -22,7 +22,6 @@ from src.database.models import (
 from src.database.exceptions import DatabaseError
 from src.domain.inventory import InventoryItem
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

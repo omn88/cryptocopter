@@ -18,7 +18,6 @@ from src.database.models import (
 )
 from .position_converter import PositionConverter
 
-
 logger = logging.getLogger(__name__)
 
 

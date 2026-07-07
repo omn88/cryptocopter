@@ -11,7 +11,6 @@ from src.domain.events import HPSellPositionCreated
 from src.domain.orders import AccountPosition, Balance, Event
 from tests.strategies.hp.hp_simulator import HPSimulator, wait_for_condition
 
-
 logger = logging.getLogger(__name__)
 
 

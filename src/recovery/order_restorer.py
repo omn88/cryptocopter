@@ -23,7 +23,6 @@ from src.domain.positions import HPBuyConfig, HPSellConfig
 from src.strategies.hp_manager.position_buy import HPPositionBuy
 from src.database.trading_database import Database
 
-
 logger = logging.getLogger(__name__)
 
 

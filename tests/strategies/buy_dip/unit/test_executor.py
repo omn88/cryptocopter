@@ -23,7 +23,6 @@ from src.domain.orders import Event, TickerUpdate
 from src.strategies.buy_dip.config import BuyDipConfig
 from src.strategies.buy_dip.executor import BuyDipExecutor
 
-
 # ---------------------------------------------------------------------------
 # Constructor
 # ---------------------------------------------------------------------------

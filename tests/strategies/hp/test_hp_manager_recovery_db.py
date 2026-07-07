@@ -17,7 +17,6 @@ from src.domain.orders import Order
 from tests.helpers import get_new_order
 from tests.strategies.hp.hp_simulator import HPSimulator, wait_for_condition
 
-
 logger = logging.getLogger("hp_e2e_test")
 
 

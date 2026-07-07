@@ -13,7 +13,6 @@ from unittest.mock import MagicMock
 from src.common.client import KrakenClient
 from src.websocket.manager import WebSocketManager
 
-
 # ---------------------------------------------------------------------------
 # Constructor
 # ---------------------------------------------------------------------------

@@ -12,14 +12,12 @@ config/.db_config
 *.csv
 venv
 .venv
+.venv_new
 linux_venv
 windows_venv
 .vscode/
 *.db
-.venv
-.venv_new
 ASSESSMENT*.md
-.coverage
 htmlcov/
 *.xml
 *.egg-info/

@@ -35,7 +35,6 @@ from src.gui.hp_manager.hp_data_manager import HPDataManager
 from src.gui.hp_manager.hp_row_renderer import HPRowRenderer
 from src.gui.hp_manager.hp_list_filter import HPListFilter
 
-
 logger = logging.getLogger(__name__)
 
 

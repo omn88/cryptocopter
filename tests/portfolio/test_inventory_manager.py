@@ -4,7 +4,6 @@ import pytest
 from src.domain.inventory import InventoryItem
 from src.portfolio.inventory_manager import InventoryManager
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

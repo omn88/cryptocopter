@@ -13,7 +13,6 @@ from src.domain.enums import PositionSide
 from src.strategies.hp_manager.hp_manager import HpStrategy
 from src.database.trading_database import Database
 
-
 logger = logging.getLogger(__name__)
 
 

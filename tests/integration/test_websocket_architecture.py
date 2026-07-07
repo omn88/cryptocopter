@@ -13,7 +13,6 @@ from src.common.client import KrakenClient
 from src.domain.enums import SubscriptionTarget, SubscriptionType
 from src.domain.subscriptions import SubscriptionInfo
 
-
 # Fixtures
 
 

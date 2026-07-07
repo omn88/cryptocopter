@@ -22,7 +22,6 @@ import pytest
 
 from tests.strategies.hp.hp_simulator import HPSimulator
 
-
 # ---------------------------------------------------------------------------
 # Level 0 — simulator only
 # ---------------------------------------------------------------------------
