@@ -18,7 +18,7 @@ This module is separate from test_hp_manager_e2e.py as it tests a different doma
 import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from binance.enums import (
+from src.domain.constants import (
     ORDER_STATUS_FILLED,
     ORDER_TYPE_LIMIT,
     ORDER_STATUS_PARTIALLY_FILLED,

@@ -2,7 +2,7 @@ import asyncio
 import logging
 import queue
 from typing import Any, Dict, List, Optional
-from binance.enums import (
+from src.domain.constants import (
     ORDER_STATUS_CANCELED,
     ORDER_STATUS_FILLED,
 )

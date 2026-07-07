@@ -10,7 +10,7 @@ import queue
 from collections import defaultdict
 from typing import List, Optional
 
-from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED, ORDER_STATUS_NEW
+from src.domain.constants import ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED, ORDER_STATUS_NEW
 
 from src.common.client import BinanceClient
 from src.domain.enums import EventName, PositionSide

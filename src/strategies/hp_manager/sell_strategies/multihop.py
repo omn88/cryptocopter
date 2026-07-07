@@ -3,7 +3,7 @@
 import logging
 from typing import Any, Dict, List
 
-from binance.enums import ORDER_STATUS_FILLED
+from src.domain.constants import ORDER_STATUS_FILLED
 
 from src.domain.enums import PositionSide, SellType, State
 from src.domain.positions import HPSellConfig, SellPosition, StateInfo

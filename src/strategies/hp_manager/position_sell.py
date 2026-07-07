@@ -2,7 +2,7 @@ import asyncio
 import logging
 import queue
 from typing import List, Optional
-from binance.enums import (
+from src.domain.constants import (
     TIME_IN_FORCE_GTC,
     ORDER_STATUS_PARTIALLY_FILLED,
     ORDER_STATUS_NEW,

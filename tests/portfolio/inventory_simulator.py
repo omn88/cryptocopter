@@ -244,7 +244,7 @@ class InventorySellSimulator:
 
     async def simulate_sell_order_execution(self, hp_id: str):
         """Simulate the execution of the sell order to complete the sell flow."""
-        from binance.enums import ORDER_TYPE_LIMIT, ORDER_STATUS_FILLED
+        from src.domain.constants import ORDER_TYPE_LIMIT, ORDER_STATUS_FILLED
         from src.domain.enums import EventName, Signal, SignalUpdate
         from src.domain.orders import Event, ExecutionReport, TickerUpdate
 

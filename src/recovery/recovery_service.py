@@ -10,7 +10,7 @@ import logging
 import queue
 from typing import List, Dict, Optional, Tuple, Any
 
-from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_NEW
+from src.domain.constants import ORDER_STATUS_FILLED, ORDER_STATUS_NEW
 
 from src.broker import BrokerSpot
 from src.database.trading_database import Database

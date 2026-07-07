@@ -7,7 +7,7 @@ must complete before the second leg activates.
 
 import logging
 from typing import Any
-from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_NEW
+from src.domain.constants import ORDER_STATUS_FILLED, ORDER_STATUS_NEW
 
 from src.domain.enums import PositionSide
 from src.strategies.hp_manager.hp_manager import HpStrategy
