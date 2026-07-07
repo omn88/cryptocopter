@@ -1,6 +1,10 @@
 import logging
 from typing import List, Optional
-from src.domain.constants import ORDER_STATUS_NEW, ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
+from src.domain.constants import (
+    ORDER_STATUS_NEW,
+    ORDER_STATUS_CANCELED,
+    ORDER_STATUS_FILLED,
+)
 
 from src.domain.orders import Order
 
