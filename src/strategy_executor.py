@@ -9,7 +9,7 @@ from src.domain.constants import (
 from src.common.helpers import generate_hp_id
 from src.strategies.hp_manager.sell_strategies.factory import SellStrategyFactory
 from src.database import Database
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.domain.enums import PositionSide, State, UiState
 from src.domain.inventory import InventoryItem
 from src.domain.orders import Order
@@ -49,7 +49,7 @@ class StrategyExecutor:
         ui_queue: queue.Queue,
         inventory: List[InventoryItem],
         price_resolver: UsdPriceResolver,
-        client: Optional[BinanceClient] = None,
+        client: Optional[KrakenClient] = None,
         portfolio_ui_queue: Optional[queue.Queue] = None,
         test_mode: bool = False,
     ):
@@ -63,7 +63,7 @@ class StrategyExecutor:
         self.supported_quotes = ["USDC", "PLN", "BTC", "BNB", "USDT"]
         self.test_mode = test_mode
         self.price_resolver = price_resolver
-        self.client: Optional[BinanceClient] = client
+        self.client: Optional[KrakenClient] = client
         self.recovery_service: Optional[RecoveryService] = None
         self.stop_event = asyncio.Event()
         self._recovery_done = False  # Guard against concurrent duplicate recovery calls
@@ -154,7 +154,7 @@ class StrategyExecutor:
         new_hp.state_info.generate_open_time()
         worker_queue: queue.Queue = queue.Queue()
         if self.client is None:
-            raise RuntimeError("BinanceClient not initialized")
+            raise RuntimeError("KrakenClient not initialized")
 
         # Create temporary portfolio event helper (will be updated after strategy creation)
         portfolio_event_helper = PortfolioEventHelper(None)
@@ -324,7 +324,7 @@ class StrategyExecutor:
         )
         strategy: HpStrategy = self.strategies[strategy_data.config.hp_id]
         if not self.client:
-            raise RuntimeError("BinanceClient not initialized")
+            raise RuntimeError("KrakenClient not initialized")
         if strategy_data.state_info.state == State.NEW:
             strategy.sell = HPPositionSell(
                 client=self.client,
@@ -388,7 +388,7 @@ class StrategyExecutor:
         logger.info("[EXECUTOR] Strategy type: %s", type(sell_strategy).__name__)
 
         if self.client is None:
-            raise RuntimeError("BinanceClient not initialized")
+            raise RuntimeError("KrakenClient not initialized")
         if self.recovery_service is None:
             raise RuntimeError("RecoveryService not initialized")
         worker_queue: queue.Queue = queue.Queue()
@@ -682,7 +682,7 @@ class StrategyExecutor:
             if self.recovery_service is None:
                 raise RuntimeError("RecoveryService not initialized")
             if self.client is None:
-                raise RuntimeError("BinanceClient not initialized")
+                raise RuntimeError("KrakenClient not initialized")
 
             # Mark done after validation but before first await — prevents concurrent duplicate
             # calls from both proceeding, while allowing a later call to succeed if the first

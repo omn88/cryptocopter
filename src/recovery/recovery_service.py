@@ -15,7 +15,7 @@ from src.domain.constants import ORDER_STATUS_FILLED, ORDER_STATUS_NEW
 from src.broker import BrokerSpot
 from src.database.trading_database import Database
 from src.strategies.hp_manager.sell_strategies.factory import SellStrategyFactory
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.domain.enums import PositionSide, State, UiState
 from src.domain.orders import Order
 from src.domain.positions import (
@@ -66,7 +66,7 @@ class RecoveryService:
         self.verifier = PositionVerifier(database, self.converter)
 
     async def recover_all_positions(
-        self, client: BinanceClient
+        self, client: KrakenClient
     ) -> Tuple[List[HPBuy], List[HPSell]]:
         """
         Recover all active positions from the database.
@@ -116,7 +116,7 @@ class RecoveryService:
     async def restore_buy_position(
         self,
         buy_data: HPBuy,
-        client: BinanceClient,
+        client: KrakenClient,
         ui_queue: Any,
         balance: Any,
         config_queue: Any,
@@ -131,7 +131,7 @@ class RecoveryService:
 
         worker_queue: queue.Queue = queue.Queue()
         if client is None:
-            raise RuntimeError("BinanceClient must not be None")
+            raise RuntimeError("KrakenClient must not be None")
 
         # Create temporary portfolio event helper (will be updated after strategy creation)
         portfolio_event_helper = PortfolioEventHelper(None)
@@ -291,7 +291,7 @@ class RecoveryService:
     async def restore_sell_position(
         self,
         sell_data: HPSell,
-        client: BinanceClient,
+        client: KrakenClient,
         ui_queue: Any,
         balance: Any,
         config_queue: Any,

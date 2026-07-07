@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Callable, Any, Union, cast
 
 import websockets
 
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.domain.subscriptions import SubscriptionInfo
 from src.websocket.config import ULTRA_ROBUST_CONFIG
 
@@ -25,7 +25,7 @@ class WebSocketManager:
 
     def __init__(
         self,
-        client: BinanceClient,
+        client: KrakenClient,
         subscriptions: Dict[str, List[SubscriptionInfo]],
         stop_event: asyncio.Event,
     ):
@@ -672,7 +672,7 @@ class WebSocketManager:
                 self._max_proxy_failures_before_fallback,
             )
             self._use_fallback_connection = True
-            # Note: Actual proxy removal would require recreating BinanceClient
+            # Note: Actual proxy removal would require recreating KrakenClient
             # For now, this flag can be used by client initialization code
             # TODO: Implement client recreation without proxy
 

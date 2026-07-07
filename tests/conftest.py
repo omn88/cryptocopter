@@ -33,8 +33,7 @@ import pytest
 from typing import AsyncGenerator, Dict
 from unittest.mock import AsyncMock, MagicMock
 from unittest.mock import patch
-from pytest_mock import MockerFixture
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.common.helpers import generate_hp_id
 from src.common.symbol import Symbol
 from src.database.trading_database import Database
@@ -56,9 +55,7 @@ logger = logging.getLogger("conftest")
 
 
 @pytest.fixture
-def mock_async_client(mocker: MockerFixture) -> AsyncMock:
-    # Mock the AsyncClient.
-    mocked_AsyncClient = mocker.patch("binance.AsyncClient")
+def mock_async_client() -> AsyncMock:
     # Create an async mock for the instance methods.
     mocked_async_client = AsyncMock()
 
@@ -87,8 +84,6 @@ def mock_async_client(mocker: MockerFixture) -> AsyncMock:
     # Mock the get_exchange_info method to return the mock data.
     mocked_async_client.get_exchange_info.return_value = mock_exchange_info
 
-    # Assign the instance to the mocked AsyncClient when used in a context manager.
-    mocked_AsyncClient.return_value.__aenter__.return_value = mocked_async_client
     return mocked_async_client
 
 
@@ -269,7 +264,7 @@ async def hp_gui(mock_async_client) -> AsyncGenerator:
 @pytest.fixture
 def mock_broker():
     """Create a mock broker instance for WebSocket architecture testing"""
-    broker = BrokerSpot(client=MagicMock(spec=BinanceClient))
+    broker = BrokerSpot(client=MagicMock(spec=KrakenClient))
     yield broker
 
 
@@ -1338,7 +1333,7 @@ def sample_buy_dip_config():
 
 @pytest.fixture
 def mock_binance_client_buy_dip():
-    """Create a mock BinanceClient for Buy Dip E2E testing (simulates real integration)."""
+    """Create a mock KrakenClient for Buy Dip E2E testing (simulates real integration)."""
 
     client = AsyncMock()
 
@@ -1346,7 +1341,7 @@ def mock_binance_client_buy_dip():
     client.placed_orders = {}  # order_id -> {price, quantity, symbol, side}
 
     async def create_order_side_effect(*args, **kwargs):
-        """Simulate BinanceClient.create_order() - returns order dict like Binance API"""
+        """Simulate KrakenClient.create_order() - returns order dict like Binance API"""
         symbol = kwargs.get("symbol", "BTCUSDC")
         side = kwargs.get("side", "BUY")
         price = kwargs.get("price", 0.0)
@@ -1384,7 +1379,7 @@ def mock_binance_client_buy_dip():
 
 @pytest.fixture
 def broker_adapter_buy_dip(mock_binance_client_buy_dip):
-    """Create BuyDipBrokerAdapter with mocked BinanceClient for E2E testing."""
+    """Create BuyDipBrokerAdapter with mocked KrakenClient for E2E testing."""
 
     # Create Symbol with BTCUSDC precision rules
     symbol = Symbol(

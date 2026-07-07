@@ -2,14 +2,14 @@
 from typing import Dict
 import logging
 from src.common.symbol import Symbol
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.strategies.hp_manager.sell_strategies.factory import DELISTED_COINS
 
 logger = logging.getLogger(__name__)
 
 
 class UsdPriceResolver:
-    def __init__(self, client: BinanceClient, symbols: Dict[str, Symbol]):
+    def __init__(self, client: KrakenClient, symbols: Dict[str, Symbol]):
         self.client = client
         self.symbols = symbols
         self.latest_prices: Dict[str, float] = {}

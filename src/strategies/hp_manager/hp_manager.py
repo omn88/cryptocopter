@@ -14,7 +14,7 @@ from src.domain.constants import (
 )
 from src.common.symbol import Symbol
 from src.database import Database
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.domain.enums import (
     EventName,
     PositionSide,
@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 class HpStrategy:
     def __init__(
         self,
-        client: BinanceClient,
+        client: KrakenClient,
         balance: float,
         ui_queue: queue.Queue,
         portfolio_ui_queue: Optional[queue.Queue],

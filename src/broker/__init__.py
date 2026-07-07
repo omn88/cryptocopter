@@ -10,7 +10,7 @@ Main Components:
 
 Usage:
     from src.broker import BrokerSpot
-    from src.common.client import BinanceClient
+    from src.common.client import KrakenClient
 
     broker = BrokerSpot(client=client)
     broker.setup_subscriptions(hp_id="strategy1", symbol="BTCUSDC",

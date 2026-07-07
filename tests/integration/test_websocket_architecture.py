@@ -9,7 +9,7 @@ import pytest
 from src.broker import BrokerSpot
 from src.websocket import WebSocketManager, ULTRA_ROBUST_CONFIG
 from src.strategy_executor import StrategyExecutor
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.domain.enums import SubscriptionTarget, SubscriptionType
 from src.domain.subscriptions import SubscriptionInfo
 
@@ -19,8 +19,8 @@ from src.domain.subscriptions import SubscriptionInfo
 
 @pytest.fixture
 def mock_client():
-    """Create a mock BinanceClient."""
-    client = Mock(spec=BinanceClient)
+    """Create a mock KrakenClient."""
+    client = Mock(spec=KrakenClient)
     client.close_connection = AsyncMock()
     return client
 
@@ -41,11 +41,11 @@ def websocket_manager(mock_client):
 @pytest.fixture
 def mock_broker_with_ws():
     """Create a mock broker with initialized WebSocketManager."""
-    broker = BrokerSpot(client=Mock(spec=BinanceClient))
+    broker = BrokerSpot(client=Mock(spec=KrakenClient))
 
     # Manually initialize WebSocketManager
     broker._ws_manager = WebSocketManager(
-        client=Mock(spec=BinanceClient),
+        client=Mock(spec=KrakenClient),
         subscriptions=broker.subscriptions,
         stop_event=broker.stop_producers_event,
     )

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from src.broker import BrokerSpot
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.common.symbol import Symbol
 from src.database import Database
 from src.strategies.buy_dip.config import BuyDipConfig
@@ -44,7 +44,7 @@ def make_executor(buy_dip_config: BuyDipConfig, symbols_dict: Dict[str, Any]):
         return BuyDipExecutor(
             db=MagicMock(spec=Database),
             broker=MagicMock(spec=BrokerSpot),
-            client=AsyncMock(spec=BinanceClient),
+            client=AsyncMock(spec=KrakenClient),
             ui_queue=queue.Queue(),
             config=buy_dip_config,
             total_budget=Decimal("1000"),

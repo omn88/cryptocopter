@@ -16,7 +16,7 @@ from src.domain.constants import (
     ORDER_STATUS_NEW,
 )
 
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.domain.enums import EventName, PositionSide
 from src.domain.orders import Event, ExecutionReport, Order
 from src.domain.positions import HPBuyConfig, HPSellConfig
@@ -37,7 +37,7 @@ class OrderRestorer:
         self,
         buy_position: HPPositionBuy,
         worker_queue: queue.Queue,
-        client: BinanceClient,
+        client: KrakenClient,
     ) -> List[Order]:
         """
         Restore buy orders from database, aggregating duplicates and verifying with exchange.
@@ -75,7 +75,7 @@ class OrderRestorer:
         self,
         sell_config: HPSellConfig,
         worker_queue: queue.Queue,
-        client: BinanceClient,
+        client: KrakenClient,
     ) -> Optional[Order]:
         """
         Restore sell order from database and verify with exchange.
@@ -204,7 +204,7 @@ class OrderRestorer:
         orders: List[Order],
         symbol_name: str,
         worker_queue: queue.Queue,
-        client: BinanceClient,
+        client: KrakenClient,
     ) -> None:
         """
         Verify open orders with exchange and send execution reports for any changes.
@@ -257,7 +257,7 @@ class OrderRestorer:
         db_order: dict,
         symbol_name: str,
         worker_queue: queue.Queue,
-        client: BinanceClient,
+        client: KrakenClient,
     ) -> None:
         """
         Verify a single order with exchange and send execution report if changed.

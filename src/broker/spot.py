@@ -9,7 +9,7 @@ import queue
 import logging
 from typing import Any, Dict, List, Optional
 
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.domain.enums import SubscriptionTarget, SubscriptionType
 from src.domain.subscriptions import SubscriptionInfo
 from src.websocket import WebSocketManager
@@ -25,13 +25,13 @@ logger = logging.getLogger(__name__)
 class BrokerSpot:
     """Binance spot trading broker with real-time WebSocket integration."""
 
-    def __init__(self, client: BinanceClient) -> None:
+    def __init__(self, client: KrakenClient) -> None:
         """Initialize BrokerSpot.
 
         Args:
-            client: Shared BinanceClient instance to use for WebSocket streams.
+            client: Shared KrakenClient instance to use for WebSocket streams.
         """
-        self.client: BinanceClient = client
+        self.client: KrakenClient = client
         self.subscriptions: Dict[str, list] = {}
         self.queues: Dict[str, queue.Queue] = {}
         self.stop_producers_event: asyncio.Event = asyncio.Event()

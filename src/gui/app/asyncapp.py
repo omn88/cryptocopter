@@ -20,7 +20,7 @@ from kivy.lang import Builder
 from kivy.properties import ListProperty
 from kivy.uix.tabbedpanel import TabbedPanelItem
 from kivy.uix.widget import Widget
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.domain.enums import SubscriptionTarget, SubscriptionType
 from src.domain.subscriptions import SubscriptionInfo
 from src.portfolio.portfolio import PortfolioManager
@@ -59,7 +59,7 @@ class AsyncApp(App):
 
     def __init__(
         self,
-        client: BinanceClient,
+        client: KrakenClient,
         db: Database,
         price_resolver: UsdPriceResolver,
         **kwargs,
@@ -67,7 +67,7 @@ class AsyncApp(App):
         """Initializes the `AsyncApp` instance.
 
         Args:
-            client (BinanceClient): The Binance client to use for trading.
+            client (KrakenClient): The Kraken client to use for trading.
             db (Database): The database instance to use for database operations.
             **kwargs: Additional keyword arguments.
         """

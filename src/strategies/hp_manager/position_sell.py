@@ -10,17 +10,11 @@ from src.domain.constants import (
     ORDER_STATUS_FILLED,
     ORDER_STATUS_CANCELED,
 )
-from binance.exceptions import (
-    BinanceAPIException,
-    BinanceOrderException,
-    BinanceRequestException,
-)
-
 from src.broker import BrokerSpot
 from src.common.symbol import Symbol
 
 from src.database import Database
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.domain.enums import (
     PositionSide,
     SellType,
@@ -41,7 +35,7 @@ logger = logging.getLogger(__name__)
 class HPPositionSell:
     def __init__(
         self,
-        client: BinanceClient,
+        client: KrakenClient,
         original_position: SellPosition,
         sell_strategy: Optional[BaseSellStrategy],
         db: Database,
@@ -136,7 +130,7 @@ class HPPositionSell:
         """Send a list of orders concurrently.
 
         Args:
-            client: A `BinanceClient` object.
+            client: A `KrakenClient` object.
             side: The side of the orders (either `PositionSide.BUY` or `PositionSide.SELL`).
             orders: A list of `Order` objects to send.
 
@@ -326,11 +320,10 @@ class HPPositionSell:
                 )
                 logger.info("After sending(%s): %s", symbol.name, order)
                 logger.info("Response: %s", resp)
-            except (
-                BinanceAPIException,
-                BinanceOrderException,
-                BinanceRequestException,
-            ) as exception:
+            except Exception as exception:
+                # kraken.exceptions exposes ~50 flat error classes with no shared
+                # base, plus network failures surface as requests exceptions;
+                # retry on any of them the same way the old Binance tuple did.
                 last_exception = exception
                 logger.error(
                     "Failed to create spot order: %s due to %s: %s",
@@ -355,11 +348,7 @@ class HPPositionSell:
         try:
             resp = await self.client.cancel_order(symbol=symbol, orderId=order_id)
             logger.info("Cancelled order %s: %s", order_id, resp)
-        except (
-            BinanceAPIException,
-            BinanceOrderException,
-            BinanceRequestException,
-        ) as exception:
+        except Exception as exception:
             logger.error(
                 "Failed to cancel order due to %s: %s",
                 type(exception).__name__,

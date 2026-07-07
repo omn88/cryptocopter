@@ -8,7 +8,7 @@ import time
 from typing import Any, Dict, List, Optional
 import uuid
 from src.database.trading_database import Database
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.domain.enums import EventName, SubscriptionTarget, SubscriptionType
 from src.domain.inventory import InventoryItem
 from src.domain.orders import AccountPosition, AllTickers, Event, PriceUpdates
@@ -27,7 +27,7 @@ class PortfolioManager:
         ui_queue: queue.Queue,
         price_resolver: UsdPriceResolver,
         db: Database,
-        client: BinanceClient,
+        client: KrakenClient,
     ):
         self.client = client
         self.broker = broker

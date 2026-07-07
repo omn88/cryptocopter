@@ -21,7 +21,7 @@ from kivy.uix.label import Label
 from kivy.uix.popup import Popup
 from kivy.uix.textinput import TextInput
 
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.database import Database
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 
@@ -56,7 +56,7 @@ class BuyDipFront(BoxLayout):
 
     def __init__(
         self,
-        client: BinanceClient,
+        client: KrakenClient,
         config_queue: queue.Queue,
         db: Database,
         ui_queue: queue.Queue,
@@ -68,7 +68,7 @@ class BuyDipFront(BoxLayout):
         Initialize Buy Dip frontend.
 
         Args:
-            client: Binance client
+            client: Kraken client
             config_queue: Queue for strategy configuration
             db: Database instance
             ui_queue: Queue for UI updates from backend

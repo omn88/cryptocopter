@@ -67,7 +67,7 @@ The recovery system is designed with a coordinator pattern and specialized helpe
 
 - **Database Layer**: Uses `src.database.models` and `src.database.trading_database`
 - **Trading System**: Creates `HpStrategy`, `HPPositionBuy`, `HPPositionSell` objects
-- **Exchange**: Verifies states via `BinanceClient`
+- **Exchange**: Verifies states via `KrakenClient`
 
 ## Testing
 

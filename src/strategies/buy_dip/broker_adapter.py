@@ -8,7 +8,7 @@ Handles order placement, cancellation, and fill callbacks.
 import logging
 from decimal import Decimal
 from typing import Optional, Callable, Dict, Any, cast
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.common.symbol import Symbol
 
 logger = logging.getLogger(__name__)
@@ -19,19 +19,19 @@ class BuyDipBrokerAdapter:
     Adapter between BuyDipStrategy and application broker/client.
 
     Responsibilities:
-    - Place orders via BinanceClient REST API
-    - Cancel orders via BinanceClient REST API
+    - Place orders via KrakenClient REST API
+    - Cancel orders via KrakenClient REST API
     - Register callbacks for order fills (from WebSocket user stream)
     - Format order requests according to Binance API requirements
     - Apply symbol-specific precision and validation rules
     """
 
-    def __init__(self, client: BinanceClient, symbol: Symbol):
+    def __init__(self, client: KrakenClient, symbol: Symbol):
         """
         Initialize broker adapter.
 
         Args:
-            client: BinanceClient instance for REST API calls
+            client: KrakenClient instance for REST API calls
             symbol: Symbol object with precision and validation rules
         """
         self.client = client

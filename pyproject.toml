@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Async Binance spot trading bot with HP Manager and Buy Dip strategies"
 requires-python = ">=3.12"
 dependencies = [
-    "python-binance==1.0.36",
+    "python-kraken-sdk==3.3.0",
     "bta-lib==1.0.0",
     "pandas==2.2.3",
     "numpy==2.2.6",
@@ -15,7 +15,7 @@ dependencies = [
     "cryptography==45.0.3",
     "psutil==7.0.0",
     "python-decouple==3.8.0",
-    "websockets==13.1",
+    "websockets==16.0",
 ]
 
 [project.optional-dependencies]
