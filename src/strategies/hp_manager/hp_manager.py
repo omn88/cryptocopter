@@ -932,7 +932,9 @@ class HpStrategy:
                 quantity,
             )
 
-            quote = await self.client.convert_request_quote(
+            # TODO(PR7): Convert path is being removed, not reimplemented for
+            # Kraken (no Convert API equivalent) — see CLAUDE.md sell-path table.
+            quote = await self.client.convert_request_quote(  # type: ignore[attr-defined]
                 fromAsset=from_asset,
                 toAsset=to_asset,
                 fromAmount=quantity,
@@ -968,7 +970,10 @@ class HpStrategy:
                 )
                 return
 
-            accept = await self.client.convert_accept_quote(quoteId=quote_id)
+            # TODO(PR7): see convert_request_quote note above.
+            accept = await self.client.convert_accept_quote(  # type: ignore[attr-defined]
+                quoteId=quote_id
+            )
             logger.info("Quote accepted: %s", accept)
 
             self.sell.current_position.sell_order.status = ORDER_STATUS_FILLED

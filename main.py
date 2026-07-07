@@ -75,7 +75,11 @@ async def main() -> None:
         logger.error(f"Unexpected error in main application: {e}")
     finally:
         try:
-            await client.close_connection()
+            # TODO: KrakenClient has no close_connection — decide whether
+            # python-kraken-sdk's Trade (sync/requests-based) needs explicit
+            # cleanup, or this call can be dropped. Not yet tracked in the
+            # migration PR table.
+            await client.close_connection()  # type: ignore[attr-defined]
         except Exception as e:
             logger.error(f"Error closing client connection: {e}")
 

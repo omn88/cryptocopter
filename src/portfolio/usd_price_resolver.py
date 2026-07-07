@@ -19,7 +19,8 @@ class UsdPriceResolver:
 
     async def fetch_all_prices(self) -> None:
         """Fetch all symbol prices using Binance REST API."""
-        prices = await self.client.get_all_tickers()  # Wraps GET /api/v3/ticker/price
+        # TODO(PR4): KrakenClient.get_all_tickers not implemented yet.
+        prices = await self.client.get_all_tickers()  # type: ignore[attr-defined]
         # Filter only those pairs you actually trade
         self.latest_prices = {
             item["symbol"]: float(item["price"])

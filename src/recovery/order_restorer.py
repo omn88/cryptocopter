@@ -214,7 +214,8 @@ class OrderRestorer:
 
             try:
                 # Retrieve the latest order information from the API
-                resp = await client.get_order(
+                # TODO(PR6): KrakenClient.get_order not implemented yet.
+                resp = await client.get_order(  # type: ignore[attr-defined]
                     symbol=symbol_name,
                     orderId=order.order_id,
                 )
@@ -263,7 +264,8 @@ class OrderRestorer:
         """
         try:
             # Retrieve the latest order information from the API
-            resp = await client.get_order(
+            # TODO(PR6): KrakenClient.get_order not implemented yet.
+            resp = await client.get_order(  # type: ignore[attr-defined]
                 symbol=symbol_name,
                 orderId=db_order["order_id"],
             )

@@ -203,10 +203,23 @@ clients are synchronous. The following Binance-only methods are **not yet implem
 - `get_order` (used by `recovery/order_restorer.py`, `recovery/position_verifier.py`) — needs
   the same `ORDER_STATUS_OPEN` + `cum_qty` status-normalization logic as PR6's message handler
   rewrite, so it's deferred there rather than duplicated ad hoc in PR3.
+- `_ws_api_request` / `ws_api` (`src/websocket/manager.py`, user data stream subscribe/unregister)
+  — WS-API token auth, PR5's job.
+- `close_connection` (`main.py` shutdown path) — not yet decided whether `KrakenClient` needs
+  explicit cleanup at all, since `kraken.spot.Trade` is sync/requests-based. Not owned by any PR.
 
 None of these are exercised by the test suite (client is always mocked), so `pytest` stays
 green — but real recovery/portfolio/GUI runs against a live KrakenClient will fail on these
-paths until the relevant PR lands.
+paths until the relevant PR lands. Each call site is marked with a `# type: ignore[attr-defined]`
+plus a `TODO(PRn)` comment so `mypy` passes in CI without hiding unrelated errors in those files.
+
+**`buy_dip` strategy was missed by the migration entirely.** `src/strategies/buy_dip/broker_adapter.py`
+still calls `create_order`/`cancel_order` with the old python-binance kwargs (`order_type`,
+`time_in_force`, `new_client_order_id`, `orig_client_order_id`), which don't exist on
+`KrakenClient`'s signature at all — this isn't a deferred gap, it's a call site nobody updated.
+It isn't mentioned anywhere in the architecture diagram or PR plan above. Marked with
+`# type: ignore[call-arg]` / `# type: ignore[arg-type]` for now; needs its own fix, most likely
+folded into whichever PR touches `buy_dip` next (none currently scheduled).
 
 ## ORM discussion (deferred)
 

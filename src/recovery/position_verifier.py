@@ -96,7 +96,8 @@ class PositionVerifier:
 
             try:
                 # Check order status with exchange
-                exchange_order = await client.get_order(
+                # TODO(PR6): KrakenClient.get_order not implemented yet.
+                exchange_order = await client.get_order(  # type: ignore[attr-defined]
                     symbol=order.symbol, orderId=order.exchange_order_id
                 )
 

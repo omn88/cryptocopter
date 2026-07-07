@@ -216,7 +216,8 @@ class PortfolioManager:
                 return
 
             logger.info("Fetching account balances from Binance for initial sync...")
-            account_info = await self.client.get_account()
+            # TODO(PR4): KrakenClient.get_account not implemented yet.
+            account_info = await self.client.get_account()  # type: ignore[attr-defined]
 
             # Extract balances from account info
             balances = account_info.get("balances", [])

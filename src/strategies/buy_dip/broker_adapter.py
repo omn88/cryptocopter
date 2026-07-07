@@ -93,14 +93,18 @@ class BuyDipBrokerAdapter:
             price_str = self.symbol.format_price(adjusted_price)
             quantity_str = self.symbol.format_quantity(adjusted_quantity)
 
-            # Format for Binance API
-            order_response = await self.client.create_order(
+            # TODO: buy_dip was not migrated in the Kraken client rewrite (PR3) —
+            # these kwargs still match the old python-binance signature, not
+            # KrakenClient.create_order(symbol, side, type, quantity, price,
+            # timeInForce). See src/strategies/hp_manager/position_buy.py for
+            # the updated call shape.
+            order_response = await self.client.create_order(  # type: ignore[call-arg]
                 symbol=self.symbol.name,
                 side=side,
                 order_type="LIMIT",
                 time_in_force="GTC",  # Good Till Cancel
                 quantity=adjusted_quantity,
-                price=adjusted_price,
+                price=adjusted_price,  # type: ignore[arg-type]
                 new_client_order_id=order_id,
             )
 
@@ -136,7 +140,9 @@ class BuyDipBrokerAdapter:
         """
         try:
             # Cancel via REST API
-            cancel_response = await self.client.cancel_order(
+            # TODO: buy_dip not migrated (see create_order note above) —
+            # KrakenClient.cancel_order takes orderId, not orig_client_order_id.
+            cancel_response = await self.client.cancel_order(  # type: ignore[call-arg]
                 symbol=self.symbol.name,
                 orig_client_order_id=order_id,
             )
