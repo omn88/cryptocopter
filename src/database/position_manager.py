@@ -274,7 +274,7 @@ class PositionManager:
 
             db_order = Order(
                 position_id=position_id,
-                exchange_order_id=order.order_id if order.order_id > 0 else None,
+                exchange_order_id=order.order_id if order.order_id else None,
                 symbol=symbol,
                 side=side.value,
                 status=self._convert_order_status(order.status),

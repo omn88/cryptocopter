@@ -178,7 +178,7 @@ def create_execution_report(msg: Dict) -> ExecutionReport:
         current_execution_type=msg["x"],
         current_order_status=msg["X"],
         order_reject_reason=msg["r"],
-        order_id=int(msg["i"]),
+        order_id=str(msg["i"]),
         last_executed_quantity=float(msg["l"]),
         cumulative_filled_quantity=float(msg["z"]),
         last_executed_price=float(msg["L"]),

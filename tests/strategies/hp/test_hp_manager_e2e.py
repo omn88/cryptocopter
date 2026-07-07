@@ -1096,7 +1096,7 @@ async def test_multihop_sell_price_recalculation_on_trigger(hp_sim):
     ), f"Recalculated prices should multiply to ~{target_sell_price_usd}, but got {recalculated_product}"
 
     # 4. Verify order was actually sent with NEW prices
-    assert leg1_after.sell_order.order_id > 0, "Order should have been sent"
+    assert leg1_after.sell_order.order_id, "Order should have been sent"
     assert leg1_after.sell_order.status == ORDER_STATUS_NEW, "Order should be NEW"
 
     logger.info(f"=== TEST PASSED ===")

@@ -1344,7 +1344,7 @@ class HPSimulator:
         assert sell_order.quantity == quantity
         assert sell_order.price == 0.00000356
         assert sell_order.realized_quantity == 0.0
-        assert sell_order.order_id == 0
+        assert sell_order.order_id == ""
 
         assert strategy.state == State.BOUGHT
 
@@ -1376,7 +1376,7 @@ class HPSimulator:
         # So we don't wait for no idle positions, just that we have active positions
 
         assert strategy.sell.current_position.state_info.state == State.NEW
-        assert sell_order.order_id == 112800750, f"Order ID: {sell_order.order_id}"
+        assert sell_order.order_id == "112800750", f"Order ID: {sell_order.order_id}"
         assert sell_order.status == ORDER_STATUS_NEW
         assert sell_order.quantity == 1000.0
         assert sell_order.price == 0.00000356
@@ -1402,7 +1402,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=112800750,
+            order_id="112800750",
             last_executed_quantity=500,
             last_executed_price=0.00000365,
             cumulative_filled_quantity=500,
@@ -1451,7 +1451,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=112800750,
+            order_id="112800750",
             last_executed_quantity=1000,
             last_executed_price=0.00000365,
             cumulative_filled_quantity=1000,
@@ -1510,7 +1510,7 @@ class HPSimulator:
         assert sell_order.quantity == 0.00356
         assert sell_order.price == 320000.0
         assert sell_order.realized_quantity == 0.0
-        assert sell_order.order_id == 842844787, f"Order ID: {sell_order.order_id}"
+        assert sell_order.order_id == "842844787", f"Order ID: {sell_order.order_id}"
         await wait_for_condition(condition_func=lambda: strategy.state == State.SELLING)
         assert strategy.state == State.SELLING, f"State to: {strategy.state}"
 
@@ -1540,7 +1540,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=842844787,
+            order_id="842844787",
             last_executed_quantity=0.00178,
             last_executed_price=320000.0,
             cumulative_filled_quantity=0.00178,
@@ -1583,7 +1583,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=842844787,
+            order_id="842844787",
             last_executed_quantity=0.00356,
             last_executed_price=320000.0,
             cumulative_filled_quantity=0.00356,

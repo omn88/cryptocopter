@@ -24,7 +24,7 @@ class Order:
     price_precision: int = 0
     price: float = 0
     quantity_stable: float = 0
-    order_id: int = 0
+    order_id: str = ""
     realized_quantity: float = 0
     open_time = None
     time_in_force: str = TIME_IN_FORCE_GTC
@@ -57,7 +57,7 @@ class ExecutionReport:
     current_execution_type: str = ""
     current_order_status: str = ""
     order_reject_reason: str = ""
-    order_id: int = 0
+    order_id: str = ""
     last_executed_quantity: float = 0.0
     cumulative_filled_quantity: float = 0.0
     last_executed_price: float = 0.0

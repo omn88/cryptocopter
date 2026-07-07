@@ -110,7 +110,7 @@ class Order:
 
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     position_id: str = ""
-    exchange_order_id: Optional[int] = None
+    exchange_order_id: Optional[str] = None
 
     # Order details
     symbol: str = ""

@@ -52,7 +52,7 @@ def make_order():
         status: OrderStatus = OrderStatus.FILLED,
         quantity: float = 0.001,
         realized_quantity: float = 0.001,
-        exchange_order_id: int | None = 12345,
+        exchange_order_id: str | None = "12345",
     ) -> DatabaseOrder:
         return DatabaseOrder(
             position_id="pos-001",
