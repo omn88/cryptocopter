@@ -3,7 +3,7 @@ import queue
 import logging
 from typing import Any, Optional, Callable, cast
 from transitions.extensions.asyncio import AsyncMachine
-from binance.enums import (
+from src.domain.constants import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_FILLED,
     ORDER_STATUS_PARTIALLY_FILLED,

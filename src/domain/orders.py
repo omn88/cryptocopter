@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Dict, List, NamedTuple, Optional, Union
 
-from binance.enums import ORDER_STATUS_NEW, ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC
+from src.domain.constants import ORDER_STATUS_NEW, ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC
 
 from src.domain.enums import EventName, Signal, SignalUpdate
 from src.domain.events import (

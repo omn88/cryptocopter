@@ -6,7 +6,7 @@ import pytest
 
 pytestmark = pytest.mark.db
 
-from binance.enums import (
+from src.domain.constants import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_FILLED,
     ORDER_STATUS_CANCELED,

@@ -3,7 +3,7 @@ import logging
 import time
 from unittest.mock import AsyncMock
 import pytest
-from binance.enums import (
+from src.domain.constants import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_CANCELED,
     ORDER_STATUS_FILLED,

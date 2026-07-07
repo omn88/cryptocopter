@@ -139,7 +139,7 @@ async def hp_partially_bought(hp_buying):
 
     Yields (sim, strategy).
     """
-    from binance.enums import ORDER_STATUS_PARTIALLY_FILLED
+    from src.domain.constants import ORDER_STATUS_PARTIALLY_FILLED
     from tests.strategies.hp.hp_simulator import wait_for_condition
     from src.domain.enums import State
 

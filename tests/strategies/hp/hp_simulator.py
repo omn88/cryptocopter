@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 from typing import Callable, List, Dict, Tuple, Optional
-from binance.enums import (
+from src.domain.constants import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_CANCELED,
     ORDER_TYPE_LIMIT,
