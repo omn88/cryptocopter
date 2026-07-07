@@ -300,7 +300,7 @@ class HPPositionBuy:
                 await asyncio.sleep(1)  # wait for a second before retrying
                 continue
             else:
-                self.buy_order.order_id = int(resp["orderId"])
+                self.buy_order.order_id = str(resp["orderId"])
                 # self.buy_order.price = resp["price"]
                 self.buy_order.status = resp["status"]
                 return self.buy_order
@@ -309,7 +309,7 @@ class HPPositionBuy:
             raise RuntimeError("Retry loop exhausted without capturing an exception")
         raise last_exception
 
-    async def _cancel_order(self, order_id: int, symbol: str) -> None:
+    async def _cancel_order(self, order_id: str, symbol: str) -> None:
         try:
             resp = await self.client.cancel_order(symbol=symbol, orderId=order_id)
             logger.info("Cancelled order %s: %s", order_id, resp)

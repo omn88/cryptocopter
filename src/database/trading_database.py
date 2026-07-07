@@ -211,7 +211,7 @@ class Database:
             CREATE TABLE IF NOT EXISTS orders (
                 id TEXT PRIMARY KEY,
                 position_id TEXT NOT NULL,
-                exchange_order_id INTEGER,
+                exchange_order_id TEXT,
                 symbol TEXT NOT NULL,
                 side TEXT NOT NULL,
                 order_type TEXT NOT NULL DEFAULT 'LIMIT',
@@ -680,7 +680,7 @@ class Database:
                 position_id=hp_id,  # Use hp_id as position_id for compatibility
                 exchange_order_id=(
                     order.order_id
-                    if hasattr(order, "order_id") and order.order_id > 0
+                    if hasattr(order, "order_id") and order.order_id
                     else None
                 ),
                 symbol=symbol,
