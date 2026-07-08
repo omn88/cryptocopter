@@ -30,7 +30,6 @@ def symbols_dict() -> Dict[str, Any]:
             precision=5,
             price_precision=2,
             min_notional=10.0,
-            lot_size=0.00001,
             price_filter=0.01,
         )
     }

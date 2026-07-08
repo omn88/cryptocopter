@@ -1,4 +1,7 @@
+import logging
 from typing import Any, Dict
+
+logger = logging.getLogger(__name__)
 
 
 class Symbol:
@@ -6,9 +9,7 @@ class Symbol:
         self,
         name: str = "",
         min_notional: float = 0,
-        lot_size: float = 0,
         min_qty: float = 0,
-        max_qty: float = 0,
         price_filter: float = 0,
         precision: int = 0,
         price_precision: int = 0,
@@ -16,9 +17,7 @@ class Symbol:
     ):
         self.name = name
         self.min_notional = min_notional
-        self.lot_size = lot_size
         self.min_qty = min_qty
-        self.max_qty = max_qty
         self.price_filter = price_filter
         self.precision = precision
         self.price_precision = price_precision
@@ -27,7 +26,7 @@ class Symbol:
     def __repr__(self) -> str:
         return (
             f"Symbol(name={self.name}, min_notional={self.min_notional}, "
-            f"lot_size={self.lot_size}, min_qty={self.min_qty}, max_qty={self.max_qty}, "
+            f"min_qty={self.min_qty}, "
             f"price_filter={self.price_filter}, precision={self.precision}, "
             f"price_precision={self.price_precision}, is_convert_only={self.is_convert_only})"
         )
@@ -92,21 +91,20 @@ class Symbol:
 
 
 async def fetch_symbols(client: Any) -> Dict[str, Symbol]:
-    exchange_info = await client.get_exchange_info()
+    asset_pairs = await client.get_asset_pairs()
     symbols = {}
-    for symbol in exchange_info["symbols"]:
-        if symbol["status"] == "TRADING":
-            filters = {f["filterType"]: f for f in symbol["filters"]}
-            symbols[symbol["symbol"]] = Symbol(
-                name=symbol["symbol"],
-                min_notional=float(filters.get("NOTIONAL", {}).get("minNotional", 0)),
-                lot_size=float(filters.get("LOT_SIZE", {}).get("stepSize", 0)),
-                min_qty=float(filters.get("LOT_SIZE", {}).get("minQty", 0)),
-                max_qty=float(filters.get("LOT_SIZE", {}).get("maxQty", 0)),
-                price_filter=float(filters.get("PRICE_FILTER", {}).get("tickSize", 0)),
-                precision=Symbol.calculate_precision(filters["LOT_SIZE"]["stepSize"]),
-                price_precision=Symbol.calculate_precision(
-                    filters.get("PRICE_FILTER", {}).get("tickSize", 0)
-                ),
+    for name, pair in asset_pairs.items():
+        if pair["status"] != "online":
+            continue
+        try:
+            symbols[name] = Symbol(
+                name=name,
+                min_notional=float(pair["costmin"]),
+                min_qty=float(pair["ordermin"]),
+                price_filter=float(pair["tick_size"]),
+                precision=pair["lot_decimals"],
+                price_precision=pair["pair_decimals"],
             )
+        except (KeyError, ValueError) as e:
+            logger.warning("Skipping Kraken pair %s: %s", name, e)
     return symbols

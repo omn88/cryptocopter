@@ -105,7 +105,6 @@ class BuyDipExecutor:
                 precision=8,
                 price_precision=2,
                 min_notional=10.0,
-                lot_size=0.00000001,
                 price_filter=0.01,
             )
 

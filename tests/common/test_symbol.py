@@ -1,16 +1,16 @@
-"""Unit tests for src.common.symbol.Symbol."""
+"""Unit tests for src.common.symbol.Symbol and fetch_symbols."""
+
+from unittest.mock import AsyncMock
 
 import pytest
-from src.common.symbol import Symbol
+from src.common.symbol import Symbol, fetch_symbols
 
 
 def make_symbol(precision=8, price_precision=2, min_notional=10.0):
     return Symbol(
         name="BTCUSDT",
         min_notional=min_notional,
-        lot_size=0.00000001,
         min_qty=0.00000001,
-        max_qty=9000.0,
         price_filter=0.01,
         precision=precision,
         price_precision=price_precision,
@@ -171,3 +171,85 @@ class TestCalculatePrecision:
     )
     def test_various_step_sizes(self, step_size, expected):
         assert Symbol.calculate_precision(step_size) == expected
+
+
+# ---------------------------------------------------------------------------
+# fetch_symbols
+# ---------------------------------------------------------------------------
+
+
+def make_kraken_client(asset_pairs):
+    """Build a client whose get_asset_pairs() already returns Kraken-normalized
+    entries keyed by internal symbol name, matching KrakenClient.get_asset_pairs()'s
+    contract (normalization is that class's job, not fetch_symbols')."""
+    client = AsyncMock()
+    client.get_asset_pairs.return_value = asset_pairs
+    return client
+
+
+class TestFetchSymbols:
+    async def test_builds_symbol_per_online_pair(self):
+        client = make_kraken_client(
+            {
+                "BTCUSDC": {
+                    "pair_decimals": 1,
+                    "lot_decimals": 8,
+                    "ordermin": "0.0001",
+                    "costmin": "0.5",
+                    "tick_size": "0.1",
+                    "status": "online",
+                }
+            }
+        )
+        symbols = await fetch_symbols(client)
+
+        assert set(symbols) == {"BTCUSDC"}
+        s = symbols["BTCUSDC"]
+        assert s.name == "BTCUSDC"
+        assert s.precision == 8
+        assert s.price_precision == 1
+        assert s.min_qty == 0.0001
+        assert s.min_notional == 0.5
+        assert s.price_filter == 0.1
+
+    async def test_skips_non_online_pairs(self):
+        client = make_kraken_client(
+            {
+                "BTCUSDC": {
+                    "pair_decimals": 1,
+                    "lot_decimals": 8,
+                    "ordermin": "0.0001",
+                    "costmin": "0.5",
+                    "tick_size": "0.1",
+                    "status": "cancel_only",
+                }
+            }
+        )
+        symbols = await fetch_symbols(client)
+
+        assert symbols == {}
+
+    async def test_skips_malformed_pair_without_crashing(self):
+        client = make_kraken_client(
+            {
+                "ETHUSDC": {
+                    # Missing "costmin" - some field Kraken didn't return for this pair.
+                    "pair_decimals": 2,
+                    "lot_decimals": 8,
+                    "ordermin": "0.001",
+                    "tick_size": "0.01",
+                    "status": "online",
+                },
+                "BTCUSDC": {
+                    "pair_decimals": 1,
+                    "lot_decimals": 8,
+                    "ordermin": "0.0001",
+                    "costmin": "0.5",
+                    "tick_size": "0.1",
+                    "status": "online",
+                },
+            }
+        )
+        symbols = await fetch_symbols(client)
+
+        assert set(symbols) == {"BTCUSDC"}

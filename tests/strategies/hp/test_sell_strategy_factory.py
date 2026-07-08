@@ -19,9 +19,7 @@ def make_symbol(name: str, is_convert_only: bool = False) -> Symbol:
     return Symbol(
         name=name,
         min_notional=10.0,
-        lot_size=0.001,
         min_qty=0.001,
-        max_qty=9000.0,
         price_filter=0.01,
         precision=3,
         price_precision=2,
