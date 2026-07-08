@@ -8,7 +8,7 @@ system restart, updating positions and orders as needed.
 import logging
 from typing import List
 
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.database.trading_database import Database
 from src.database.models import (
     Position,
@@ -17,7 +17,6 @@ from src.database.models import (
     Order as DatabaseOrder,
 )
 from .position_converter import PositionConverter
-
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +29,7 @@ class PositionVerifier:
         self.converter = converter
 
     async def verify_positions_with_exchange(
-        self, client: BinanceClient, positions: List[Position]
+        self, client: KrakenClient, positions: List[Position]
     ) -> List[Position]:
         """
         Verify position states with the exchange and update if necessary.
@@ -83,7 +82,7 @@ class PositionVerifier:
         )
 
     async def _verify_orders_with_exchange(
-        self, client: BinanceClient, orders: List[DatabaseOrder]
+        self, client: KrakenClient, orders: List[DatabaseOrder]
     ) -> List[DatabaseOrder]:
         """
         Verify each order with the exchange and update status/quantity if changed.
@@ -97,7 +96,8 @@ class PositionVerifier:
 
             try:
                 # Check order status with exchange
-                exchange_order = await client.get_order(
+                # TODO(PR6): KrakenClient.get_order not implemented yet.
+                exchange_order = await client.get_order(  # type: ignore[attr-defined]
                     symbol=order.symbol, orderId=order.exchange_order_id
                 )
 

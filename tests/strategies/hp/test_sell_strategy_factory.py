@@ -10,7 +10,6 @@ from src.strategies.hp_manager.sell_strategies.direct import DirectSellStrategy
 from src.strategies.hp_manager.sell_strategies.convert import ConvertSellStrategy
 from src.strategies.hp_manager.sell_strategies.multihop import MultihopSellStrategy
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

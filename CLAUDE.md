@@ -181,20 +181,45 @@ Replaces the old PLN / BNB / Convert logic. Priority order for `end_currency = U
 | PR | Branch | Status | Scope |
 |---|---|---|---|
 | 1 | `feature/kraken-ph1-constants-decoupling` | **MERGED** | `src/domain/constants.py`; replace all `binance.enums` imports in domain/strategies/tests |
-| 2 | `feature/kraken-ph2-order-id-str` | TODO | `Order.order_id: int → str`; DB schema `order_id TEXT`; `str(resp["orderId"])` in position files |
-| 3 | `feature/kraken-ph3-client` | TODO | `KrakenClient` class; XBT normalization; replace `binance.exceptions`; remove `python-binance` dep |
+| 2 | `feature/kraken-ph2-order-id-str` | **MERGED** | `Order.order_id: int → str`; DB schema `order_id TEXT`; `str(resp["orderId"])` in position files |
+| 3 | `feature/kraken-ph3-client` | IN REVIEW | `KrakenClient` class; XBT normalization; replace `binance.exceptions`; remove `python-binance` dep |
 | 4 | `feature/kraken-ph4-symbol-fetching` | TODO | Rewrite `fetch_symbols()` for Kraken `AssetPairs` |
 | 5 | `feature/kraken-ph5-websocket` | TODO | Kraken WS v2; per-symbol subscriptions; token auth + refresh; dead-man switch |
 | 6 | `feature/kraken-ph6-message-handlers` | TODO | Rewrite `message_handlers.py` for Kraken event schema |
 | 7 | `feature/kraken-ph7-sell-factory` | TODO | Remove PLN/BNB/Convert; Kraken routing; update price resolver |
 
-## Intentional Binance survivors after PR1
+## KrakenClient gaps after PR3
 
-These are removed in PR3 — do not touch them before then:
+PR3 only implements what PR3 itself needs — `create_order`, `cancel_order` — via
+`kraken.spot.Trade` (python-kraken-sdk), wrapped in `asyncio.to_thread` since the SDK's REST
+clients are synchronous. The following Binance-only methods are **not yet implemented** on
+`KrakenClient` and will raise `AttributeError` if hit at runtime until their owning PR lands:
 
-- `src/common/client.py`: `from binance import AsyncClient` — entire class replaced by KrakenClient
-- `src/strategies/hp_manager/position_buy.py`: `from binance.exceptions import ...`
-- `src/strategies/hp_manager/position_sell.py`: `from binance.exceptions import ...`
+- `get_exchange_info` (`src/common/symbol.py: fetch_symbols`) — PR4
+- `convert_request_quote` / `convert_accept_quote` (`hp_manager.py`) — deleted in PR7, not replaced
+- `get_all_tickers` (`usd_price_resolver.py`), `get_orderbook_ticker` (GUI symbol picker),
+  `get_account` (`portfolio.py` balance sync) — not owned by any PR in this table yet; needs a
+  decision on which PR picks these up (likely folded into PR4 or a follow-up).
+- `get_order` (used by `recovery/order_restorer.py`, `recovery/position_verifier.py`) — needs
+  the same `ORDER_STATUS_OPEN` + `cum_qty` status-normalization logic as PR6's message handler
+  rewrite, so it's deferred there rather than duplicated ad hoc in PR3.
+- `_ws_api_request` / `ws_api` (`src/websocket/manager.py`, user data stream subscribe/unregister)
+  — WS-API token auth, PR5's job.
+- `close_connection` (`main.py` shutdown path) — not yet decided whether `KrakenClient` needs
+  explicit cleanup at all, since `kraken.spot.Trade` is sync/requests-based. Not owned by any PR.
+
+None of these are exercised by the test suite (client is always mocked), so `pytest` stays
+green — but real recovery/portfolio/GUI runs against a live KrakenClient will fail on these
+paths until the relevant PR lands. Each call site is marked with a `# type: ignore[attr-defined]`
+plus a `TODO(PRn)` comment so `mypy` passes in CI without hiding unrelated errors in those files.
+
+**`buy_dip` strategy was missed by the migration entirely.** `src/strategies/buy_dip/broker_adapter.py`
+still calls `create_order`/`cancel_order` with the old python-binance kwargs (`order_type`,
+`time_in_force`, `new_client_order_id`, `orig_client_order_id`), which don't exist on
+`KrakenClient`'s signature at all — this isn't a deferred gap, it's a call site nobody updated.
+It isn't mentioned anywhere in the architecture diagram or PR plan above. Marked with
+`# type: ignore[call-arg]` / `# type: ignore[arg-type]` for now; needs its own fix, most likely
+folded into whichever PR touches `buy_dip` next (none currently scheduled).
 
 ## ORM discussion (deferred)
 

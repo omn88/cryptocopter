@@ -2,14 +2,14 @@
 from typing import Dict
 import logging
 from src.common.symbol import Symbol
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.strategies.hp_manager.sell_strategies.factory import DELISTED_COINS
 
 logger = logging.getLogger(__name__)
 
 
 class UsdPriceResolver:
-    def __init__(self, client: BinanceClient, symbols: Dict[str, Symbol]):
+    def __init__(self, client: KrakenClient, symbols: Dict[str, Symbol]):
         self.client = client
         self.symbols = symbols
         self.latest_prices: Dict[str, float] = {}
@@ -19,7 +19,8 @@ class UsdPriceResolver:
 
     async def fetch_all_prices(self) -> None:
         """Fetch all symbol prices using Binance REST API."""
-        prices = await self.client.get_all_tickers()  # Wraps GET /api/v3/ticker/price
+        # TODO(PR4): KrakenClient.get_all_tickers not implemented yet.
+        prices = await self.client.get_all_tickers()  # type: ignore[attr-defined]
         # Filter only those pairs you actually trade
         self.latest_prices = {
             item["symbol"]: float(item["price"])

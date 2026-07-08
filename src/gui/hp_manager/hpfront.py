@@ -13,7 +13,7 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
 from src.database import Database
 from src.gui.hp_manager.modal_configurators import BuyHPModal
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.domain.enums import EventName, Mode, PositionSide, State, UiState
 from src.domain.orders import AllTickers, Event
 from src.domain.positions import (
@@ -34,7 +34,6 @@ from src.gui.hp_manager import HPConfiguration
 from src.gui.hp_manager.hp_data_manager import HPDataManager
 from src.gui.hp_manager.hp_row_renderer import HPRowRenderer
 from src.gui.hp_manager.hp_list_filter import HPListFilter
-
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +62,7 @@ class HpFront(BoxLayout):
 
     def __init__(
         self,
-        client: BinanceClient,
+        client: KrakenClient,
         config_queue: queue.Queue,
         ui_queue: queue.Queue,
         db: Database,

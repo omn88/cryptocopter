@@ -1,25 +1,64 @@
+import asyncio
 import logging
-import time
 
-from binance import AsyncClient
+from kraken.spot import Trade
+
+from src.domain.constants import ORDER_STATUS_NEW
+
+_KNOWN_QUOTE_CURRENCIES = ("USDC", "USDT", "BTC", "PLN", "BNB")
 
 
-class BinanceClient(AsyncClient):
-    def __init__(self, api_key: str, api_secret: str, sync_interval: int = 60):
-        super().__init__(api_key, api_secret)
-        self.time_difference: float = 0.0
-        self.sync_interval: int = sync_interval
-        self.last_sync: float = 0.0
+class KrakenClient:
+    """Thin async wrapper around python-kraken-sdk's synchronous Trade REST client.
+
+    python-kraken-sdk's REST clients are synchronous (requests-based); calls are
+    offloaded to a thread so they don't block the asyncio event loop.
+    """
+
+    def __init__(self, api_key: str, api_secret: str):
+        self._trade = Trade(key=api_key, secret=api_secret)
         self.logger = logging.getLogger(__name__)
 
-    async def get_server_time_difference(self) -> float:
-        server_time = await self.get_server_time()
-        server_ts = float(server_time["serverTime"]) / 1000  # Convert from ms to s
-        local_time = time.time()
-        return local_time - server_ts
+    @staticmethod
+    def _to_kraken_symbol(internal: str) -> str:
+        """ "BTCUSDC" -> "XBT/USDC"; "ETHBTC" -> "ETH/XBT" """
+        for quote in _KNOWN_QUOTE_CURRENCIES:
+            if internal.endswith(quote) and internal != quote:
+                base = internal[: -len(quote)]
+                base = "XBT" if base == "BTC" else base
+                quote = "XBT" if quote == "BTC" else quote
+                return f"{base}/{quote}"
+        raise ValueError(
+            f"Symbol '{internal}' does not end with a known quote currency"
+        )
 
-    async def get_adjusted_time(self) -> float:
-        if time.time() - self.last_sync > self.sync_interval:
-            self.time_difference = await self.get_server_time_difference()
-            self.last_sync = time.time()
-        return time.time() - self.time_difference
+    @staticmethod
+    def _from_kraken_symbol(kraken: str) -> str:
+        """ "XBT/USDC" -> "BTCUSDC" """
+        base, _, quote = kraken.partition("/")
+        base = "BTC" if base == "XBT" else base
+        quote = "BTC" if quote == "XBT" else quote
+        return f"{base}{quote}"
+
+    async def create_order(
+        self,
+        symbol: str,
+        side: str,
+        type: str,
+        quantity: float,
+        price: str,
+        timeInForce: str,
+    ) -> dict:
+        resp = await asyncio.to_thread(
+            self._trade.create_order,
+            ordertype=type.lower(),
+            side=side.lower(),
+            pair=self._to_kraken_symbol(symbol),
+            volume=quantity,
+            price=price,
+            timeinforce=timeInForce,
+        )
+        return {"orderId": resp["txid"][0], "status": ORDER_STATUS_NEW}
+
+    async def cancel_order(self, symbol: str, orderId: str) -> dict:
+        return await asyncio.to_thread(self._trade.cancel_order, txid=orderId)

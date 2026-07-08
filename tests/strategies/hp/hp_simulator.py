@@ -1444,7 +1444,8 @@ class HPSimulator:
     async def simulate_sell_order_fill_in_first_hop(self) -> None:
         strategy = self.back.strategies["1000"]
 
-        strategy.client.create_order.side_effect = [
+        # strategy.client is a Mock at runtime; mypy sees the real KrakenClient type.
+        strategy.client.create_order.side_effect = [  # type: ignore[attr-defined]
             get_new_order(order=strategy.sell.sell_positions[1].sell_order)
         ]
 
@@ -2448,11 +2449,12 @@ class HPSimulator:
         Example:
             sim.assert_exchange_synced(recovered_strategy, min_calls=1)
         """
+        # TODO(PR6): KrakenClient.get_order not implemented yet.
         assert (
-            strategy.client.get_order.called
+            strategy.client.get_order.called  # type: ignore[attr-defined]
         ), "Exchange sync not performed - get_order was not called"
 
-        actual_calls = strategy.client.get_order.call_count
+        actual_calls = strategy.client.get_order.call_count  # type: ignore[attr-defined]
         assert (
             actual_calls >= min_calls
         ), f"Expected at least {min_calls} get_order calls, got {actual_calls}"
@@ -2908,7 +2910,8 @@ class HPSimulator:
             strategy: Strategy to resend order for
             trigger_price: Price to trigger new order creation
         """
-        strategy.client.create_order.side_effect = [
+        # strategy.client is a Mock at runtime; mypy sees the real KrakenClient type.
+        strategy.client.create_order.side_effect = [  # type: ignore[attr-defined]
             get_new_order(order=strategy.buy.buy_order)
         ]
         self.new_price(price=trigger_price)
@@ -2934,7 +2937,8 @@ class HPSimulator:
             strategy: Strategy to resend order for
             trigger_price: Price to trigger new order creation
         """
-        strategy.client.create_order.side_effect = [
+        # strategy.client is a Mock at runtime; mypy sees the real KrakenClient type.
+        strategy.client.create_order.side_effect = [  # type: ignore[attr-defined]
             get_new_order(order=strategy.sell.current_position.sell_order)
         ]
         self.new_price(price=trigger_price)

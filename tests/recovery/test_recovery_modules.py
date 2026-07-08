@@ -13,7 +13,6 @@ from src.database.models import OrderStatus, PositionStatus, PositionType
 from src.domain.enums import PositionSide, State
 from src.recovery.position_converter import PositionConverter
 
-
 # ===========================================================================
 # PositionConverter
 # ===========================================================================

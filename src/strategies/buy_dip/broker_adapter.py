@@ -8,7 +8,7 @@ Handles order placement, cancellation, and fill callbacks.
 import logging
 from decimal import Decimal
 from typing import Optional, Callable, Dict, Any, cast
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.common.symbol import Symbol
 
 logger = logging.getLogger(__name__)
@@ -19,19 +19,19 @@ class BuyDipBrokerAdapter:
     Adapter between BuyDipStrategy and application broker/client.
 
     Responsibilities:
-    - Place orders via BinanceClient REST API
-    - Cancel orders via BinanceClient REST API
+    - Place orders via KrakenClient REST API
+    - Cancel orders via KrakenClient REST API
     - Register callbacks for order fills (from WebSocket user stream)
     - Format order requests according to Binance API requirements
     - Apply symbol-specific precision and validation rules
     """
 
-    def __init__(self, client: BinanceClient, symbol: Symbol):
+    def __init__(self, client: KrakenClient, symbol: Symbol):
         """
         Initialize broker adapter.
 
         Args:
-            client: BinanceClient instance for REST API calls
+            client: KrakenClient instance for REST API calls
             symbol: Symbol object with precision and validation rules
         """
         self.client = client
@@ -93,14 +93,18 @@ class BuyDipBrokerAdapter:
             price_str = self.symbol.format_price(adjusted_price)
             quantity_str = self.symbol.format_quantity(adjusted_quantity)
 
-            # Format for Binance API
-            order_response = await self.client.create_order(
+            # TODO: buy_dip was not migrated in the Kraken client rewrite (PR3) —
+            # these kwargs still match the old python-binance signature, not
+            # KrakenClient.create_order(symbol, side, type, quantity, price,
+            # timeInForce). See src/strategies/hp_manager/position_buy.py for
+            # the updated call shape.
+            order_response = await self.client.create_order(  # type: ignore[call-arg]
                 symbol=self.symbol.name,
                 side=side,
                 order_type="LIMIT",
                 time_in_force="GTC",  # Good Till Cancel
                 quantity=adjusted_quantity,
-                price=adjusted_price,
+                price=adjusted_price,  # type: ignore[arg-type]
                 new_client_order_id=order_id,
             )
 
@@ -136,7 +140,9 @@ class BuyDipBrokerAdapter:
         """
         try:
             # Cancel via REST API
-            cancel_response = await self.client.cancel_order(
+            # TODO: buy_dip not migrated (see create_order note above) —
+            # KrakenClient.cancel_order takes orderId, not orig_client_order_id.
+            cancel_response = await self.client.cancel_order(  # type: ignore[call-arg]
                 symbol=self.symbol.name,
                 orig_client_order_id=order_id,
             )

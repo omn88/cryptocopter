@@ -27,7 +27,6 @@ from src.domain.enums import PositionSide
 from src.gui.identifiers import HPClose
 from src.portfolio.portfolio_event_helper import PortfolioEventHelper
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

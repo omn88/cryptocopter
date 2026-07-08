@@ -50,8 +50,6 @@ logging.basicConfig(
 # Reduce noise from verbose libraries
 logging.getLogger("transitions.extensions.asyncio").setLevel(logging.WARNING)
 logging.getLogger("websockets.client").setLevel(logging.WARNING)
-logging.getLogger("binance.streams").setLevel(logging.WARNING)
-logging.getLogger("binance.ws.reconnecting_websocket").setLevel(logging.ERROR)
 logging.getLogger("aiosqlite").setLevel(
     logging.WARNING
 )  # Suppress aiosqlite debug logs
@@ -79,5 +77,4 @@ class WebSocketErrorFilter(logging.Filter):
 # Apply the filter to the root logger and specific WebSocket loggers
 websocket_filter = WebSocketErrorFilter()
 logging.getLogger("root").addFilter(websocket_filter)
-logging.getLogger("binance.ws.reconnecting_websocket").addFilter(websocket_filter)
 logging.getLogger("websockets.protocol").addFilter(websocket_filter)

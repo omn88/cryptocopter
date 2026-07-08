@@ -10,7 +10,6 @@ from .direct import DirectSellStrategy
 from .convert import ConvertSellStrategy
 from .multihop import MultihopSellStrategy
 
-
 logger = logging.getLogger(__name__)
 
 # Coins that cannot be used as intermediate hops because they are delisted

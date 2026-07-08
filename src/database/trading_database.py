@@ -170,8 +170,7 @@ class Database:
         cursor = conn.cursor()
 
         # Positions table - the core of our recovery system
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS positions (
                 id TEXT PRIMARY KEY,
                 hp_id TEXT NOT NULL UNIQUE,
@@ -202,12 +201,10 @@ class Database:
                 FOREIGN KEY (strategy_id) REFERENCES strategies (id),
                 FOREIGN KEY (parent_position_id) REFERENCES positions (id)
             )
-        """
-        )
+        """)
 
         # Orders table
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS orders (
                 id TEXT PRIMARY KEY,
                 position_id TEXT NOT NULL,
@@ -226,15 +223,13 @@ class Database:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (position_id) REFERENCES positions (id)
             )
-        """
-        )
+        """)
 
         # Inventory table
         # NOTE: available_quantity and locked_quantity columns exist for backward compatibility
         # but are not written to during normal operations. These fields are populated at runtime
         # from Binance WebSocket account position updates. Only 'quantity' is persisted.
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS inventory (
                 id TEXT PRIMARY KEY,
                 coin TEXT NOT NULL,
@@ -246,12 +241,10 @@ class Database:
                 timestamp TIMESTAMP NOT NULL,
                 notes TEXT
             )
-            """
-        )
+            """)
 
         # Trades table
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS trades (
                 id TEXT PRIMARY KEY,
                 order_id TEXT NOT NULL,
@@ -268,8 +261,7 @@ class Database:
                 FOREIGN KEY (order_id) REFERENCES orders (id),
                 FOREIGN KEY (position_id) REFERENCES positions (id)
             )
-        """
-        )
+        """)
 
         # Create indices for better query performance
         cursor.execute(
@@ -444,8 +436,7 @@ class Database:
         """
         try:
             async with self.get_connection() as conn:
-                cursor = await conn.execute(
-                    """
+                cursor = await conn.execute("""
                     SELECT * FROM positions
                     WHERE status NOT IN ('CLOSED', 'CANCELED')
                       AND (parent_position_id IS NULL OR parent_position_id = '')
@@ -453,8 +444,7 @@ class Database:
                       AND hp_id NOT LIKE '%a'
                       AND hp_id NOT LIKE '%b'
                     ORDER BY created_at ASC
-                    """
-                )
+                    """)
                 rows = await cursor.fetchall()
 
                 positions = []
@@ -627,12 +617,10 @@ class Database:
                     stats[table] = count[0] if count else 0
 
                 # Active positions
-                cursor = await conn.execute(
-                    """
+                cursor = await conn.execute("""
                     SELECT COUNT(*) FROM positions 
                     WHERE status NOT IN ('CLOSED', 'CANCELED')
-                """
-                )
+                """)
                 count = await cursor.fetchone()
                 stats["active_positions"] = count[0] if count else 0
 

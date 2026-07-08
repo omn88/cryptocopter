@@ -8,7 +8,7 @@ import time
 from typing import Any, Dict, List, Optional
 import uuid
 from src.database.trading_database import Database
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.domain.enums import EventName, SubscriptionTarget, SubscriptionType
 from src.domain.inventory import InventoryItem
 from src.domain.orders import AccountPosition, AllTickers, Event, PriceUpdates
@@ -27,7 +27,7 @@ class PortfolioManager:
         ui_queue: queue.Queue,
         price_resolver: UsdPriceResolver,
         db: Database,
-        client: BinanceClient,
+        client: KrakenClient,
     ):
         self.client = client
         self.broker = broker
@@ -216,7 +216,8 @@ class PortfolioManager:
                 return
 
             logger.info("Fetching account balances from Binance for initial sync...")
-            account_info = await self.client.get_account()
+            # TODO(PR4): KrakenClient.get_account not implemented yet.
+            account_info = await self.client.get_account()  # type: ignore[attr-defined]
 
             # Extract balances from account info
             balances = account_info.get("balances", [])

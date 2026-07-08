@@ -19,7 +19,6 @@ from src.strategies.buy_dip.position import PositionState
 from src.strategies.buy_dip.strategy import BuyDipStrategy
 from tests.strategies.buy_dip.buy_dip_simulator import BuyDipSimulator, create_candle
 
-
 logger = logging.getLogger("TEST")
 
 

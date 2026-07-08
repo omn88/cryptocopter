@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Callable, Any, Union, cast
 
 import websockets
 
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.domain.subscriptions import SubscriptionInfo
 from src.websocket.config import ULTRA_ROBUST_CONFIG
 
@@ -25,7 +25,7 @@ class WebSocketManager:
 
     def __init__(
         self,
-        client: BinanceClient,
+        client: KrakenClient,
         subscriptions: Dict[str, List[SubscriptionInfo]],
         stop_event: asyncio.Event,
     ):
@@ -346,13 +346,16 @@ class WebSocketManager:
             queue: asyncio.Queue = asyncio.Queue()
             try:
                 # Subscribe — python-binance handles all signing internally
-                result = await self.client._ws_api_request(
+                # TODO(PR5): KrakenClient doesn't implement WS-API token auth yet.
+                result = await self.client._ws_api_request(  # type: ignore[attr-defined]
                     "userDataStream.subscribe.signature",
                     signed=True,
                     params={},
                 )
                 subscription_id = str(result.get("subscriptionId"))
-                self.client.ws_api.register_subscription_queue(subscription_id, queue)
+                self.client.ws_api.register_subscription_queue(  # type: ignore[attr-defined]
+                    subscription_id, queue
+                )
                 logger.info(
                     "User data stream subscribed (subscriptionId=%s)", subscription_id
                 )
@@ -372,12 +375,16 @@ class WebSocketManager:
             except asyncio.CancelledError:
                 logger.info("User data stream task cancelled")
                 if subscription_id:
-                    self.client.ws_api.unregister_subscription_queue(subscription_id)
+                    self.client.ws_api.unregister_subscription_queue(  # type: ignore[attr-defined]
+                        subscription_id
+                    )
                 return
             except Exception as e:
                 logger.error("User stream error: %s. Reconnecting in 5s...", e)
                 if subscription_id:
-                    self.client.ws_api.unregister_subscription_queue(subscription_id)
+                    self.client.ws_api.unregister_subscription_queue(  # type: ignore[attr-defined]
+                        subscription_id
+                    )
                 try:
                     await asyncio.sleep(5)
                 except asyncio.CancelledError:
@@ -672,7 +679,7 @@ class WebSocketManager:
                 self._max_proxy_failures_before_fallback,
             )
             self._use_fallback_connection = True
-            # Note: Actual proxy removal would require recreating BinanceClient
+            # Note: Actual proxy removal would require recreating KrakenClient
             # For now, this flag can be used by client initialization code
             # TODO: Implement client recreation without proxy
 

@@ -16,7 +16,6 @@ from src.domain.enums import EventName
 from src.domain.inventory import InventoryItem
 from src.domain.orders import AccountPosition, Balance, Event
 
-
 # ---------------------------------------------------------------------------
 # init_portfolio_source
 # ---------------------------------------------------------------------------

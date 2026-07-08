@@ -288,13 +288,11 @@ async def compare_configurations():
 
 async def main():
     """Run all examples."""
-    print(
-        """
+    print("""
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                    BUY DIP STRATEGY - BACKTESTING EXAMPLES                    ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
-    """
-    )
+    """)
 
     # Run examples
     try:

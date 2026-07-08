@@ -17,7 +17,7 @@ from decimal import Decimal
 from typing import Dict, Optional, Any
 
 from src.broker import BrokerSpot
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.domain.enums import EventName, SubscriptionTarget, SubscriptionType
 from src.domain.orders import Event, TickerUpdate
 from src.domain.subscriptions import SubscriptionInfo
@@ -48,7 +48,7 @@ class BuyDipExecutor:
         self,
         db: Database,
         broker: BrokerSpot,
-        client: BinanceClient,
+        client: KrakenClient,
         ui_queue: queue.Queue,
         config: BuyDipConfig,
         total_budget: Decimal,
@@ -63,7 +63,7 @@ class BuyDipExecutor:
         Args:
             db: Database instance
             broker: Broker instance for subscriptions
-            client: BinanceClient for order placement
+            client: KrakenClient for order placement
             ui_queue: Queue for UI updates
             config: Strategy configuration
             total_budget: Total budget in USDC

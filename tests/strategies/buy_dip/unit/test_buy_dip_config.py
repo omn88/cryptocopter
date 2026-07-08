@@ -3,7 +3,6 @@
 import pytest
 from src.strategies.buy_dip.config import BuyDipConfig
 
-
 # ---------------------------------------------------------------------------
 # Default construction
 # ---------------------------------------------------------------------------

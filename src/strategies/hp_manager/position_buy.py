@@ -10,19 +10,11 @@ from src.domain.constants import (
     ORDER_STATUS_FILLED,
     ORDER_STATUS_CANCELED,
 )
-from binance.exceptions import (
-    BinanceAPIException,
-    BinanceOrderException,
-    BinanceRequestException,
-)
-
-
 from src.database import Database
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.domain.enums import Mode, State, UiState
 from src.domain.orders import ExecutionReport, Order
 from src.domain.positions import HPBuy
-
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +22,7 @@ logger = logging.getLogger(__name__)
 class HPPositionBuy:
     def __init__(
         self,
-        client: BinanceClient,
+        client: KrakenClient,
         data: HPBuy,
         db: Database,
     ):
@@ -285,11 +277,10 @@ class HPPositionBuy:
                     type=ORDER_TYPE_LIMIT,
                     timeInForce=TIME_IN_FORCE_GTC,
                 )
-            except (
-                BinanceAPIException,
-                BinanceOrderException,
-                BinanceRequestException,
-            ) as exception:
+            except Exception as exception:
+                # kraken.exceptions exposes ~50 flat error classes with no shared
+                # base, plus network failures surface as requests exceptions;
+                # retry on any of them the same way the old Binance tuple did.
                 last_exception = exception
                 logger.error(
                     "Failed to create spot order: %s due to %s: %s",
@@ -313,11 +304,7 @@ class HPPositionBuy:
         try:
             resp = await self.client.cancel_order(symbol=symbol, orderId=order_id)
             logger.info("Cancelled order %s: %s", order_id, resp)
-        except (
-            BinanceAPIException,
-            BinanceOrderException,
-            BinanceRequestException,
-        ) as exception:
+        except Exception as exception:
             logger.error(
                 "Failed to cancel order due to %s: %s",
                 type(exception).__name__,

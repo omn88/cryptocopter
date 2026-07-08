@@ -7,7 +7,6 @@ from src.domain.enums import PositionSide, SellType
 from src.domain.positions import HPSellConfig, SellPosition, StateInfo
 from .base import BaseSellStrategy
 
-
 logger = logging.getLogger(__name__)
 
 

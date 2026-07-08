@@ -16,13 +16,12 @@ from src.domain.constants import (
     ORDER_STATUS_NEW,
 )
 
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.domain.enums import EventName, PositionSide
 from src.domain.orders import Event, ExecutionReport, Order
 from src.domain.positions import HPBuyConfig, HPSellConfig
 from src.strategies.hp_manager.position_buy import HPPositionBuy
 from src.database.trading_database import Database
-
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +36,7 @@ class OrderRestorer:
         self,
         buy_position: HPPositionBuy,
         worker_queue: queue.Queue,
-        client: BinanceClient,
+        client: KrakenClient,
     ) -> List[Order]:
         """
         Restore buy orders from database, aggregating duplicates and verifying with exchange.
@@ -75,7 +74,7 @@ class OrderRestorer:
         self,
         sell_config: HPSellConfig,
         worker_queue: queue.Queue,
-        client: BinanceClient,
+        client: KrakenClient,
     ) -> Optional[Order]:
         """
         Restore sell order from database and verify with exchange.
@@ -204,7 +203,7 @@ class OrderRestorer:
         orders: List[Order],
         symbol_name: str,
         worker_queue: queue.Queue,
-        client: BinanceClient,
+        client: KrakenClient,
     ) -> None:
         """
         Verify open orders with exchange and send execution reports for any changes.
@@ -215,7 +214,8 @@ class OrderRestorer:
 
             try:
                 # Retrieve the latest order information from the API
-                resp = await client.get_order(
+                # TODO(PR6): KrakenClient.get_order not implemented yet.
+                resp = await client.get_order(  # type: ignore[attr-defined]
                     symbol=symbol_name,
                     orderId=order.order_id,
                 )
@@ -257,14 +257,15 @@ class OrderRestorer:
         db_order: dict,
         symbol_name: str,
         worker_queue: queue.Queue,
-        client: BinanceClient,
+        client: KrakenClient,
     ) -> None:
         """
         Verify a single order with exchange and send execution report if changed.
         """
         try:
             # Retrieve the latest order information from the API
-            resp = await client.get_order(
+            # TODO(PR6): KrakenClient.get_order not implemented yet.
+            resp = await client.get_order(  # type: ignore[attr-defined]
                 symbol=symbol_name,
                 orderId=db_order["order_id"],
             )

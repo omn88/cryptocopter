@@ -18,7 +18,7 @@ import src.kivy_config  # noinspection PyUnresolvedReferences
 import src.logging_config  # noinspection PyUnresolvedReferences
 import logging
 from src.config import API_KEY, API_SECRET
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.common.symbol import fetch_symbols
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 
@@ -52,7 +52,7 @@ async def main() -> None:
     # Initialize SQLite database
     db = Database()  # Uses default "trading.db" file
 
-    client = BinanceClient(api_key=API_KEY, api_secret=API_SECRET)
+    client = KrakenClient(api_key=API_KEY, api_secret=API_SECRET)
 
     price_resolver = UsdPriceResolver(
         client=client, symbols=await fetch_symbols(client=client)
@@ -75,7 +75,11 @@ async def main() -> None:
         logger.error(f"Unexpected error in main application: {e}")
     finally:
         try:
-            await client.close_connection()
+            # TODO: KrakenClient has no close_connection — decide whether
+            # python-kraken-sdk's Trade (sync/requests-based) needs explicit
+            # cleanup, or this call can be dropped. Not yet tracked in the
+            # migration PR table.
+            await client.close_connection()  # type: ignore[attr-defined]
         except Exception as e:
             logger.error(f"Error closing client connection: {e}")
 

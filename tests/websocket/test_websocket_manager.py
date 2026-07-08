@@ -10,9 +10,8 @@ Coverage targets (A2):
 import asyncio
 from unittest.mock import MagicMock
 
-from src.common.client import BinanceClient
+from src.common.client import KrakenClient
 from src.websocket.manager import WebSocketManager
-
 
 # ---------------------------------------------------------------------------
 # Constructor
@@ -21,7 +20,7 @@ from src.websocket.manager import WebSocketManager
 
 class TestWebSocketManagerInit:
     def test_attributes_set(self):
-        client = MagicMock(spec=BinanceClient)
+        client = MagicMock(spec=KrakenClient)
         stop_event = asyncio.Event()
         mgr = WebSocketManager(client=client, subscriptions={}, stop_event=stop_event)
 
