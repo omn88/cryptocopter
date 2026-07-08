@@ -1,4 +1,7 @@
+import logging
 from typing import Any, Dict
+
+logger = logging.getLogger(__name__)
 
 
 class Symbol:
@@ -90,16 +93,18 @@ class Symbol:
 async def fetch_symbols(client: Any) -> Dict[str, Symbol]:
     asset_pairs = await client.get_asset_pairs()
     symbols = {}
-    for pair in asset_pairs.values():
-        if pair["status"] == "online":
-            name = client._from_kraken_symbol(pair["wsname"])
-            lot_decimals = pair["lot_decimals"]
+    for name, pair in asset_pairs.items():
+        if pair["status"] != "online":
+            continue
+        try:
             symbols[name] = Symbol(
                 name=name,
                 min_notional=float(pair["costmin"]),
                 min_qty=float(pair["ordermin"]),
                 price_filter=float(pair["tick_size"]),
-                precision=lot_decimals,
+                precision=pair["lot_decimals"],
                 price_precision=pair["pair_decimals"],
             )
+        except (KeyError, ValueError) as e:
+            logger.warning("Skipping Kraken pair %s: %s", name, e)
     return symbols

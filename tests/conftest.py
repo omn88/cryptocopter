@@ -59,10 +59,11 @@ def mock_async_client() -> AsyncMock:
     # Create an async mock for the instance methods.
     mocked_async_client = AsyncMock()
 
-    # Mock Kraken AssetPairs data.
+    # Mock Kraken AssetPairs data, pre-normalized to internal symbol names the
+    # way KrakenClient.get_asset_pairs() returns them (normalization is that
+    # class's job, not the caller's).
     mock_asset_pairs: Dict = {
-        "XBTUSDT": {
-            "wsname": "XBT/USDT",
+        "BTCUSDT": {
             "pair_decimals": 2,
             "lot_decimals": 8,
             "ordermin": "0.0001",
@@ -70,8 +71,7 @@ def mock_async_client() -> AsyncMock:
             "tick_size": "0.01",
             "status": "online",
         },
-        "XBTUSDC": {
-            "wsname": "XBT/USDC",
+        "BTCUSDC": {
             "pair_decimals": 2,
             "lot_decimals": 8,
             "ordermin": "0.0001",
@@ -80,7 +80,6 @@ def mock_async_client() -> AsyncMock:
             "status": "online",
         },
         "ETHUSDT": {
-            "wsname": "ETH/USDT",
             "pair_decimals": 2,
             "lot_decimals": 8,
             "ordermin": "0.0001",
@@ -89,7 +88,6 @@ def mock_async_client() -> AsyncMock:
             "status": "online",
         },
         "AXLUSDT": {
-            "wsname": "AXL/USDT",
             "pair_decimals": 4,
             "lot_decimals": 8,
             "ordermin": "0.0001",
@@ -101,9 +99,6 @@ def mock_async_client() -> AsyncMock:
 
     # Mock the get_asset_pairs method to return the mock data.
     mocked_async_client.get_asset_pairs.return_value = mock_asset_pairs
-    mocked_async_client._from_kraken_symbol = MagicMock(
-        side_effect=lambda ws: ws.replace("XBT/", "BTC/").replace("/", "")
-    )
 
     return mocked_async_client
 

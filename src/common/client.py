@@ -65,4 +65,18 @@ class KrakenClient:
         return await asyncio.to_thread(self._trade.cancel_order, txid=orderId)
 
     async def get_asset_pairs(self) -> dict:
-        return await asyncio.to_thread(self._market.get_asset_pairs)
+        """Fetch Kraken AssetPairs, keyed by internal symbol name (e.g. "BTCUSDC").
+
+        Pairs without a usable `wsname` (e.g. dark-pool pairs) are dropped here,
+        since normalizing Kraken's naming is this class's job alone.
+        """
+        raw_pairs = await asyncio.to_thread(self._market.get_asset_pairs)
+        pairs = {}
+        for altname, pair in raw_pairs.items():
+            try:
+                name = self._from_kraken_symbol(pair["wsname"])
+            except (KeyError, ValueError) as e:
+                self.logger.warning("Skipping Kraken pair %s: %s", altname, e)
+                continue
+            pairs[name] = pair
+        return pairs

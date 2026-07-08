@@ -154,6 +154,16 @@ Kraken sends `"open"` for both NEW and PARTIALLY_FILLED orders. Detect partial f
 `Symbol.lot_size` and `Symbol.max_qty` were removed in PR4 — neither had a Kraken `AssetPairs`
 equivalent, and grep confirmed nothing outside `symbol.py` ever read them.
 
+PR4 fetches symbol metadata via REST `AssetPairs` only. Kraken's WS `instrument` channel also
+pushes full instrument metadata on subscribe (see WS v2 reference above), which would let
+`fetch_symbols()` prefer live WS data and fall back to REST `AssetPairs` on WS failure/timeout —
+matching the "WS is primary, REST is fallback" direction the rest of the migration is heading.
+Deliberately deferred to PR5: no Kraken WS v2 connectivity (subscribe, auth, reconnect) exists
+anywhere in the codebase yet, and hand-rolling a one-off WS connection just for symbol metadata
+inside PR4 would be thrown away and rebuilt once PR5 lands real WS infra — breaking the
+"nothing broken in between" incremental-PR discipline. `KrakenClient.get_asset_pairs()`
+(REST) is expected to stay as the fallback implementation `fetch_symbols()` calls into.
+
 ## XBT normalization rule
 
 `KrakenClient` owns all XBT↔BTC translation. No other file should know about XBT:
@@ -187,7 +197,7 @@ Replaces the old PLN / BNB / Convert logic. Priority order for `end_currency = U
 | 2 | `feature/kraken-ph2-order-id-str` | **MERGED** | `Order.order_id: int → str`; DB schema `order_id TEXT`; `str(resp["orderId"])` in position files |
 | 3 | `feature/kraken-ph3-client` | **MERGED** | `KrakenClient` class; XBT normalization; replace `binance.exceptions`; remove `python-binance` dep |
 | 4 | `feature/kraken-ph4-symbol-fetching` | IN REVIEW | Rewrite `fetch_symbols()` for Kraken `AssetPairs` |
-| 5 | `feature/kraken-ph5-websocket` | TODO | Kraken WS v2; per-symbol subscriptions; token auth + refresh; dead-man switch |
+| 5 | `feature/kraken-ph5-websocket` | TODO | Kraken WS v2; per-symbol subscriptions; token auth + refresh; dead-man switch; symbol metadata via `instrument` channel with REST `AssetPairs` fallback |
 | 6 | `feature/kraken-ph6-message-handlers` | TODO | Rewrite `message_handlers.py` for Kraken event schema |
 | 7 | `feature/kraken-ph7-sell-factory` | TODO | Remove PLN/BNB/Convert; Kraken routing; update price resolver |
 
