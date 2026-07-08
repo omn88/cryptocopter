@@ -285,7 +285,6 @@ class BuyDipBacktester:
             precision=8,  # Quantity precision (8 decimals for BTC)
             price_precision=2,  # Price precision (2 decimals for USDC)
             min_notional=10.0,  # Minimum order value
-            lot_size=0.00000001,  # Step size for quantity
             price_filter=0.01,  # Step size for price
         )
 

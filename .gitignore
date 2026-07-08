@@ -1,8 +1,6 @@
 .idea/
 __pycache__/
 artifacts
-data
-sample_data.txt
 .pytest_cache/
 .env
 config/.db_config
@@ -10,14 +8,9 @@ config/.db_config
 .coverage
 *.txt
 *.csv
-venv
 .venv
-.venv_new
-linux_venv
-windows_venv
 .vscode/
 *.db
-ASSESSMENT*.md
 htmlcov/
 *.xml
 *.egg-info/

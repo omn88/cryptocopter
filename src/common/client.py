@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from kraken.spot import Trade
+from kraken.spot import Market, Trade
 
 from src.domain.constants import ORDER_STATUS_NEW
 
@@ -9,7 +9,7 @@ _KNOWN_QUOTE_CURRENCIES = ("USDC", "USDT", "BTC", "PLN", "BNB")
 
 
 class KrakenClient:
-    """Thin async wrapper around python-kraken-sdk's synchronous Trade REST client.
+    """Thin async wrapper around python-kraken-sdk's synchronous REST clients.
 
     python-kraken-sdk's REST clients are synchronous (requests-based); calls are
     offloaded to a thread so they don't block the asyncio event loop.
@@ -17,6 +17,7 @@ class KrakenClient:
 
     def __init__(self, api_key: str, api_secret: str):
         self._trade = Trade(key=api_key, secret=api_secret)
+        self._market = Market()
         self.logger = logging.getLogger(__name__)
 
     @staticmethod
@@ -62,3 +63,6 @@ class KrakenClient:
 
     async def cancel_order(self, symbol: str, orderId: str) -> dict:
         return await asyncio.to_thread(self._trade.cancel_order, txid=orderId)
+
+    async def get_asset_pairs(self) -> dict:
+        return await asyncio.to_thread(self._market.get_asset_pairs)

@@ -59,30 +59,51 @@ def mock_async_client() -> AsyncMock:
     # Create an async mock for the instance methods.
     mocked_async_client = AsyncMock()
 
-    # Mock exchange info data.
-    mock_exchange_info: Dict = {
-        "symbols": [
-            {
-                "symbol": "BTCUSDT",
-                "filters": [{"filterType": "MIN_NOTIONAL", "minNotional": "10.0"}],
-            },
-            {
-                "symbol": "BTCUSDC",
-                "filters": [{"filterType": "MIN_NOTIONAL", "minNotional": "10.0"}],
-            },
-            {
-                "symbol": "ETHUSDT",
-                "filters": [{"filterType": "MIN_NOTIONAL", "minNotional": "5.0"}],
-            },
-            {
-                "symbol": "AXLUSDT",
-                "filters": [{"filterType": "MIN_NOTIONAL", "minNotional": "5.0"}],
-            },
-        ]
+    # Mock Kraken AssetPairs data.
+    mock_asset_pairs: Dict = {
+        "XBTUSDT": {
+            "wsname": "XBT/USDT",
+            "pair_decimals": 2,
+            "lot_decimals": 8,
+            "ordermin": "0.0001",
+            "costmin": "10.0",
+            "tick_size": "0.01",
+            "status": "online",
+        },
+        "XBTUSDC": {
+            "wsname": "XBT/USDC",
+            "pair_decimals": 2,
+            "lot_decimals": 8,
+            "ordermin": "0.0001",
+            "costmin": "10.0",
+            "tick_size": "0.01",
+            "status": "online",
+        },
+        "ETHUSDT": {
+            "wsname": "ETH/USDT",
+            "pair_decimals": 2,
+            "lot_decimals": 8,
+            "ordermin": "0.0001",
+            "costmin": "5.0",
+            "tick_size": "0.01",
+            "status": "online",
+        },
+        "AXLUSDT": {
+            "wsname": "AXL/USDT",
+            "pair_decimals": 4,
+            "lot_decimals": 8,
+            "ordermin": "0.0001",
+            "costmin": "5.0",
+            "tick_size": "0.0001",
+            "status": "online",
+        },
     }
 
-    # Mock the get_exchange_info method to return the mock data.
-    mocked_async_client.get_exchange_info.return_value = mock_exchange_info
+    # Mock the get_asset_pairs method to return the mock data.
+    mocked_async_client.get_asset_pairs.return_value = mock_asset_pairs
+    mocked_async_client._from_kraken_symbol = MagicMock(
+        side_effect=lambda ws: ws.replace("XBT/", "BTC/").replace("/", "")
+    )
 
     return mocked_async_client
 
@@ -339,9 +360,7 @@ async def crash_recovery_factory(test_db: Database, mock_async_client, mock_inve
             "BTCUSDC": Symbol(
                 name="BTCUSDC",
                 min_notional=10.0,
-                lot_size=0.00001,
                 min_qty=0.00001,
-                max_qty=9000.0,
                 price_filter=0.01,
                 precision=5,
                 price_precision=2,
@@ -1015,9 +1034,7 @@ async def portfolio_crash_recovery_factory(
             "BTCUSDC": Symbol(
                 name="BTCUSDC",
                 min_notional=10.0,
-                lot_size=0.00001,
                 min_qty=0.00001,
-                max_qty=9000.0,
                 price_filter=0.01,
                 precision=5,
                 price_precision=2,
@@ -1387,7 +1404,6 @@ def broker_adapter_buy_dip(mock_binance_client_buy_dip):
         precision=8,  # Quantity precision (8 decimals for BTC)
         price_precision=2,  # Price precision (2 decimals for USDC)
         min_notional=10.0,  # Minimum order value
-        lot_size=0.00000001,  # Step size for quantity
         price_filter=0.01,  # Step size for price
     )
 

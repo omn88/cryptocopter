@@ -1,16 +1,16 @@
-"""Unit tests for src.common.symbol.Symbol."""
+"""Unit tests for src.common.symbol.Symbol and fetch_symbols."""
+
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from src.common.symbol import Symbol
+from src.common.symbol import Symbol, fetch_symbols
 
 
 def make_symbol(precision=8, price_precision=2, min_notional=10.0):
     return Symbol(
         name="BTCUSDT",
         min_notional=min_notional,
-        lot_size=0.00000001,
         min_qty=0.00000001,
-        max_qty=9000.0,
         price_filter=0.01,
         precision=precision,
         price_precision=price_precision,
@@ -171,3 +171,64 @@ class TestCalculatePrecision:
     )
     def test_various_step_sizes(self, step_size, expected):
         assert Symbol.calculate_precision(step_size) == expected
+
+
+# ---------------------------------------------------------------------------
+# fetch_symbols
+# ---------------------------------------------------------------------------
+
+
+def make_kraken_client(asset_pairs):
+    client = AsyncMock()
+    client.get_asset_pairs.return_value = asset_pairs
+    client._from_kraken_symbol = MagicMock(
+        side_effect=lambda ws: ws.replace("XBT/", "BTC/").replace("/", "")
+    )
+    return client
+
+
+class TestFetchSymbols:
+    @pytest.mark.asyncio
+    async def test_builds_symbol_per_online_pair(self):
+        client = make_kraken_client(
+            {
+                "XXBTZUSDC": {
+                    "wsname": "XBT/USDC",
+                    "pair_decimals": 1,
+                    "lot_decimals": 8,
+                    "ordermin": "0.0001",
+                    "costmin": "0.5",
+                    "tick_size": "0.1",
+                    "status": "online",
+                }
+            }
+        )
+        symbols = await fetch_symbols(client)
+
+        assert set(symbols) == {"BTCUSDC"}
+        s = symbols["BTCUSDC"]
+        assert s.name == "BTCUSDC"
+        assert s.precision == 8
+        assert s.price_precision == 1
+        assert s.min_qty == 0.0001
+        assert s.min_notional == 0.5
+        assert s.price_filter == 0.1
+
+    @pytest.mark.asyncio
+    async def test_skips_non_online_pairs(self):
+        client = make_kraken_client(
+            {
+                "XXBTZUSDC": {
+                    "wsname": "XBT/USDC",
+                    "pair_decimals": 1,
+                    "lot_decimals": 8,
+                    "ordermin": "0.0001",
+                    "costmin": "0.5",
+                    "tick_size": "0.1",
+                    "status": "cancel_only",
+                }
+            }
+        )
+        symbols = await fetch_symbols(client)
+
+        assert symbols == {}

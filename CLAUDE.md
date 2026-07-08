@@ -151,6 +151,9 @@ Kraken sends `"open"` for both NEW and PARTIALLY_FILLED orders. Detect partial f
 | `min_notional` | `costmin` |
 | `price_filter` (tick size) | `tick_size` |
 
+`Symbol.lot_size` and `Symbol.max_qty` were removed in PR4 — neither had a Kraken `AssetPairs`
+equivalent, and grep confirmed nothing outside `symbol.py` ever read them.
+
 ## XBT normalization rule
 
 `KrakenClient` owns all XBT↔BTC translation. No other file should know about XBT:
@@ -182,8 +185,8 @@ Replaces the old PLN / BNB / Convert logic. Priority order for `end_currency = U
 |---|---|---|---|
 | 1 | `feature/kraken-ph1-constants-decoupling` | **MERGED** | `src/domain/constants.py`; replace all `binance.enums` imports in domain/strategies/tests |
 | 2 | `feature/kraken-ph2-order-id-str` | **MERGED** | `Order.order_id: int → str`; DB schema `order_id TEXT`; `str(resp["orderId"])` in position files |
-| 3 | `feature/kraken-ph3-client` | IN REVIEW | `KrakenClient` class; XBT normalization; replace `binance.exceptions`; remove `python-binance` dep |
-| 4 | `feature/kraken-ph4-symbol-fetching` | TODO | Rewrite `fetch_symbols()` for Kraken `AssetPairs` |
+| 3 | `feature/kraken-ph3-client` | **MERGED** | `KrakenClient` class; XBT normalization; replace `binance.exceptions`; remove `python-binance` dep |
+| 4 | `feature/kraken-ph4-symbol-fetching` | IN REVIEW | Rewrite `fetch_symbols()` for Kraken `AssetPairs` |
 | 5 | `feature/kraken-ph5-websocket` | TODO | Kraken WS v2; per-symbol subscriptions; token auth + refresh; dead-man switch |
 | 6 | `feature/kraken-ph6-message-handlers` | TODO | Rewrite `message_handlers.py` for Kraken event schema |
 | 7 | `feature/kraken-ph7-sell-factory` | TODO | Remove PLN/BNB/Convert; Kraken routing; update price resolver |
@@ -192,10 +195,10 @@ Replaces the old PLN / BNB / Convert logic. Priority order for `end_currency = U
 
 PR3 only implements what PR3 itself needs — `create_order`, `cancel_order` — via
 `kraken.spot.Trade` (python-kraken-sdk), wrapped in `asyncio.to_thread` since the SDK's REST
-clients are synchronous. The following Binance-only methods are **not yet implemented** on
-`KrakenClient` and will raise `AttributeError` if hit at runtime until their owning PR lands:
+clients are synchronous. PR4 adds `get_asset_pairs()` via `kraken.spot.Market`, same pattern.
+The following Binance-only methods are **still not implemented** on `KrakenClient` and will
+raise `AttributeError` if hit at runtime until their owning PR lands:
 
-- `get_exchange_info` (`src/common/symbol.py: fetch_symbols`) — PR4
 - `convert_request_quote` / `convert_accept_quote` (`hp_manager.py`) — deleted in PR7, not replaced
 - `get_all_tickers` (`usd_price_resolver.py`), `get_orderbook_ticker` (GUI symbol picker),
   `get_account` (`portfolio.py` balance sync) — not owned by any PR in this table yet; needs a
