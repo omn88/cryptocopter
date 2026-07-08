@@ -188,7 +188,6 @@ def make_kraken_client(asset_pairs):
 
 
 class TestFetchSymbols:
-    @pytest.mark.asyncio
     async def test_builds_symbol_per_online_pair(self):
         client = make_kraken_client(
             {
@@ -213,7 +212,6 @@ class TestFetchSymbols:
         assert s.min_notional == 0.5
         assert s.price_filter == 0.1
 
-    @pytest.mark.asyncio
     async def test_skips_non_online_pairs(self):
         client = make_kraken_client(
             {
@@ -231,7 +229,6 @@ class TestFetchSymbols:
 
         assert symbols == {}
 
-    @pytest.mark.asyncio
     async def test_skips_malformed_pair_without_crashing(self):
         client = make_kraken_client(
             {

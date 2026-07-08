@@ -44,7 +44,6 @@ class TestFromKrakenSymbol:
 
 
 class TestGetAssetPairs:
-    @pytest.mark.asyncio
     async def test_keys_result_by_internal_symbol_name(self, client):
         client._market.get_asset_pairs.return_value = {
             "XXBTZUSDC": {"wsname": "XBT/USDC", "status": "online"},
@@ -55,7 +54,6 @@ class TestGetAssetPairs:
         assert set(pairs) == {"BTCUSDC"}
         assert pairs["BTCUSDC"] == {"wsname": "XBT/USDC", "status": "online"}
 
-    @pytest.mark.asyncio
     async def test_skips_pair_without_wsname(self, client, caplog):
         client._market.get_asset_pairs.return_value = {
             "XETHZUSDC.d": {"status": "online"},  # dark-pool pair, no wsname
