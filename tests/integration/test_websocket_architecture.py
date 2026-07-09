@@ -1,9 +1,9 @@
-﻿"""Comprehensive WebSocket Architecture Tests for refactored modules."""
+"""Integration-style tests for the Kraken WS v2 WebSocket architecture."""
 
-import time
-import queue
 import asyncio
-from unittest.mock import Mock, AsyncMock, patch
+import queue
+from unittest.mock import AsyncMock, Mock
+
 import pytest
 
 from src.broker import BrokerSpot
@@ -20,7 +20,7 @@ from src.domain.subscriptions import SubscriptionInfo
 def mock_client():
     """Create a mock KrakenClient."""
     client = Mock(spec=KrakenClient)
-    client.close_connection = AsyncMock()
+    client.get_ws_token = AsyncMock(return_value={"token": "test-token"})
     return client
 
 
@@ -38,13 +38,13 @@ def websocket_manager(mock_client):
 
 
 @pytest.fixture
-def mock_broker_with_ws():
+def mock_broker_with_ws(mock_client):
     """Create a mock broker with initialized WebSocketManager."""
     broker = BrokerSpot(client=Mock(spec=KrakenClient))
 
-    # Manually initialize WebSocketManager
+    # Manually initialize WebSocketManager (bypassing run())
     broker._ws_manager = WebSocketManager(
-        client=Mock(spec=KrakenClient),
+        client=mock_client,
         subscriptions=broker.subscriptions,
         stop_event=broker.stop_producers_event,
     )
@@ -65,40 +65,32 @@ def test_websocket_manager_initialization(websocket_manager):
     """Test WebSocketManager initializes correctly."""
     assert websocket_manager.client is not None
     assert websocket_manager._ws_config == ULTRA_ROBUST_CONFIG
-    assert websocket_manager._restart_count == 0
-    assert isinstance(websocket_manager._subscription_registry, dict)
+    assert websocket_manager._ticker_subscribers == {}
+    assert websocket_manager._kline_subscribers == {}
 
 
-def test_websocket_manager_subscription_registry(websocket_manager):
-    """Test subscription registry tracking."""
-    test_queue = queue.Queue()
-    subscription_info = SubscriptionInfo(
-        data_type=SubscriptionType.PRICE,
-        symbol="BTCUSDC",
-        target=SubscriptionTarget.BACKEND,
-        queue=test_queue,
-    )
-
-    websocket_manager.register_subscription("test_1000", subscription_info)
-    assert "test_1000" in websocket_manager._subscription_registry
-
-    websocket_manager.unregister_subscription("test_1000")
-    assert "test_1000" not in websocket_manager._subscription_registry
+def test_websocket_manager_exposes_per_symbol_subscription_api(websocket_manager):
+    """Test WebSocketManager exposes the ref-counted per-symbol subscribe API."""
+    assert hasattr(websocket_manager, "subscribe_ticker")
+    assert hasattr(websocket_manager, "unsubscribe_ticker")
+    assert hasattr(websocket_manager, "subscribe_kline")
+    assert hasattr(websocket_manager, "unsubscribe_kline")
+    assert hasattr(websocket_manager, "_refresh_ws_token")
 
 
-async def test_websocket_manager_circuit_breaker(websocket_manager):
-    """Test circuit breaker progressive delays."""
-    delays = []
-    for i in range(1, 4):
-        websocket_manager._restart_count = i
-        expected_delay = min(
-            websocket_manager._restart_base_delay * (i**1.5),
-            websocket_manager._max_restart_delay,
-        )
-        delays.append(expected_delay)
+async def test_websocket_manager_ticker_ref_counting(websocket_manager):
+    """Test ticker subscriptions are reference-counted, not booleans."""
+    websocket_manager._public_ws = AsyncMock()
 
-    assert delays[1] > delays[0]
-    assert delays[2] > delays[1]
+    await websocket_manager.subscribe_ticker("BTCUSDC")
+    await websocket_manager.subscribe_ticker("BTCUSDC")
+    assert websocket_manager._ticker_subscribers["BTCUSDC"] == 2
+
+    await websocket_manager.unsubscribe_ticker("BTCUSDC")
+    assert websocket_manager._ticker_subscribers["BTCUSDC"] == 1
+
+    await websocket_manager.unsubscribe_ticker("BTCUSDC")
+    assert "BTCUSDC" not in websocket_manager._ticker_subscribers
 
 
 # BrokerSpot Integration Tests
@@ -110,9 +102,10 @@ def test_broker_has_websocket_manager(mock_broker_with_ws):
     assert isinstance(mock_broker_with_ws._ws_manager, WebSocketManager)
 
 
-def test_broker_subscription_with_registry(mock_broker_with_ws):
-    """Test broker subscription registers with WebSocketManager."""
+async def test_broker_subscribe_signals_ticker_subscription(mock_broker_with_ws):
+    """Test broker subscribe() signals WebSocketManager to add a ticker subscription."""
     broker = mock_broker_with_ws
+    broker._ws_manager._public_ws = AsyncMock()
     test_queue = queue.Queue()
 
     subscription_info = SubscriptionInfo(
@@ -123,8 +116,53 @@ def test_broker_subscription_with_registry(mock_broker_with_ws):
     )
 
     broker.subscribe(system_id="test_1000", subscription_info=subscription_info)
+    await asyncio.sleep(0)  # let the scheduled subscribe_ticker() task run
+
     assert "test_1000" in broker.subscriptions
-    assert "test_1000" in broker._ws_manager._subscription_registry
+    assert broker._ws_manager._ticker_subscribers.get("BTCUSDC") == 1
+
+
+async def test_broker_unsubscribe_signals_ticker_unsubscription(mock_broker_with_ws):
+    """Test broker unsubscribe() signals WebSocketManager to remove the subscription."""
+    broker = mock_broker_with_ws
+    broker._ws_manager._public_ws = AsyncMock()
+    test_queue = queue.Queue()
+
+    subscription_info = SubscriptionInfo(
+        data_type=SubscriptionType.PRICE,
+        symbol="BTCUSDC",
+        target=SubscriptionTarget.BACKEND,
+        queue=test_queue,
+    )
+    broker.subscribe(system_id="test_1000", subscription_info=subscription_info)
+    await asyncio.sleep(0)
+
+    broker.unsubscribe(system_id="test_1000")
+    await asyncio.sleep(0)
+
+    assert "test_1000" not in broker.subscriptions
+    assert "BTCUSDC" not in broker._ws_manager._ticker_subscribers
+
+
+async def test_broker_user_subscription_does_not_touch_ticker_registry(
+    mock_broker_with_ws,
+):
+    """USER subscriptions are account-wide (executions/balances) - no per-symbol signal."""
+    broker = mock_broker_with_ws
+    broker._ws_manager._private_ws = AsyncMock()
+    test_queue = queue.Queue()
+
+    subscription_info = SubscriptionInfo(
+        data_type=SubscriptionType.USER,
+        symbol="BTCUSDC",
+        target=SubscriptionTarget.BACKEND,
+        queue=test_queue,
+    )
+
+    broker.subscribe(system_id="test_1000", subscription_info=subscription_info)
+    await asyncio.sleep(0)
+
+    assert broker._ws_manager._ticker_subscribers == {}
 
 
 # Configuration Tests
@@ -135,7 +173,8 @@ def test_ultra_robust_config_loaded(mock_broker_with_ws):
     broker = mock_broker_with_ws
     assert broker._ws_config == ULTRA_ROBUST_CONFIG
     assert broker._ws_config.connection_timeout == 60
-    assert broker._ws_config.max_reconnect_attempts == 50
+    assert broker._ws_config.connection_silence_timeout == 60
+    assert broker._ws_config.token_refresh_interval == 780
 
 
 # Separation of Concerns Tests
@@ -145,14 +184,3 @@ def test_strategy_executor_no_websocket_methods():
     """Verify StrategyExecutor has no WebSocket error handling."""
     assert not hasattr(StrategyExecutor, "_handle_websocket_error")
     assert not hasattr(StrategyExecutor, "_restart_websocket_client")
-
-
-def test_broker_has_websocket_methods(mock_broker_with_ws):
-    """Verify Broker instance provides access to WebSocket handling methods."""
-    # These are delegated to WebSocketManager through __getattr__
-    assert hasattr(mock_broker_with_ws._ws_manager, "_handle_websocket_error")
-    assert hasattr(mock_broker_with_ws._ws_manager, "_restart_websocket_client")
-    assert hasattr(mock_broker_with_ws._ws_manager, "_monitor_connection_health")
-
-    # Verify broker can access them via delegation
-    assert mock_broker_with_ws._ws_manager is not None

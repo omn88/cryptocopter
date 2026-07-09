@@ -33,6 +33,13 @@ class WebSocketConfig:
     error_suppression_time: int = 300  # seconds (5 minutes)
     max_errors_before_resubscribe: int = 20
 
+    # Kraken WS v2 specific
+    connection_silence_timeout: int = 60  # seconds without any message (Kraken sends
+    # heartbeats ~once/sec once subscribed, so this is a strong dead-connection signal)
+    token_refresh_interval: int = (
+        780  # seconds; GetWebSocketsToken tokens expire at 900s
+    )
+
     @classmethod
     def create_robust_config(cls) -> "WebSocketConfig":
         """Create a configuration optimized for stability over speed"""
@@ -47,6 +54,8 @@ class WebSocketConfig:
             message_timeout_threshold=120,
             error_suppression_time=600,  # 10 minutes
             max_errors_before_resubscribe=10,
+            connection_silence_timeout=90,
+            token_refresh_interval=780,
         )
 
     @classmethod
@@ -67,6 +76,8 @@ class WebSocketConfig:
             message_timeout_threshold=180,  # 3 minutes - reduced from 5 min
             error_suppression_time=900,  # 15 minutes - reduced from 30 min
             max_errors_before_resubscribe=5,  # Lower threshold for resubscribe
+            connection_silence_timeout=60,
+            token_refresh_interval=780,
         )
 
     def log_config(self) -> None:
@@ -77,6 +88,10 @@ class WebSocketConfig:
         logger.debug("  Keepalive timeout: %ss", self.keepalive_timeout)
         logger.debug("  Max reconnect attempts: %s", self.max_reconnect_attempts)
         logger.debug("  Health check interval: %ss", self.health_check_interval)
+        logger.debug(
+            "  Connection silence timeout: %ss", self.connection_silence_timeout
+        )
+        logger.debug("  Token refresh interval: %ss", self.token_refresh_interval)
 
 
 # Default configuration instance

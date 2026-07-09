@@ -181,9 +181,14 @@ class TestCalculatePrecision:
 def make_kraken_client(asset_pairs):
     """Build a client whose get_asset_pairs() already returns Kraken-normalized
     entries keyed by internal symbol name, matching KrakenClient.get_asset_pairs()'s
-    contract (normalization is that class's job, not fetch_symbols')."""
+    contract (normalization is that class's job, not fetch_symbols').
+
+    get_asset_pairs_ws() fails by default so tests exercise the REST path deterministically;
+    TestFetchSymbolsWsFallback below covers the WS-primary/REST-fallback selection itself.
+    """
     client = AsyncMock()
     client.get_asset_pairs.return_value = asset_pairs
+    client.get_asset_pairs_ws.side_effect = ConnectionError("WS not available in tests")
     return client
 
 
@@ -253,3 +258,61 @@ class TestFetchSymbols:
         symbols = await fetch_symbols(client)
 
         assert set(symbols) == {"BTCUSDC"}
+
+
+class TestFetchSymbolsWsFallback:
+    async def test_prefers_ws_and_skips_rest_when_ws_succeeds(self):
+        client = AsyncMock()
+        client.get_asset_pairs_ws.return_value = {
+            "BTCUSDC": {
+                "pair_decimals": 1,
+                "lot_decimals": 8,
+                "ordermin": "0.0001",
+                "costmin": "0.5",
+                "tick_size": "0.1",
+                "status": "online",
+            }
+        }
+
+        symbols = await fetch_symbols(client)
+
+        assert set(symbols) == {"BTCUSDC"}
+        client.get_asset_pairs.assert_not_called()
+
+    async def test_falls_back_to_rest_when_ws_raises(self):
+        client = AsyncMock()
+        client.get_asset_pairs_ws.side_effect = ConnectionError("no route to host")
+        client.get_asset_pairs.return_value = {
+            "BTCUSDC": {
+                "pair_decimals": 1,
+                "lot_decimals": 8,
+                "ordermin": "0.0001",
+                "costmin": "0.5",
+                "tick_size": "0.1",
+                "status": "online",
+            }
+        }
+
+        symbols = await fetch_symbols(client)
+
+        assert set(symbols) == {"BTCUSDC"}
+        client.get_asset_pairs.assert_called_once()
+
+    async def test_falls_back_to_rest_when_ws_returns_empty(self):
+        client = AsyncMock()
+        client.get_asset_pairs_ws.return_value = {}
+        client.get_asset_pairs.return_value = {
+            "BTCUSDC": {
+                "pair_decimals": 1,
+                "lot_decimals": 8,
+                "ordermin": "0.0001",
+                "costmin": "0.5",
+                "tick_size": "0.1",
+                "status": "online",
+            }
+        }
+
+        symbols = await fetch_symbols(client)
+
+        assert set(symbols) == {"BTCUSDC"}
+        client.get_asset_pairs.assert_called_once()

@@ -91,7 +91,16 @@ class Symbol:
 
 
 async def fetch_symbols(client: Any) -> Dict[str, Symbol]:
-    asset_pairs = await client.get_asset_pairs()
+    try:
+        asset_pairs = await client.get_asset_pairs_ws()
+        if not asset_pairs:
+            raise ValueError("WS instrument snapshot returned no pairs")
+    except Exception as e:
+        logger.warning(
+            "WS symbol fetch failed (%s); falling back to REST AssetPairs", e
+        )
+        asset_pairs = await client.get_asset_pairs()
+
     symbols = {}
     for name, pair in asset_pairs.items():
         if pair["status"] != "online":
