@@ -1,6 +1,6 @@
-"""Binance spot trading broker with WebSocket integration.
+"""Kraken spot trading broker with WebSocket integration.
 
-This module provides the main BrokerSpot class for interacting with Binance spot markets,
+This module provides the main BrokerSpot class for interacting with Kraken spot markets,
 handling subscriptions, and coordinating with WebSocket streams.
 """
 
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class BrokerSpot:
-    """Binance spot trading broker with real-time WebSocket integration."""
+    """Kraken spot trading broker with real-time WebSocket integration."""
 
     def __init__(self, client: KrakenClient) -> None:
         """Initialize BrokerSpot.
@@ -42,16 +42,6 @@ class BrokerSpot:
         self._ws_manager: Optional[WebSocketManager] = None
 
         logger.info("BrokerSpot initialized")
-
-    @property
-    def _ticker_timeout_task(self) -> Optional[asyncio.Task]:
-        """Task handle for ticker timeout monitoring (delegated to WebSocketManager)."""
-        return self._ws_manager._ticker_timeout_task if self._ws_manager else None
-
-    @property
-    def _connection_health_task(self) -> Optional[asyncio.Task]:
-        """Task handle for connection health monitoring (delegated to WebSocketManager)."""
-        return self._ws_manager._connection_health_task if self._ws_manager else None
 
     @property
     def _ws_config(self) -> Any:
@@ -116,14 +106,19 @@ class BrokerSpot:
         return handler
 
     def _handle_websocket_error_callback(self, error_msg: Any) -> None:
-        """Callback for handling websocket errors from message handlers."""
-        if self._ws_manager:
-            self._ws_manager.handle_error_from_message_handler(error_msg)
+        """Callback for message-body-level errors reported by message handlers.
+
+        WS-connection-level liveness (dead sockets, reconnects) is handled by
+        WebSocketManager's own per-connection recv-loop timeout, not here.
+        """
+        logger.warning("WebSocket message handler reported an error: %s", error_msg)
 
     def _update_last_ticker_time_callback(self) -> None:
-        """Callback for updating last ticker time from message handler."""
-        if self._ws_manager:
-            self._ws_manager.update_last_ticker_time()
+        """No-op: kept only so message_handlers.py's call signature stays stable.
+
+        Connection liveness is now tracked per-connection inside WebSocketManager's
+        own recv loop, not by watching ticker message content.
+        """
 
     def subscribe(self, system_id: str, subscription_info: SubscriptionInfo) -> None:
         """Subscribe a strategy to user or price feeds.
@@ -138,13 +133,40 @@ class BrokerSpot:
         # Avoid duplicate subscriptions
         if subscription_info not in self.subscriptions[system_id]:
             self.subscriptions[system_id].append(subscription_info)
-
-            # Register for automatic resubscription after restart
-            if self._ws_manager:
-                self._ws_manager.register_subscription(system_id, subscription_info)
+            self._signal_ws_subscribe(subscription_info)
 
             logger.info(
                 "New subscription for ID: %s: %s", system_id, subscription_info.symbol
+            )
+
+    def _signal_ws_subscribe(self, subscription_info: SubscriptionInfo) -> None:
+        """Tell WebSocketManager to add a per-symbol channel subscription, if needed.
+
+        USER subscriptions don't need a per-symbol signal - executions/balances are
+        account-wide channels the private socket subscribes to once at connect.
+        """
+        if self._ws_manager is None:
+            return
+        if subscription_info.data_type == SubscriptionType.PRICE:
+            asyncio.ensure_future(
+                self._ws_manager.subscribe_ticker(subscription_info.symbol)
+            )
+        elif subscription_info.data_type == SubscriptionType.KLINE:
+            asyncio.ensure_future(
+                self._ws_manager.subscribe_kline(subscription_info.symbol)
+            )
+
+    def _signal_ws_unsubscribe(self, subscription_info: SubscriptionInfo) -> None:
+        """Tell WebSocketManager to remove a per-symbol channel subscription, if needed."""
+        if self._ws_manager is None:
+            return
+        if subscription_info.data_type == SubscriptionType.PRICE:
+            asyncio.ensure_future(
+                self._ws_manager.unsubscribe_ticker(subscription_info.symbol)
+            )
+        elif subscription_info.data_type == SubscriptionType.KLINE:
+            asyncio.ensure_future(
+                self._ws_manager.unsubscribe_kline(subscription_info.symbol)
             )
 
     def setup_subscriptions(
@@ -205,12 +227,9 @@ class BrokerSpot:
         """
         # Check if the system_id exists in the subscriptions
         if system_id in self.subscriptions:
-            del self.subscriptions[system_id]
+            for subscription_info in self.subscriptions.pop(system_id):
+                self._signal_ws_unsubscribe(subscription_info)
             logger.info("Deleted all subscriptions for ID: %s", system_id)
-
-        # Remove from WebSocket manager registry
-        if self._ws_manager:
-            self._ws_manager.unregister_subscription(system_id)
 
     async def stop(self) -> None:
         """Shut down BrokerSpot gracefully."""

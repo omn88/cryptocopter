@@ -99,6 +99,11 @@ def mock_async_client() -> AsyncMock:
 
     # Mock the get_asset_pairs method to return the mock data.
     mocked_async_client.get_asset_pairs.return_value = mock_asset_pairs
+    # fetch_symbols() tries the WS path first; make it fail deterministically so
+    # tests exercise the REST fallback above rather than an unconfigured AsyncMock.
+    mocked_async_client.get_asset_pairs_ws.side_effect = ConnectionError(
+        "WS not available in tests"
+    )
 
     return mocked_async_client
 
