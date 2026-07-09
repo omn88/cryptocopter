@@ -151,6 +151,41 @@ don't assume it's covered by the existing reconnect logic.
 | `commission_amount` | `fees[0].asset_qty` |
 | `commission_asset` | `fees[0].asset` |
 
+`handle_user_message` (PR6) receives the full channel envelope
+(`{"channel": "executions"|"balances", "type": "snapshot"|"update", "data": [...]}`) and iterates
+`data`, building one `ExecutionReport` per entry via `create_execution_report()`. `order_type` and
+`time_in_force` are upper-cased on the way in (Kraken sends `"limit"`/`"GTC"` lowercase-ish;
+domain constants are `"LIMIT"`/`"GTC"`) — `hp_manager.py`'s FSM conditions compare
+`execution_report.order_type == ORDER_TYPE_LIMIT` by exact string match, so skipping the
+upper-case step would silently break every fill/cancel/expire transition.
+
+## Kraken balances channel mapping
+
+`create_account_position()` (PR6) maps each `balances` channel data entry to a `Balance`:
+`asset` → `coin`, and `free`/`locked` are derived from `balance` (total) minus `hold_trade`
+(amount held by open orders) — `free = balance - hold_trade`, `locked = hold_trade`. **Caveat:**
+same as the `instrument` channel mapping in PR5 — this is based on Kraken's documented schema,
+not verified against a live connection, since the test suite always mocks the WebSocket layer.
+Smoke-test before relying on it in production; a wrong `hold_trade` mapping would silently
+misreport available balance to `Portfolio`.
+
+## "ALL"-ticker subscription gap (found during PR6, not fixed)
+
+`Portfolio` (`portfolio.py`), `hpfront.py`, `asyncapp.py`, and `buy_dip/executor.py` all subscribe
+to price updates with `symbol="ALL"`, relying on Binance's all-symbols ticker firehose to get a
+`AllTickers` broadcast for every coin. Kraken has no all-symbols stream (see "No all-tickers
+stream" above) — `BrokerSpot._signal_ws_subscribe` would call
+`WebSocketManager.subscribe_ticker("ALL")`, sending an invalid `symbol: ["ALL"]` subscribe frame
+to Kraken. This predates PR6 (it follows directly from the per-symbol subscription model decided
+for PR5) but PR6 is where it became concrete, since `handle_ticker_message` is what used to
+produce the `AllTickers` broadcast from Binance's all-symbols payload — there is no Kraken message
+shape to build that broadcast from anymore, so PR6 removed the `AllTickers`/`ALL_TICKERS` path
+from `handle_ticker_message` entirely rather than fake it. **Not fixed here** — needs its own PR:
+most likely, `symbol="ALL"` price subscribers need to subscribe per-held-coin instead of the
+literal string `"ALL"`. Until then, `Portfolio`/frontend live price updates for held coins do not
+work against a real Kraken connection (account-position/balance updates are unaffected — the
+`balances` channel is genuinely account-wide, no per-symbol issue there).
+
 ## Kraken AssetPairs → Symbol field mapping
 
 | Symbol field | Kraken `AssetPairs` field |
@@ -206,9 +241,9 @@ Replaces the old PLN / BNB / Convert logic. Priority order for `end_currency = U
 | 1 | `feature/kraken-ph1-constants-decoupling` | **MERGED** | `src/domain/constants.py`; replace all `binance.enums` imports in domain/strategies/tests |
 | 2 | `feature/kraken-ph2-order-id-str` | **MERGED** | `Order.order_id: int → str`; DB schema `order_id TEXT`; `str(resp["orderId"])` in position files |
 | 3 | `feature/kraken-ph3-client` | **MERGED** | `KrakenClient` class; XBT normalization; replace `binance.exceptions`; remove `python-binance` dep |
-| 4 | `feature/kraken-ph4-symbol-fetching` | IN REVIEW | Rewrite `fetch_symbols()` for Kraken `AssetPairs` |
-| 5 | `feature/kraken-ph5-websocket` | IN REVIEW | Kraken WS v2; per-symbol subscriptions; token auth + refresh; connection-silence watchdog; symbol metadata via `instrument` channel with REST `AssetPairs` fallback |
-| 6 | `feature/kraken-ph6-message-handlers` | TODO | Rewrite `message_handlers.py` for Kraken event schema |
+| 4 | `feature/kraken-ph4-symbol-fetching` | **MERGED** | Rewrite `fetch_symbols()` for Kraken `AssetPairs` |
+| 5 | `feature/kraken-ph5-websocket` | **MERGED** | Kraken WS v2; per-symbol subscriptions; token auth + refresh; connection-silence watchdog; symbol metadata via `instrument` channel with REST `AssetPairs` fallback |
+| 6 | `feature/kraken-ph6-message-handlers` | IN REVIEW | Rewrite `message_handlers.py` for Kraken event schema |
 | 7 | `feature/kraken-ph7-sell-factory` | TODO | Remove PLN/BNB/Convert; Kraken routing; update price resolver |
 
 ## KrakenClient gaps after PR3
@@ -227,8 +262,10 @@ field mapping" above). The following Binance-only methods are **still not implem
   `get_account` (`portfolio.py` balance sync) — not owned by any PR in this table yet; needs a
   decision on which PR picks these up (likely folded into PR4 or a follow-up).
 - `get_order` (used by `recovery/order_restorer.py`, `recovery/position_verifier.py`) — needs
-  the same `ORDER_STATUS_OPEN` + `cum_qty` status-normalization logic as PR6's message handler
-  rewrite, so it's deferred there rather than duplicated ad hoc in PR3.
+  the same `order_status` + `cum_qty` status-normalization logic PR6 implemented as
+  `_derive_order_status()` in `message_handlers.py`; that helper isn't reused here (recovery reads
+  via REST, not the executions WS channel) but the same mapping rules apply. Still not
+  implemented — not owned by any PR in this table yet.
 - `close_connection` (`main.py` shutdown path) — not yet decided whether `KrakenClient` needs
   explicit cleanup at all, since `kraken.spot.Trade` is sync/requests-based. Not owned by any PR.
 
@@ -249,6 +286,14 @@ still calls `create_order`/`cancel_order` with the old python-binance kwargs (`o
 It isn't mentioned anywhere in the architecture diagram or PR plan above. Marked with
 `# type: ignore[call-arg]` / `# type: ignore[arg-type]` for now; needs its own fix, most likely
 folded into whichever PR touches `buy_dip` next (none currently scheduled).
+
+PR6 widens this gap: `buy_dip/executor.py`'s kline handling (`event.get("k", {})`, reading Binance
+kline fields `o`/`h`/`l`/`c`/`v`/`t`/`T`/`x`) still expects the old Binance kline WS shape, but
+`handle_kline_message` now forwards raw Kraken `ohlc` channel entries instead (fields like
+`symbol`/`open`/`high`/`low`/`close`/`volume`/`interval_begin`/`interval` — no Binance-style `x`
+"is candle closed" flag; Kraken's `ohlc` channel just streams continuous updates per open interval
+and a consumer has to detect closes via `interval_begin` transitions). Also part of the
+not-yet-scheduled `buy_dip` fix.
 
 ## ORM discussion (deferred)
 
