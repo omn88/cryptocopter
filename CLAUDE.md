@@ -1,4 +1,4 @@
-# Cryptocopter — Developer Guide
+ Cryptocopter — Developer Guide
 
 ## Project overview
 
@@ -100,12 +100,14 @@ Distinguish partial fill by checking `cum_qty > 0` in the message handler.
 | GET | `/0/public/Ticker` | Price snapshot (replaces `get_all_tickers`) |
 | POST | `/0/private/GetWebSocketsToken` | One-time WS auth token (15 min expiry) |
 
-**WS v2:** `wss://ws.kraken.com/v2`
+**WS v2:** public channels on `wss://ws.kraken.com/v2`, authenticated (token) channels on
+`wss://ws-auth.kraken.com/v2` — two separate connections, not one shared URL. (Earlier revisions
+of this doc listed a single URL; corrected in PR5 after confirming against Kraken's docs.)
 
-- `ticker` channel: requires explicit per-symbol subscription (no all-tickers stream)
-- `executions` channel: order/fill updates, authenticated via token from GetWebSocketsToken
-- `balances` channel: account balance updates
-- `instrument` channel: all instrument metadata on subscribe (useful at startup)
+- `ticker` channel (public): requires explicit per-symbol subscription (no all-tickers stream)
+- `executions` channel (auth): order/fill updates, authenticated via token from GetWebSocketsToken
+- `balances` channel (auth): account balance updates
+- `instrument` channel (public): all instrument metadata on subscribe (useful at startup)
 
 ## Kraken WS — key differences from Binance
 
@@ -125,6 +127,14 @@ Need a token refresh loop inside `WebSocketManager`.
 **3. `"open"` status is ambiguous.**
 Kraken sends `"open"` for both NEW and PARTIALLY_FILLED orders. Detect partial fill:
 `exec_type == "trade"` AND `order_status == "open"` AND `cum_qty > 0`.
+
+**4. "Dead-man switch" scope decision (PR5).**
+Kraken has a real, separately-named "dead man's switch" feature (`cancelAllOrdersAfter`) that
+auto-cancels all resting orders if the bot stops pinging it — an order-safety mechanism, distinct
+from connection liveness. PR5 explicitly scoped "dead-man switch" as connection-watchdog only
+(each socket's own recv loop reconnects on message silence); `cancelAllOrdersAfter` was **not**
+implemented. If order safety on a dropped connection becomes a requirement, it needs its own PR —
+don't assume it's covered by the existing reconnect logic.
 
 ## Kraken execution report field mapping
 
@@ -154,15 +164,15 @@ Kraken sends `"open"` for both NEW and PARTIALLY_FILLED orders. Detect partial f
 `Symbol.lot_size` and `Symbol.max_qty` were removed in PR4 — neither had a Kraken `AssetPairs`
 equivalent, and grep confirmed nothing outside `symbol.py` ever read them.
 
-PR4 fetches symbol metadata via REST `AssetPairs` only. Kraken's WS `instrument` channel also
-pushes full instrument metadata on subscribe (see WS v2 reference above), which would let
-`fetch_symbols()` prefer live WS data and fall back to REST `AssetPairs` on WS failure/timeout —
-matching the "WS is primary, REST is fallback" direction the rest of the migration is heading.
-Deliberately deferred to PR5: no Kraken WS v2 connectivity (subscribe, auth, reconnect) exists
-anywhere in the codebase yet, and hand-rolling a one-off WS connection just for symbol metadata
-inside PR4 would be thrown away and rebuilt once PR5 lands real WS infra — breaking the
-"nothing broken in between" incremental-PR discipline. `KrakenClient.get_asset_pairs()`
-(REST) is expected to stay as the fallback implementation `fetch_symbols()` calls into.
+`fetch_symbols()` prefers live WS data (`KrakenClient.get_asset_pairs_ws()`, a one-shot connect
+→ subscribe to `instrument` → wait for the snapshot → disconnect) and falls back to REST
+`KrakenClient.get_asset_pairs()` on any exception, including timeout or an empty result — landed
+in PR5, per the "WS is primary, REST is fallback" migration direction. **Caveat:** the WS
+instrument-channel field mapping (`qty_precision`→`lot_decimals`, `price_precision`→`pair_decimals`,
+`qty_min`→`ordermin`, `cost_min`→`costmin`, `tick_size`/`price_increment`→`tick_size`) is based on
+Kraken's documented schema and has not been verified against a live connection — this codebase's
+test suite always mocks `KrakenClient`. Smoke-test `get_asset_pairs_ws()` against the real API
+before relying on it in production; the REST fallback is the safety net if the mapping is wrong.
 
 ## XBT normalization rule
 
@@ -197,7 +207,7 @@ Replaces the old PLN / BNB / Convert logic. Priority order for `end_currency = U
 | 2 | `feature/kraken-ph2-order-id-str` | **MERGED** | `Order.order_id: int → str`; DB schema `order_id TEXT`; `str(resp["orderId"])` in position files |
 | 3 | `feature/kraken-ph3-client` | **MERGED** | `KrakenClient` class; XBT normalization; replace `binance.exceptions`; remove `python-binance` dep |
 | 4 | `feature/kraken-ph4-symbol-fetching` | IN REVIEW | Rewrite `fetch_symbols()` for Kraken `AssetPairs` |
-| 5 | `feature/kraken-ph5-websocket` | TODO | Kraken WS v2; per-symbol subscriptions; token auth + refresh; dead-man switch; symbol metadata via `instrument` channel with REST `AssetPairs` fallback |
+| 5 | `feature/kraken-ph5-websocket` | IN REVIEW | Kraken WS v2; per-symbol subscriptions; token auth + refresh; connection-silence watchdog; symbol metadata via `instrument` channel with REST `AssetPairs` fallback |
 | 6 | `feature/kraken-ph6-message-handlers` | TODO | Rewrite `message_handlers.py` for Kraken event schema |
 | 7 | `feature/kraken-ph7-sell-factory` | TODO | Remove PLN/BNB/Convert; Kraken routing; update price resolver |
 
@@ -206,8 +216,11 @@ Replaces the old PLN / BNB / Convert logic. Priority order for `end_currency = U
 PR3 only implements what PR3 itself needs — `create_order`, `cancel_order` — via
 `kraken.spot.Trade` (python-kraken-sdk), wrapped in `asyncio.to_thread` since the SDK's REST
 clients are synchronous. PR4 adds `get_asset_pairs()` via `kraken.spot.Market`, same pattern.
-The following Binance-only methods are **still not implemented** on `KrakenClient` and will
-raise `AttributeError` if hit at runtime until their owning PR lands:
+PR5 adds `get_ws_token()` (via `Trade`'s generic signed-`request()` method — the SDK has no
+dedicated `GetWebSocketsToken` wrapper) and `get_asset_pairs_ws()` (one-shot raw-`websockets`
+connection to the public `instrument` channel; see the caveat under "Kraken AssetPairs → Symbol
+field mapping" above). The following Binance-only methods are **still not implemented** on
+`KrakenClient` and will raise `AttributeError` if hit at runtime until their owning PR lands:
 
 - `convert_request_quote` / `convert_accept_quote` (`hp_manager.py`) — deleted in PR7, not replaced
 - `get_all_tickers` (`usd_price_resolver.py`), `get_orderbook_ticker` (GUI symbol picker),
@@ -216,10 +229,13 @@ raise `AttributeError` if hit at runtime until their owning PR lands:
 - `get_order` (used by `recovery/order_restorer.py`, `recovery/position_verifier.py`) — needs
   the same `ORDER_STATUS_OPEN` + `cum_qty` status-normalization logic as PR6's message handler
   rewrite, so it's deferred there rather than duplicated ad hoc in PR3.
-- `_ws_api_request` / `ws_api` (`src/websocket/manager.py`, user data stream subscribe/unregister)
-  — WS-API token auth, PR5's job.
 - `close_connection` (`main.py` shutdown path) — not yet decided whether `KrakenClient` needs
   explicit cleanup at all, since `kraken.spot.Trade` is sync/requests-based. Not owned by any PR.
+
+`WebSocketManager`'s old `_ws_api_request`/`ws_api` gap (listen-key-style user stream, python-binance's
+WS-API pattern) no longer applies — PR5 replaced it outright with Kraken WS v2's two-connection,
+token-in-subscribe-frame model (see "Kraken WS — key differences from Binance" above), so there
+was nothing to implement on `KrakenClient` matching that old shape.
 
 None of these are exercised by the test suite (client is always mocked), so `pytest` stays
 green — but real recovery/portfolio/GUI runs against a live KrakenClient will fail on these
