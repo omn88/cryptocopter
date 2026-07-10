@@ -157,8 +157,6 @@ class PositionManager:
                 trade_type = (
                     TradeType.TWOHOP if len(sell_positions) > 1 else TradeType.DIRECT
                 )
-                if sell_pos.config.symbol.is_convert_only:
-                    trade_type = TradeType.CONVERT
 
                 position = Position(
                     hp_id=sell_pos.config.hp_id,

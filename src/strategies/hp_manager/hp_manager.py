@@ -475,23 +475,9 @@ class HpStrategy:
         # Get sell order realized quantity if available
         sell_realized_quantity = None
         if self.sell.current_position.sell_order:
-            # For convert positions, handle realized_quantity based on state
-            if self.sell.current_position.sell_type == SellType.CONVERT:
-                # For convert positions, check if the position is completed (SOLD state)
-                if self.sell.current_position.state_info.state == State.SOLD:
-                    # After completion, show the actual realized quantity
-                    sell_realized_quantity = (
-                        self.sell.current_position.sell_order.realized_quantity
-                    )
-                else:
-                    # During initialization and processing, use 0.0 as parent realized_quantity
-                    # since it represents what has been actually sold, not the inventory quantity
-                    sell_realized_quantity = 0.0
-            else:
-                # For regular positions, use the actual realized quantity
-                sell_realized_quantity = (
-                    self.sell.current_position.sell_order.realized_quantity
-                )
+            sell_realized_quantity = (
+                self.sell.current_position.sell_order.realized_quantity
+            )
 
         # Calculate expected quantity from budget and buy price
         expected_qty = 0.0
@@ -555,12 +541,9 @@ class HpStrategy:
         # Set specific child ID for sell operations
         full_hp_id = str(self.sell.current_position.config.hp_id)
 
-        # For convert and two-hop positions, the suffix is already added during position creation
+        # For two-hop child positions, the suffix is already added during position creation
         # so we just use the full ID as-is. For regular sell positions, we need to add _SELL suffix.
-        if (
-            self.sell.current_position.config.is_child
-            or self.sell.current_position.sell_type == SellType.CONVERT
-        ):
+        if self.sell.current_position.config.is_child:
             # Use the existing ID - suffix already added during position creation
             hp_update.hp_id = full_hp_id
         else:
@@ -844,11 +827,6 @@ class HpStrategy:
         return condition
 
     async def send_sell_order(self, *args: Any, **kwargs: Any) -> None:
-        if self.sell.current_position.config.symbol.is_convert_only:
-            await self.convert_position()
-            self.send_sell_position_to_ui()
-            return
-
         # Recalculate prices for multihop trades before execution
         if hasattr(self.sell, "sell_positions") and len(self.sell.sell_positions) > 1:
             logger.info(
@@ -913,114 +891,6 @@ class HpStrategy:
             self.worker_queue.put(
                 Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
             )
-
-    async def convert_position(self, max_spread: float = 0.01) -> None:
-        symbol = self.sell.current_position.config.symbol
-        if not symbol.is_convert_only:
-            logger.warning("Conversion not required for symbol: %s", symbol.name)
-            return
-
-        from_asset = symbol.extract_coin_from_symbol(symbol.name)
-        to_asset = self.sell.current_position.config.end_currency or "USDC"
-        quantity = symbol.format_quantity(self.sell.current_position.config.quantity)
-
-        try:
-            logger.info(
-                "Requesting convert quote from %s to %s, quantity: %s",
-                from_asset,
-                to_asset,
-                quantity,
-            )
-
-            # TODO(PR7): Convert path is being removed, not reimplemented for
-            # Kraken (no Convert API equivalent) — see CLAUDE.md sell-path table.
-            quote = await self.client.convert_request_quote(  # type: ignore[attr-defined]
-                fromAsset=from_asset,
-                toAsset=to_asset,
-                fromAmount=quantity,
-            )
-
-            quote_id = quote["quoteId"]
-            quoted_amount = float(quote["toAmount"])
-            effective_price = quoted_amount / float(quote["fromAmount"])
-
-            # Validate against price via USDT if necessary
-            usdt_pair = f"{from_asset}USDT"
-            market_price_usdt = self.sell.price_resolver.latest_prices.get(usdt_pair)
-
-            if not market_price_usdt:
-                logger.warning(
-                    "No market price available for %s, skipping convert", usdt_pair
-                )
-                return
-
-            spread = abs((market_price_usdt - effective_price) / market_price_usdt)
-            logger.info(
-                "Quote effective price: %.6f, market price (USDT): %.6f, spread: %.2f%%",
-                effective_price,
-                market_price_usdt,
-                spread * 100,
-            )
-
-            if spread > max_spread:
-                logger.warning(
-                    "Spread %.2f%% exceeds max allowed (%.2f%%), skipping convert",
-                    spread * 100,
-                    max_spread * 100,
-                )
-                return
-
-            # TODO(PR7): see convert_request_quote note above.
-            accept = await self.client.convert_accept_quote(  # type: ignore[attr-defined]
-                quoteId=quote_id
-            )
-            logger.info("Quote accepted: %s", accept)
-
-            self.sell.current_position.sell_order.status = ORDER_STATUS_FILLED
-            self.sell.current_position.sell_order.realized_quantity = float(quantity)
-            self.sell.current_position.state_info.state = State.SOLD
-            self.state = State.SOLD
-            self.sell.current_position.state_info.ui_state = UiState.CLOSED
-            self.sell.current_position.state_info.completeness = 1.0
-
-            # Emit a partial fill event (treat full convert as a single fill) so portfolio can
-            # reduce inventory immediately under the new "fills mutate inventory" rule.
-            try:
-                self.portfolio_event_helper.send_sell_position_partially_filled_event(
-                    hp_id=self.sell.current_position.config.hp_id,
-                    coin=self.sell.current_position.config.coin,
-                    filled_quantity=float(quantity),
-                    total_filled=float(quantity),
-                )
-            except Exception as e:
-                logger.error(
-                    "Failed sending convert partial fill event for %s: %s",
-                    self.sell.current_position.config.hp_id,
-                    e,
-                )
-
-            # Send HP sell position completed event to portfolio
-            self.portfolio_event_helper.send_sell_completion_event(
-                hp_id=self.sell.current_position.config.hp_id,
-                coin=self.sell.current_position.config.coin,
-                quantity_sold=float(quantity),
-                buy_price=self.sell.current_position.config.buy_price,
-                sell_price=self.sell.current_position.config.sell_price,
-                end_currency=to_asset,
-            )
-            logger.info(
-                "Sent HP sell position completed from CONVERT POSITION for: %s",
-                self.sell.current_position.config.hp_id,
-            )
-
-            signal = Signal.HP_ALL_ORDERS_FILLED
-            logger.info("All SELL orders filled, sending: %s", signal)
-            self.worker_queue.put(
-                Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
-            )
-
-        except Exception as e:
-            logger.error("Convert failed from %s to %s: %s", from_asset, to_asset, e)
 
     def conditions_for_all_orders_filled_buy(self, *args: Any, **kwargs: Any) -> bool:
         condition = (
@@ -1323,25 +1193,15 @@ class HpStrategy:
         self.send_sell_position_to_ui()
 
         if len(self.sell.sell_positions) == 1:
-            # Check if this is a convert operation - if so, completion event was already sent
-            is_convert_operation = (
-                self.sell.current_position.config.symbol.is_convert_only
+            # For direct sell (single position), send completion event instead of HPClose
+            self.portfolio_event_helper.send_sell_completion_event(
+                hp_id=hp_sell_completed.hp_id,
+                coin=hp_sell_completed.coin,
+                quantity_sold=hp_sell_completed.quantity_sold,
+                buy_price=hp_sell_completed.buy_price,
+                sell_price=hp_sell_completed.sell_price,
+                end_currency=hp_sell_completed.end_currency,
             )
-            if is_convert_operation:
-                logger.info(
-                    "Skipping duplicate completion event for convert operation: %s",
-                    self.sell.current_position.config.hp_id,
-                )
-            else:
-                # For direct sell (single position), send completion event instead of HPClose
-                self.portfolio_event_helper.send_sell_completion_event(
-                    hp_id=hp_sell_completed.hp_id,
-                    coin=hp_sell_completed.coin,
-                    quantity_sold=hp_sell_completed.quantity_sold,
-                    buy_price=hp_sell_completed.buy_price,
-                    sell_price=hp_sell_completed.sell_price,
-                    end_currency=hp_sell_completed.end_currency,
-                )
 
             # Also send HPClose to complete the position lifecycle
             self.config_queue.put_nowait(

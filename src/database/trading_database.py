@@ -795,11 +795,7 @@ class Database:
                 trade_type=(
                     TradeType.DIRECT
                     if data.sell_type == SellType.DIRECT
-                    else (
-                        TradeType.TWOHOP
-                        if data.sell_type == SellType.TWOHOPS
-                        else TradeType.CONVERT
-                    )
+                    else TradeType.TWOHOP
                 ),
                 completeness=state_info.completeness,
                 created_at=(

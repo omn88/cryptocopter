@@ -1282,6 +1282,10 @@ class HPSimulator:
 
         coin = "AXL"
 
+        # Two-hop leg2 (BTCUSDC) needs a distinct price from the direct-sell
+        # fixture default so hardcoded assertions further down this flow hold.
+        self.back.price_resolver.latest_prices["BTCUSDC"] = 320000.0
+
         sell_config = HPSell(
             config=HPSellConfig(
                 hp_id="",
@@ -1289,7 +1293,7 @@ class HPSimulator:
                 buy_price=0.2928,
                 sell_price=1.14,
                 quantity=quantity,
-                end_currency="PLN",
+                end_currency="USDC",
                 symbol=self.back.price_resolver.symbols[f"{coin}USDT"],
             ),
             state_info=StateInfo(side=PositionSide.SHORT),
@@ -1503,7 +1507,7 @@ class HPSimulator:
         logger.info("currente sell position: %s", strategy.sell.current_position)
         await wait_for_condition(
             condition_func=lambda: strategy.sell.current_position.config.symbol.name
-            == "BTCPLN"
+            == "BTCUSDC"
         )
 
         sell_order = strategy.sell.current_position.sell_order
@@ -1523,7 +1527,7 @@ class HPSimulator:
         )
         assert (
             self.front.hp_list_data[2]["coin"]
-            == f"{strategy.sell.current_position.config.coin}PLN"
+            == f"{strategy.sell.current_position.config.coin}USDC"
         )
         assert self.front.hp_list_data[2]["hp_id"] == "1000b"
         assert self.front.hp_list_data[2]["buy_price"] == "320000.0"
@@ -1564,7 +1568,7 @@ class HPSimulator:
 
         item = self.front.hp_list_data[2]
         assert item["hp_id"] == "1000b"
-        assert item["coin"] == "BTCPLN"
+        assert item["coin"] == "BTCUSDC"
         assert item["buy_price"] == "320000.0", f"buy price: {item['buy_price']}"
         assert item["quantity"] == "0.00356"  # Original quantity stays the same
         assert item["realized_quantity"] == "0.00178"  # Half of original was sold
@@ -1596,7 +1600,7 @@ class HPSimulator:
         assert strategy.state == State.SELLING
 
         await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[2]["coin"] == "BTCPLN"
+            condition_func=lambda: self.front.hp_list_data[2]["coin"] == "BTCUSDC"
         )
         assert isinstance(
             strategy.sell.current_position.sell_order, Order
@@ -1621,7 +1625,7 @@ class HPSimulator:
 
         item = self.front.hp_list_data[2]
         assert item["hp_id"] == "1000b"
-        assert item["coin"] == "BTCPLN", item["coin"]
+        assert item["coin"] == "BTCUSDC", item["coin"]
         assert (
             item["quantity"] == "0.00356"
         ), f"quantity to: {item['quantity']}"  # Original quantity
@@ -1647,41 +1651,6 @@ class HPSimulator:
         assert main_item["state"] == "SOLD"
         assert first_leg["state"] == "SOLD"
         assert second_leg["state"] == "SOLD"
-
-    async def simulate_convert_only_position(
-        self,
-        coin="DYM",
-        end_currency="USDC",
-        quantity=10.0,
-        buy_price=2.0,
-        sell_price=2.0,
-    ) -> HPSell:
-        """
-        Simulates a convert-only position (e.g., DYM/USDC) for E2E tests.
-        - Assumes the config queue and backend are ready.
-        - Mocks the convert quote/accept and market price.
-        - Waits for the frontend to reflect the expected state.
-        """
-        name = f"{coin}{end_currency}"
-
-        # Simulate sending config for convert-only position
-        hp_sell_data = HPSell(
-            config=HPSellConfig(
-                coin=coin,
-                buy_price=buy_price,
-                sell_price=sell_price,
-                quantity=quantity,
-                end_currency=end_currency,
-                symbol=Symbol(name=name, precision=5, price_precision=2),
-            ),
-            state_info=StateInfo(side=PositionSide.SHORT),
-        )
-        self.front.config_queue.put_nowait(hp_sell_data)
-        logger.info(
-            "Convert-only sell config added to the queue: %s", hp_sell_data.config
-        )
-
-        return hp_sell_data
 
     # ============================== COMPREHENSIVE VALIDATION METHODS ==============================
 
@@ -1934,7 +1903,7 @@ class HPSimulator:
 
         # Optional attributes - only validated if provided
         if coin is not None:
-            # Extract coin from the symbol (e.g., "AXLBTC" -> "AXL", "BTCPLN" -> "BTC")
+            # Extract coin from the symbol (e.g., "AXLBTC" -> "AXL", "BTCUSDC" -> "BTC")
             expected_coin_display = child["coin"]
             assert (
                 coin in expected_coin_display
@@ -2581,39 +2550,6 @@ class HPSimulator:
 
         logger.info("✓ Two-hop trade first leg setup (not completed)")
         return first_strategy, None
-
-    async def setup_convert_only_position(
-        self, symbol: str = "BTCUSD", quantity: float = 0.5
-    ) -> HpStrategy:
-        """
-        Setup convert-only position for testing.
-
-        A convert-only position is one where we already own the base asset
-        and just need to sell it (no buy phase).
-
-        Args:
-            symbol: Symbol for the position (should not have C suffix)
-            quantity: Quantity to sell
-
-        Returns:
-            The strategy in convert-only state
-
-        Example:
-            strategy = await sim.setup_convert_only_position(
-                symbol="BTCUSD",
-                quantity=0.5
-            )
-        """
-        logger.info("Setting up convert-only position for %s", symbol)
-
-        # Create a position that's already in SOLD state
-        # (convert-only positions skip the buy phase)
-        strategy = self.back.strategies["1000"]
-        strategy.sell.current_position.config.symbol.is_convert_only = True
-
-        logger.info("✓ Convert-only position ready")
-
-        return strategy
 
     async def simulate_cancel_and_resend_buy(
         self, new_price: Optional[float] = None

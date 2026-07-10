@@ -470,7 +470,7 @@ class RecoveryService:
             multihop_chains: Dict[str, List[Position]] = {}
 
             for position in active_positions:
-                if position.trade_type in [TradeType.TWOHOP, TradeType.CONVERT]:
+                if position.trade_type == TradeType.TWOHOP:
                     # Find the root parent
                     root_hp_id = position.hp_id
                     if position.parent_position_id:

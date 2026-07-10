@@ -138,8 +138,7 @@ class TestExtractCoinFromSymbol:
             ("ETHUSDC", "ETH"),
             ("SOLUSDC", "SOL"),
             ("ETHBTC", "ETH"),
-            ("ETHPLN", "ETH"),
-            ("ETHBNB", "ETH"),
+            ("AXLETH", "AXL"),
         ],
     )
     def test_known_quotes(self, symbol, expected):
