@@ -7,7 +7,7 @@ from kraken.spot import Market, Trade
 
 from src.domain.constants import ORDER_STATUS_NEW
 
-_KNOWN_QUOTE_CURRENCIES = ("USDC", "USDT", "BTC", "PLN", "BNB")
+_KNOWN_QUOTE_CURRENCIES = ("USDC", "USDT", "BTC", "ETH")
 _KRAKEN_WS_PUBLIC_URL = "wss://ws.kraken.com/v2"
 
 

@@ -64,14 +64,6 @@ class BaseSellStrategy(ABC):
         """
         pass
 
-    def should_use_convert(self) -> bool:
-        """Check if this strategy uses Binance convert API (not limit orders).
-
-        Returns:
-            True if strategy uses convert API, False for limit orders
-        """
-        return False
-
     async def recalculate_prices(self, sell_positions: List[SellPosition]) -> None:
         """Recalculate prices before execution (multihop specific).
 

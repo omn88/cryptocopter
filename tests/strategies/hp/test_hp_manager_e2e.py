@@ -801,138 +801,6 @@ async def test_sell_order_send_if_buy_position_realized_partially(hp_idle):
     assert item["state"] == "SELLING"
 
 
-async def test_default_convert_position(hp_sim):
-    sim = hp_sim
-    front, back = sim.front, sim.back
-
-    buy_price = 10.0
-    sell_price = 12.0
-    quantity = 100.0
-
-    # Simulate convert-only position (DYM/USDC)
-    await sim.simulate_convert_only_position(
-        coin="DYM",
-        buy_price=buy_price,
-        sell_price=sell_price,
-        quantity=quantity,
-    )
-
-    logger.info("Waiting for frontend to reflect the convert-only position...")
-
-    # Wait for frontend to reflect the convert-only position
-    await wait_for_condition(condition_func=lambda: front.hp_list_data)
-    item = front.hp_list_data[0]
-
-    logger.info("HP List after adding convert-only position: %s", front.hp_list_data)
-
-    # Find the convert-only item
-    assert item["buy_price"] == str(buy_price), f"buy price: {item['buy_price']}"
-    assert item["quantity"] == str(quantity), f"quantity: {item['quantity']}"
-    assert item["quantity_usd"] == str(
-        round(quantity * buy_price, 2)
-    ), f"quantity_usd: {item['quantity_usd']}"
-    assert item["sell_price"] == str(sell_price), f"sell price: {item['sell_price']}"
-    assert item["expected_return"] == "200.0"
-    assert item["current_price"] == "0.0"
-    assert item["net"] == "0.0"
-    assert item["net_percent"] == "0.0"
-    assert item["state"] == "BOUGHT"
-
-    strategy = back.strategies["1000"]
-
-    # Mock convert quote/accept methods on the client
-    convert_quote_result = {
-        "quoteId": "mock-quote-id",
-        "fromAsset": "DYM",
-        "toAsset": "USDC",
-        "fromAmount": str(quantity),
-        "toAmount": str(round(quantity * sell_price, 2)),
-        "ratio": str(sell_price),
-    }
-    convert_accept_result = {
-        "orderId": "mock-convert-order-id",
-        "status": "SUCCESS",
-        "filledAmount": str(quantity),
-        "receivedAmount": str(round(quantity * sell_price, 2)),
-    }
-    strategy.client.convert_request_quote = AsyncMock(return_value=convert_quote_result)
-    strategy.client.convert_accept_quote = AsyncMock(return_value=convert_accept_result)
-
-    # Trigger conversion by price
-    sim.new_price(price=12.0, symbol="DYMUSDT")
-
-    # Wait for conversion to be reflected in frontend
-    await wait_for_condition(lambda: front.hp_list_data[0]["state"] == "SOLD")
-
-    # Wait for realized_quantity to be updated
-    await wait_for_condition(
-        lambda: front.hp_list_data[0]["realized_quantity"] == str(quantity)
-    )
-
-    item = front.hp_list_data[0]
-    assert item["state"] == "SOLD"
-    assert item["quantity"] == str(
-        quantity
-    ), f"quantity: {item['quantity']}"  # Should remain original quantity
-    assert item["realized_quantity"] == str(
-        quantity
-    ), f"realized_quantity: {item['realized_quantity']}"  # Should show what was sold
-    assert item["quantity_usd"] == str(
-        round(quantity * buy_price, 2)
-    ), f"quantity_usd: {item['quantity_usd']}"  # Should remain original USD value
-    assert item["net"] == "0.0"
-    assert item["net_percent"] == "0.0"
-    assert item["buy_price"] == str(buy_price)
-    assert item["sell_price"] == str(sell_price)
-    assert item["expected_return"] == "200.0"
-
-
-async def test_convert_position_spread_too_high(hp_sim):
-    sim = hp_sim
-    front, back = sim.front, sim.back
-
-    buy_price = 10.0
-    sell_price = 12.0
-    quantity = 100.0
-
-    # Simulate convert-only position (DYM/USDC)
-    await sim.simulate_convert_only_position(
-        coin="DYM",
-        buy_price=buy_price,
-        sell_price=sell_price,
-        quantity=quantity,
-    )
-
-    # Wait for frontend to reflect the convert-only position
-    await wait_for_condition(condition_func=lambda: front.hp_list_data)
-    item = front.hp_list_data[0]
-    assert item["state"] == "BOUGHT"
-
-    strategy = back.strategies["1000"]
-
-    # Mock convert quote/accept methods on the client with a high spread (market price much lower than effective price)
-    convert_quote_result = {
-        "quoteId": "mock-quote-id",
-        "fromAsset": "DYM",
-        "toAsset": "USDC",
-        "fromAmount": str(quantity),
-        "toAmount": "1162.32",
-    }
-    strategy.client.convert_request_quote = AsyncMock(return_value=convert_quote_result)
-
-    # Set a market price much lower than the effective price to create a spread > 1%
-    sim.new_price(price=12.0, symbol="DYMUSDT")
-
-    # Wait a short time to ensure no state change
-    await asyncio.sleep(0.2)
-    item = front.hp_list_data[0]
-    assert (
-        item["state"] == "BOUGHT"
-    ), f"Expected state to remain BOUGHT, got {item['state']}"
-    assert item["quantity"] == str(quantity)
-    assert item["quantity_usd"] == str(round(quantity * buy_price, 2))
-
-
 async def test_multihop_sell_price_recalculation_on_trigger(hp_sim):
     """
     Test that multihop sell prices are recalculated based on current market prices
@@ -954,9 +822,6 @@ async def test_multihop_sell_price_recalculation_on_trigger(hp_sim):
     # BTC/USDC = 95000.0 (this will change later to test recalculation)
     initial_btc_price = 95000.0
     back.price_resolver.update_price("BTCUSDC", initial_btc_price)
-    back.price_resolver.update_price(
-        "BTCPLN", 320000.0
-    )  # Not used, just for completeness
 
     # Calculate initial AXLBTC price based on target 14.0 USD
     # If we want AXL to be worth 14.0 USD and BTC is 95000 USD:
@@ -1132,7 +997,6 @@ async def test_multihop_sell_uses_trigger_price_not_early_trigger(hp_sim):
     # Setup market prices
     btc_price = 95000.0
     back.price_resolver.update_price("BTCUSDC", btc_price)
-    back.price_resolver.update_price("BTCPLN", 320000.0)
 
     target_price = 14.0
     axlbtc_price = target_price / btc_price

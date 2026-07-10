@@ -233,6 +233,24 @@ Replaces the old PLN / BNB / Convert logic. Priority order for `end_currency = U
 4. **No path found:** raise `ValueError` — coin has no Kraken pair, handle manually
 
 `ConvertSellStrategy` is deleted. `SellType.CONVERT` and `TradeType.CONVERT` are deleted.
+`Symbol.is_convert_only` is deleted too — it was only ever set by the now-deleted convert path.
+
+PR7 also updated the quote-currency lists that mirror this routing decision, so a symbol ending
+in PLN or BNB is no longer treated as parseable/tradeable anywhere: `Symbol.extract_coin_from_symbol`,
+`KrakenClient._KNOWN_QUOTE_CURRENCIES` (`src/common/client.py`), and `StrategyExecutor.supported_quotes`
+(`src/strategy_executor.py`) all dropped `PLN`/`BNB` and added `ETH`. `UsdPriceResolver.resolve_usd`
+(`src/portfolio/usd_price_resolver.py`) was rewritten to mirror the exact same three-priority
+routing (direct USDC → via BTC → via ETH → raise), replacing the old USDT-fallback/exotic-pair-loop
+logic; its `get_all_tickers()` REST call is unchanged and still unimplemented on `KrakenClient`
+(see the gaps list below — not this PR's scope).
+
+**Not touched — pre-existing dead code, not wired to anything PR7 removed:** the GUI layer
+(`src/gui/hp_manager/hp_data_manager.py`, `hp_position_updater.py`, `hp_state_calculator.py`,
+`hpfront.py`) still has classification branches for an `hp_id` ending in `"_CONVERT"` and for
+`symbol.is_convert_only`. Grepping for where a `"_CONVERT"`-suffixed `hp_id` is ever *assigned*
+turned up nothing — `ConvertSellStrategy.build_positions()` never added that suffix, so this GUI
+code was already unreachable before PR7 deleted the strategy that (didn't) feed it. Left in place
+rather than expanded into GUI cleanup, since it was never live behavior to begin with.
 
 ## Migration PR plan
 
@@ -243,8 +261,8 @@ Replaces the old PLN / BNB / Convert logic. Priority order for `end_currency = U
 | 3 | `feature/kraken-ph3-client` | **MERGED** | `KrakenClient` class; XBT normalization; replace `binance.exceptions`; remove `python-binance` dep |
 | 4 | `feature/kraken-ph4-symbol-fetching` | **MERGED** | Rewrite `fetch_symbols()` for Kraken `AssetPairs` |
 | 5 | `feature/kraken-ph5-websocket` | **MERGED** | Kraken WS v2; per-symbol subscriptions; token auth + refresh; connection-silence watchdog; symbol metadata via `instrument` channel with REST `AssetPairs` fallback |
-| 6 | `feature/kraken-ph6-message-handlers` | IN REVIEW | Rewrite `message_handlers.py` for Kraken event schema |
-| 7 | `feature/kraken-ph7-sell-factory` | TODO | Remove PLN/BNB/Convert; Kraken routing; update price resolver |
+| 6 | `feature/kraken-ph6-message-handlers` | **MERGED** | Rewrite `message_handlers.py` for Kraken event schema |
+| 7 | `feature/kraken-ph7-sell-factory` | IN REVIEW | Remove PLN/BNB/Convert; Kraken routing; update price resolver |
 
 ## KrakenClient gaps after PR3
 

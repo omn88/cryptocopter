@@ -129,12 +129,10 @@ async def strategy_executor_fixture(
         "ETHUSDT": Symbol(name="ETHUSDT", precision=5, price_precision=2),
         "AXLUSDT": Symbol(name="AXLUSDT", precision=5, price_precision=4),
         "AXLBTC": Symbol(name="AXLBTC", precision=5, price_precision=8),
-        "BTCPLN": Symbol(name="BTCPLN", precision=5, price_precision=2),
         "DYMUSDT": Symbol(name="DYMUSDT", precision=5, price_precision=4),
     }
     # Create the StrategyExecutor instance
     price_resolver = UsdPriceResolver(client=mock_async_client, symbols=symbols)
-    price_resolver.latest_prices["BTCPLN"] = 320000.0
     price_resolver.latest_prices["BTCUSDC"] = 100000.0
 
     executor = StrategyExecutor(
@@ -237,7 +235,6 @@ async def hp_gui(mock_async_client) -> AsyncGenerator:
             "BTCUSDC": Symbol(name="BTCUSDC", precision=5, price_precision=2),
         }  # Create the StrategyExecutor instance
         price_resolver = UsdPriceResolver(client=mock_async_client, symbols=symbols)
-        price_resolver.latest_prices["BTCPLN"] = 320000.0
         price_resolver.latest_prices["BTCUSDC"] = 100000.0
 
         gui = HpFront(
@@ -369,12 +366,10 @@ async def crash_recovery_factory(test_db: Database, mock_async_client, mock_inve
             "ETHUSDT": Symbol(name="ETHUSDT", precision=5, price_precision=2),
             "AXLUSDT": Symbol(name="AXLUSDT", precision=5, price_precision=4),
             "AXLBTC": Symbol(name="AXLBTC", precision=5, price_precision=8),
-            "BTCPLN": Symbol(name="BTCPLN", precision=5, price_precision=2),
             "DYMUSDT": Symbol(name="DYMUSDT", precision=5, price_precision=4),
         }
 
         price_resolver = UsdPriceResolver(client=mock_async_client, symbols=symbols)
-        price_resolver.latest_prices["BTCPLN"] = 320000.0
         price_resolver.latest_prices["BTCUSDC"] = 100000.0
 
         # Create backend
@@ -875,7 +870,6 @@ def portfolio_ui(test_db: Database, mock_async_client, mock_inventory):
         "ETHUSDT": Symbol(name="ETHUSDT", precision=5, price_precision=2),
         "AXLUSDT": Symbol(name="AXLUSDT", precision=5, price_precision=4),
         "AXLBTC": Symbol(name="AXLBTC", precision=5, price_precision=8),
-        "BTCPLN": Symbol(name="BTCPLN", precision=5, price_precision=2),
         "DYMUSDT": Symbol(name="DYMUSDT", precision=5, price_precision=4),
         "USDCUSDT": Symbol(
             name="USDCUSDT", precision=2, price_precision=4
@@ -1043,14 +1037,12 @@ async def portfolio_crash_recovery_factory(
             "ETHUSDT": Symbol(name="ETHUSDT", precision=5, price_precision=2),
             "AXLUSDT": Symbol(name="AXLUSDT", precision=5, price_precision=4),
             "AXLBTC": Symbol(name="AXLBTC", precision=5, price_precision=8),
-            "BTCPLN": Symbol(name="BTCPLN", precision=5, price_precision=2),
             "DYMUSDT": Symbol(name="DYMUSDT", precision=5, price_precision=4),
             "USDCUSDT": Symbol(name="USDCUSDT", precision=2, price_precision=4),
         }
 
         # Create price resolver
         price_resolver = UsdPriceResolver(client=mock_async_client, symbols=symbols)
-        price_resolver.latest_prices["BTCPLN"] = 320000.0
         price_resolver.latest_prices["BTCUSDC"] = 100000.0
 
         # Create Portfolio UI with real database persistence

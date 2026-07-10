@@ -76,7 +76,6 @@ class Mode(Enum):
 class SellType(Enum):
     DIRECT = auto()
     TWOHOPS = auto()
-    CONVERT = auto()
 
 
 class SubscriptionType(Enum):

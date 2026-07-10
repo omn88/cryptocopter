@@ -13,7 +13,6 @@ class Symbol:
         price_filter: float = 0,
         precision: int = 0,
         price_precision: int = 0,
-        is_convert_only: bool = False,
     ):
         self.name = name
         self.min_notional = min_notional
@@ -21,14 +20,13 @@ class Symbol:
         self.price_filter = price_filter
         self.precision = precision
         self.price_precision = price_precision
-        self.is_convert_only = is_convert_only
 
     def __repr__(self) -> str:
         return (
             f"Symbol(name={self.name}, min_notional={self.min_notional}, "
             f"min_qty={self.min_qty}, "
             f"price_filter={self.price_filter}, precision={self.precision}, "
-            f"price_precision={self.price_precision}, is_convert_only={self.is_convert_only})"
+            f"price_precision={self.price_precision})"
         )
 
     def _format_decimal(self, value: float, precision: int) -> str:
@@ -76,7 +74,7 @@ class Symbol:
             )
 
     def extract_coin_from_symbol(self, symbol: str) -> str:
-        known_quote_currencies = ["BTC", "USDC", "PLN", "BNB", "USDT"]
+        known_quote_currencies = ["BTC", "ETH", "USDC", "USDT"]
         for quote in known_quote_currencies:
             if symbol.endswith(quote):
                 return symbol[: -len(quote)]

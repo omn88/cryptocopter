@@ -42,7 +42,6 @@ class TradeType(Enum):
 
     DIRECT = "DIRECT"  # Direct trade (e.g., BTC/USDC)
     TWOHOP = "TWOHOP"  # Two-hop trade (e.g., BTC->ETH->USDC)
-    CONVERT = "CONVERT"  # Binance Convert API
 
 
 class OrderStatus(Enum):

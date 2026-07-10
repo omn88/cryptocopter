@@ -60,7 +60,7 @@ class StrategyExecutor:
         self.config_queue: queue.Queue = queue.Queue()
         self.strategies: Dict[str, HpStrategy] = {}
         self.inventory_manager = InventoryManager(inventory)  # Create inventory manager
-        self.supported_quotes = ["USDC", "PLN", "BTC", "BNB", "USDT"]
+        self.supported_quotes = ["USDC", "BTC", "ETH", "USDT"]
         self.test_mode = test_mode
         self.price_resolver = price_resolver
         self.client: Optional[KrakenClient] = client
@@ -750,11 +750,8 @@ class StrategyExecutor:
                     portfolio_ui_queue=self.portfolio_ui_queue,
                 )
 
-                # For convert-only positions, use parent HP ID as strategy key
                 full_hp_id = sell_data.config.hp_id
-                if "_CONVERT" in full_hp_id:
-                    strategy_key = full_hp_id.split("_CONVERT")[0]
-                elif "_SELL" in full_hp_id:
+                if "_SELL" in full_hp_id:
                     strategy_key = full_hp_id.split("_SELL")[0]
                 else:
                     strategy_key = full_hp_id
@@ -948,7 +945,7 @@ class StrategyExecutor:
 
         # Patch: Set symbol from strategy's sell path
         first_symbol = sell_strategy.sell_path[0]
-        if first_symbol.is_convert_only or first_symbol.name.endswith("USDC"):
+        if first_symbol.name.endswith("USDC"):
             strategy_data.config.symbol = first_symbol
 
         if not strategy_data.config.hp_id:

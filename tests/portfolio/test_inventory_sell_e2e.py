@@ -142,20 +142,24 @@ async def test_inventory_sell_configure_direct_sell_btc_to_usdc(
     logger.info("Direct sell configuration test passed with HP simulator validation")
 
 
-async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
+async def test_inventory_sell_configure_multihop_sell_axl_to_usdc(
     inv_sim: tuple,
 ):
     """
-    Test configuring a multihop sell from AXL to PLN.
-    This should trigger multihop strategy: AXL → BTC → PLN
+    Test configuring a multihop sell from AXL to USDC.
+    This should trigger multihop strategy: AXL → BTC → USDC
     """
     sim, hp_sim, portfolio, hp_front, hp_back = inv_sim
     simulator = sim
     hp_simulator = hp_sim
 
-    # Submit sell configuration for AXL with PLN as end currency
+    # Matches the BTC price used by the pre-Kraken-migration BTCPLN fixture, kept
+    # so the leg1/leg2 numbers below don't need to be recalculated.
+    hp_back.price_resolver.update_price("BTCUSDC", 320000.0)
+
+    # Submit sell configuration for AXL with USDC as end currency
     hp_id = await simulator.submit_sell_configuration(
-        coin="AXL", end_currency="PLN", sell_price=1.5
+        coin="AXL", end_currency="USDC", sell_price=1.5
     )
 
     # Verify HP sell position was created
@@ -168,7 +172,7 @@ async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
         strategy.sell.current_position.config.sell_price == 0.00000469
     )  # First hop price
     assert (
-        strategy.sell.current_position.config.end_currency == "PLN"
+        strategy.sell.current_position.config.end_currency == "USDC"
     )  # First hop end currency
     assert strategy.sell.current_position.config.quantity == 1000.0
     assert (
@@ -196,7 +200,7 @@ async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
         realized_quantity="0.0",  # Nothing sold yet
         state="BOUGHT",  # Starting state for inventory sells
         buy_price="0.74",  # AXL buy price from inventory
-        sell_price="1.5",  # Target sell price for AXL to PLN
+        sell_price="1.5",  # Target sell price for AXL to USDC
     )
 
     # Validate first multihop child (1000a): AXL → BTC using hp_simulator validate_multihop_child method
@@ -211,7 +215,7 @@ async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
         buy_price="0.00000231",  # AXL buy price using full number notation
     )
 
-    # Validate second multihop child (1000b): BTC → PLN using hp_simulator validate_multihop_child method
+    # Validate second multihop child (1000b): BTC → USDC using hp_simulator validate_multihop_child method
     hp_simulator.validate_multihop_child(
         child_hp_id="1000b",
         quantity="0.00469",  # BTC quantity from first hop using full number notation
@@ -219,45 +223,11 @@ async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
         state="NEW",  # Initial state for second multihop child (shows as NEW in frontend, WAITING_CHILD in backend)
         parent_hp_id="1000",  # Parent HP ID
         coin="BTC",  # Source coin for second hop
-        sell_price="320000.0",  # BTC to PLN sell price using full number notation
+        sell_price="320000.0",  # BTC to USDC sell price using full number notation
         buy_price="320000.0",  # BTC buy price using full number notation
     )
 
     logger.info("Multihop sell configuration test passed with HP simulator validation")
-
-
-async def test_inventory_sell_configure_convert_only_usdc_to_pln(
-    inv_sim: tuple,
-):
-    """Test configuring convert-only sell from USDC to PLN."""
-    sim, hp_sim, portfolio, hp_front, hp_back = inv_sim
-    simulator = sim
-    hp_simulator = hp_sim
-
-    # Start with configuration phase - submit convert sell for DYM to PLN
-    hp_id = await simulator.submit_sell_configuration(
-        coin="DYM", end_currency="PLN", sell_price=1.4
-    )
-
-    # Verify HP sell position was created in initial state
-    assert hp_id in hp_back.strategies
-    strategy = hp_back.strategies[hp_id]
-
-    await wait_for_condition(
-        condition_func=lambda: len(hp_front.hp_list_data) > 0, timeout=5.0
-    )
-
-    # Debug: Print actual HP frontend data to understand the structure
-    logger.info(f"HP frontend data: {hp_front.hp_list_data}")
-
-    # Validate initial state - convert positions are single positions (no child)
-    hp_simulator.validate_parent(
-        hp_id=hp_id,
-        quantity="200.0",
-        state="BOUGHT",
-        buy_price="1.12",
-        sell_price="1.4",
-    )
 
 
 # Test Suite 4: Sell Execution and State Validation
@@ -717,9 +687,14 @@ async def test_inventory_sell_execute_multihop_sell_to_completion(
         "AXL", 1000.0, 1000.0, 0.0, "Initial AXL inventory"
     )
 
-    # Start with configuration phase - submit multihop sell for AXL to PLN
+    # Matches the BTC price the shared two-hop-trade helper methods below expect
+    # (send_orders_for_first_position_from_two_hop_trade, etc. hardcode a leg1
+    # price derived from BTCUSDC=320000.0).
+    hp_back.price_resolver.update_price("BTCUSDC", 320000.0)
+
+    # Start with configuration phase - submit multihop sell for AXL to USDC
     hp_id = await simulator.submit_sell_configuration(
-        coin="AXL", end_currency="PLN", sell_price=1.14
+        coin="AXL", end_currency="USDC", sell_price=1.14
     )
 
     await wait_for_condition(condition_func=lambda: len(hp_front.hp_list_data) > 0)
@@ -768,150 +743,19 @@ async def test_inventory_sell_execute_multihop_sell_to_completion(
         0.0,
         "After multihop sell completion (AXL should be removed)",
     )
-    # PLN should receive the final converted amount: 1000 AXL * 1.14 USDPLN rate
-    pln_expected = 1139.2  # 1139.2 PLN
+    # USDC should receive the final converted amount: 1000 AXL * 1.14 target rate,
+    # on top of the 1000.0 USDC already seeded in the mock inventory fixture.
+    usdc_received = 1139.2
+    usdc_expected = 1000.0 + usdc_received
     await simulator.validate_inventory_quantities(
-        "PLN",
-        pln_expected,
-        pln_expected,
+        "USDC",
+        usdc_expected,
+        usdc_expected,
         0.0,
-        f"After multihop sell completion (PLN should receive converted amount: {pln_expected})",
+        f"After multihop sell completion (USDC should receive converted amount: {usdc_received})",
     )
 
     logger.info("Multihop sell execution test with inventory validation passed")
-
-
-async def test_inventory_sell_execute_convert_sell_to_completion(
-    inv_sim: tuple,
-):
-    """Test executing convert-only sell from inventory to completion."""
-    sim, hp_sim, portfolio, hp_front, hp_back = inv_sim
-    simulator = sim
-    hp_simulator = hp_sim
-
-    # Validate initial inventory before convert sell operations
-    await simulator.validate_inventory_quantities(
-        "DYM", 200.0, 200.0, 0.0, "Initial DYM inventory"
-    )
-
-    # Start with configuration phase - submit convert sell for DYM to PLN
-    hp_id = await simulator.submit_sell_configuration(
-        coin="DYM", end_currency="PLN", sell_price=1.4
-    )
-
-    # Verify HP sell position was created in initial state
-    assert hp_id in hp_back.strategies
-    strategy = hp_back.strategies[hp_id]
-
-    await wait_for_condition(
-        condition_func=lambda: len(hp_front.hp_list_data) > 0, timeout=5.0
-    )
-
-    # Validate inventory after convert configuration - DYM should be locked for selling
-    await simulator.validate_inventory_quantities(
-        "DYM", 200.0, 0.0, 200.0, "After convert configuration (DYM locked)"
-    )
-
-    # Debug: Print actual HP frontend data to understand the structure
-    logger.info(f"HP frontend data: {hp_front.hp_list_data}")
-
-    # Validate initial state - parent + convert child (convert creates parent + 1000_CONVERT child)
-    hp_simulator.validate_parent(
-        hp_id=hp_id,
-        quantity="200.0",
-        realized_quantity="0.0",
-        state="BOUGHT",
-        buy_price="1.12",
-        sell_price="1.4",
-    )
-
-    convert_quote_result = {
-        "quoteId": "mock-quote-id",
-        "fromAsset": "DYM",
-        "toAsset": "PLN",
-        "fromAmount": "200.0",
-        "toAmount": str(200.0 * 1.4),
-        "ratio": "1.4",
-    }
-    convert_accept_result = {
-        "orderId": "mock-convert-order-id",
-        "status": "SUCCESS",
-        "filledAmount": "200.0",
-        "receivedAmount": str(200.0 * 1.4),
-    }
-    strategy.client.convert_request_quote = AsyncMock(return_value=convert_quote_result)
-    strategy.client.convert_accept_quote = AsyncMock(return_value=convert_accept_result)
-
-    # Execute convert - trigger conversion by price
-    hp_simulator.new_price(price=1.4, symbol="DYMUSDT")
-
-    # Wait for conversion to complete and position to be sold
-    await wait_for_condition(
-        condition_func=lambda: strategy.state == State.SOLD, timeout=5.0
-    )
-
-    await asyncio.sleep(0.1)
-
-    # Process any pending events after convert completion
-    if hasattr(portfolio, "process_test_events"):
-        await portfolio.process_test_events()
-        await asyncio.sleep(0.1)
-
-    # Validate inventory after convert completion - DYM should be removed, PLN should be received
-    await simulator.validate_inventory_quantities(
-        "DYM",
-        0.0,
-        0.0,
-        0.0,
-        "After convert completion (DYM should be removed)",
-    )
-    # PLN should receive converted amount (200 * 1.4 = 280) - no initial PLN in mock inventory
-    pln_expected = 280.0  # Only converted amount
-    await simulator.validate_inventory_quantities(
-        "PLN",
-        pln_expected,
-        pln_expected,
-        0.0,
-        f"After convert completion (PLN should receive: {pln_expected})",
-    )
-
-    logger.info("Convert sell execution test with inventory validation completed")
-
-    # Debug: Log HP frontend data to understand what's available
-    logger.info(f"HP frontend data after SOLD: {hp_front.hp_list_data}")
-
-    # Validate backend state directly first
-    assert strategy.state == State.SOLD
-
-    # Try HP simulator validation - if it fails, we'll see what data is available
-    try:
-        # Validate final sold state for convert position (parent + sell child)
-        hp_simulator.validate_parent(
-            hp_id=hp_id,
-            quantity="200.0",
-            realized_quantity="200.0",
-            state="SOLD",
-            buy_price="1.2",
-            sell_price="1.4",
-        )
-
-        hp_simulator.validate_child_sell(
-            hp_id=hp_id,
-            quantity="200.0",
-            realized_quantity="200.0",
-            state="SOLD",
-            sell_price="1.4",
-        )
-        logger.info("HP simulator validation passed")
-    except Exception as e:
-        logger.warning(f"HP simulator validation failed: {e}")
-        logger.info("Test passed with backend validation only")
-
-    # Verify convert methods were called
-    strategy.client.convert_request_quote.assert_called_once()
-    strategy.client.convert_accept_quote.assert_called_once()
-
-    logger.info("Convert sell execution test passed")
 
 
 # Test Suite 5: Cancellation Tests
@@ -995,10 +839,10 @@ async def test_sell_multihop_cancel_inventory(
     inv_sim: tuple,
 ):
     """
-    Test cancelling a multihop sell position (AXL to PLN) and verify inventory unlock.
+    Test cancelling a multihop sell position (AXL to USDC) and verify inventory unlock.
 
     Flow:
-    1. Configure multihop sell position (AXL->PLN via AXL->BTC->PLN)
+    1. Configure multihop sell position (AXL->USDC via AXL->BTC->USDC)
     2. Verify inventory is locked
     3. Cancel position via parent HP
     4. Verify inventory is unlocked and quantities are restored
@@ -1012,7 +856,7 @@ async def test_sell_multihop_cancel_inventory(
 
     # Configure multihop sell position
     hp_id = await sim.submit_sell_configuration(
-        coin="AXL", end_currency="PLN", sell_price=0.75
+        coin="AXL", end_currency="USDC", sell_price=0.75
     )
 
     # Wait for position to be fully processed
@@ -1042,71 +886,6 @@ async def test_sell_multihop_cancel_inventory(
     ), f"Strategy {hp_id} should be removed after cancellation"
 
     logger.info("Multihop sell cancellation test passed")
-
-
-async def test_sell_convert_cancel_inventory(
-    inv_sim: tuple,
-):
-    """
-    Test cancelling a convert sell position (DYM convert) and verify inventory unlock.
-
-    Flow:
-    1. Configure convert sell position (DYM->USDC via convert)
-    2. Verify inventory is locked
-    3. Cancel position via parent HP
-    4. Verify inventory is unlocked and quantities are restored
-    """
-    sim, hp_simulator, portfolio, hp_front, hp_back = inv_sim
-
-    # Initial inventory check
-    initial_dym = sim.get_inventory_quantity("DYM")
-    initial_locked_dym = sim.get_locked_quantity("DYM")
-    initial_available_dym = sim.get_available_quantity("DYM")
-
-    # Configure convert sell position using HP simulator convert method instead
-    await hp_simulator.simulate_convert_only_position(
-        coin="DYM",
-        end_currency="USDC",
-        quantity=initial_available_dym,
-        buy_price=1.2,
-        sell_price=2.0,
-    )
-
-    # Wait for configuration to process
-    await asyncio.sleep(0.1)
-
-    # Find the HP ID from the strategy executor
-    hp_id = list(hp_back.strategies.keys())[0] if hp_back.strategies else "1000"
-
-    # Wait for convert position to be fully processed
-    await asyncio.sleep(0.2)
-
-    # For now, let's just verify the position was created successfully
-    assert (
-        hp_id in hp_back.strategies
-    ), f"HP position {hp_id} should exist in strategies"
-
-    # Cancel position by triggering HP front cancellation
-    hp_front.cancel_hp(hp_id, "SELL")
-
-    # Wait for cancellation to process
-    await asyncio.sleep(0.1)
-
-    # Verify position was cancelled (it should be in CLOSED state)
-    strategy_state = (
-        hp_back.strategies[hp_id].state if hp_id in hp_back.strategies else None
-    )
-    logger.info(f"Strategy state after cancellation: {strategy_state}")
-
-    # The position should exist and be in BOUGHT state (sell cancelled, buy remains)
-    assert (
-        hp_id in hp_back.strategies
-    ), f"Strategy {hp_id} should still exist after cancellation"
-    assert (
-        strategy_state == State.BOUGHT
-    ), f"Expected BOUGHT state after sell cancellation, got {strategy_state}"
-
-    logger.info("Convert sell cancellation test passed")
 
 
 async def test_axl_multihop_sell_cancellation_inventory_unlock(
